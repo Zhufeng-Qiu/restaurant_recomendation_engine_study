@@ -48,10 +48,11 @@ Three terms used throughout, if the vocabulary is unfamiliar:
 - **f64 / i32 / packed** — the three payload encodings, 48 / 24 / 16 bytes
   per pair. All three produce bit-identical results.
 
-**Reading path.** The section below gives the numbers. "Lossless compression"
-explains how the packing works. "The same techniques on a slow interconnect"
-is the main result. Everything after that is the Nsight evidence and is safe
-to skip unless you want the mechanism.
+**Reading path.** This README is the result. The section below gives the
+numbers, "Lossless compression" explains how the packing works, and "The same
+techniques on a slow interconnect" is the main finding. The mechanism behind
+all of it — overlap ceilings, Nsight traces, per-link regimes — lives in
+[docs/analysis.md](docs/analysis.md).
 
 ## Layout
 
@@ -60,6 +61,7 @@ to skip unless you want the mechanism.
 | `original_code/` | Frozen original homework code + data (SHA-256 manifest, read-only) |
 | `spark_pipeline/` | Maintained PySpark baseline: `cf_train.py`, `cf_predict.py`, fixture exporter, pinned env |
 | `docs/pearson_contract.md` | The frozen numerical contract every backend implements |
+| `docs/analysis.md` | Mechanism: roofline of the overlap, Nsight evidence, per-link regimes |
 | `tools/` | Spark-free validator, reference impl, archived-model cross-check, RMSE loop |
 | `data/fixtures/` | 4 exported workloads (CSR ratings + candidate pairs + golden sims) |
 | `engine/` | Native engine: CMake, serial/OpenMP/MPI/CUDA/NCCL backends, tests, bench |
@@ -183,38 +185,18 @@ Correctness first: all 18 device gates pass bit-exact — 3 payloads x
 (557,478 / 634,993). The CPU-side `cuda_emulation_test` agrees over the same
 2.58 M pairs at 1-, 2-, and 3-way rank splits.
 
-Measured on 2x A100 SXM (NV12), `item_full`, median of 5 trials after 2
-warm-ups:
+On NVLink the 3x payload cut made the collective **1.9x faster**
+(0.471 -> 0.246 ms) but the iteration only **4.3%** faster, because the
+collective was just 10.7% of it to begin with. The single-GPU rows are the
+control: with no peer to reduce against, totals sit within 0.6% of each other
+at every payload, so the packing itself costs nothing measurable and the whole
+effect lives in the collective, exactly where the design put it.
+[Full breakdown](docs/analysis.md#where-the-nvlink-gain-went).
 
-| `--payload` | AllReduce moves | AllReduce time | Total device time | Comm share |
-| --- | --- | --- | --- | --- |
-| `f64` | 56.25 MB | 0.471 ms | 4.396 ms | 10.7% |
-| `i32` | 28.12 MB | 0.318 ms | 4.254 ms | 7.5% |
-| `packed` | 18.75 MB | 0.246 ms | 4.205 ms | 5.9% |
-
-**The 3x payload cut bought a 1.9x faster collective and 4.3% end to end.**
-Two separate reasons for the gap. The collective scales sublinearly because
-a ring AllReduce pays latency and per-launch cost that no amount of byte
-reduction touches. And even a free collective could only have returned the
-10.7% it occupied — Amdahl set the ceiling before the first byte was saved.
-
-The single-GPU rows are the control that makes this readable: with no peer
-to reduce against, AllReduce costs 0.004 ms at every payload and the totals
-sit within 0.6% of each other (5.003 / 5.008 / 5.033 ms). So the packing
-itself is free at this scale — `pack_six` in the stats kernel and
-`unpack_six` in finalize cost nothing measurable — and the entire effect
-above lives in the collective, exactly where the design put it.
-
-Async did not benefit: 4.80 ms at `f64` but 5.28 / 5.19 ms at `i32` /
-`packed`. Its cost is per-chunk launch overhead, which compression does not
-address, so shrinking the payload only removes work that was already hidden.
-Sync remains the A/B winner on NVLink, now for two independent reasons.
-
-Read together with the async result, this is a coherent negative finding
-rather than two disappointments: **on a fast interconnect this workload is
-not communication-bound, so neither hiding communication nor shrinking it
-moves the needle.** Both techniques target the same regime, and NVLink is
-not it.
+Read together with the async result this is one coherent negative finding
+rather than two disappointments: **on a fast interconnect this workload is not
+communication-bound, so neither hiding communication nor shrinking it moves
+the needle.** Both techniques target the same regime, and NVLink is not it.
 
 ### The same techniques on a slow interconnect
 
@@ -242,153 +224,13 @@ win, async overlap changes sign, and the best configuration moves from sync
 to async. Nothing about the code changed; only the ratio of communication to
 computation did.
 
-The left panel above explains why, and it is the most useful number in this
-study. Effective collective bandwidth *falls* on NVLink as the payload
-shrinks — 119 → 88 → 76 GB/s — because at 0.47 ms the collective is
-latency- and launch-bound and smaller messages cannot fill the link. On PCIe
-it stays flat at 1.53 → 1.54 → 1.30 GB/s, because there the link is
-genuinely saturated. A bandwidth-bound collective converts saved bytes into
-saved time almost one-for-one (3x fewer bytes, 2.55x faster); a
-latency-bound one does not (3x fewer bytes, 1.91x faster). That distinction,
-not the interconnect's name, is what decides whether either technique is
-worth its complexity.
-
-### Why overlap is capped on *both* links
-
-The two measurements together also correct this project's original
-explanation of the async result. "Async targets slow interconnects" turns out
-to be only half right. Overlap can hide at most the smaller of compute and
-communication, so its ceiling is `min(compute, comm) / total`:
-
-| Link | Payload | Compute | Comm | Overlap ceiling | Achieved | Binding side |
-| --- | --- | --- | --- | --- | --- | --- |
-| NVLink | `f64` | 3.92 ms | 0.47 ms | 10.7% | -9.3% | comm |
-| NVLink | `packed` | 3.96 ms | 0.25 ms | 5.9% | -23.4% | comm |
-| PCIe | `f64` | 3.58 ms | 36.74 ms | 8.9% | +4.3% | compute |
-| PCIe | `packed` | 3.54 ms | 14.40 ms | 19.7% | **+11.3%** | compute |
-
-The ceiling is low on both links, but for opposite reasons: on NVLink there
-is almost no communication to hide, and on PCIe there is almost no
-computation to hide it behind. Async wins only where that ceiling clears its
-own per-chunk launch overhead — which it does on PCIe (capturing about half
-the available headroom) and does not on NVLink, where it goes backwards.
-**Overlap pays when compute and communication are comparable, not when
-communication is large.**
-
-That also explains why `async packed` is the fastest configuration measured
-anywhere in this study. Compression pulls comm down from 36.7 ms toward the
-3.5 ms of compute, which more than doubles the overlap ceiling (8.9% →
-19.7%) — so the two optimisations are not independent. Compression moves the
-workload into the balanced regime where overlap becomes useful. On NVLink the
-same coupling runs the other way: compression pushes comm further below
-compute, halving the ceiling (10.7% → 5.9%) and making async worse still.
-
-### What the async result actually consists of (Nsight, both hosts)
-
-Wall-clock timings say async is worth +11.3% at `packed`; they cannot say
-whether that is good overlap of a small quantity or poor overlap of a large
-one. Nsight Systems traces answer it. `tools/nsys_overlap.py` classifies every
-device kernel as communication (`ncclDevKernel_AllReduce_*`) or computation
-(`pair_stats_kernel_*`), then measures, per GPU, how much communication time
-has a compute kernel genuinely running inside it.
-
-| Trace | Comm | Compute | Overlapped | Share of compute hidden |
-| --- | --- | --- | --- | --- |
-| `sync f64` / `sync packed` | 35.9 / 18.4 ms | 2.8 ms | **0.000 ms** | 0% |
-| `async f64`, GPU0 | 34.07 ms | 12.55 ms | 11.28 ms | **89.9%** |
-| `async f64`, GPU1 | 33.99 ms | 11.45 ms | 10.25 ms | **89.6%** |
-| `async packed`, GPU0 | 12.75 ms | 5.46 ms | 3.54 ms | 64.9% |
-| `async packed`, GPU1 | 13.88 ms | 7.10 ms | 6.49 ms | **91.5%** |
-
-Sync measures exactly 0.000 ms of overlap on every GPU and payload, which is
-the control that makes the rest credible: the method finds no overlap where
-the design says there is none. Async then hides close to 90% of the compute
-it could possibly hide. **The pipeline is not the weak part** — the modest
-end-to-end gain is because compute was only ~9% of the iteration to start
-with, exactly the ceiling computed above. (GPU0 sits lower at `packed`
-because it also runs the finalize kernel on its communication stream.)
-
-The same analysis run on the archived NVLink traces (GPU0, warm-up excluded)
-shows sync at exactly 0.000 ms there too, and explains the NVLink penalty —
-with a mechanism that is **not** the one this README previously inferred:
-
-| NVLink, GPU0 | Collective | Compute | Overlapped |
-| --- | --- | --- | --- |
-| `sync` (1 fused collective) | 0.371 ms | 3.425 ms | 0.000 ms |
-| `async` (18 chunks) | **2.428 ms** | 3.873 ms | 0.830 ms (34.2% of comm) |
-
-Chunking makes the *collective itself* 6.5x more expensive on NVLink, because
-18 small collectives pay 18 latencies on a link whose transfer time is already
-negligible. Concurrency costs only 1.13x on the compute side there. On PCIe
-the two effects are exactly reversed: chunking leaves the collective
-essentially unchanged (35.96 → 34.07 ms, since a bandwidth-bound link cares
-only about total bytes), while concurrency inflates compute 4.47x.
-
-**So async loses on NVLink and wins on PCIe for two different measured
-reasons, not one.** The penalty on a latency-bound link is paid in the
-collective; the penalty on a bandwidth-bound link is paid in the compute
-kernel, where it can be hidden. This also checks out against wall time on
-PCIe: 1.89 ms saved on communication plus 1.54 ms of compute made invisible
-predicts 3.43 ms, and the traces show 3.49 ms.
-
-One measurement gap: the archived NVLink async trace was captured at 18
-chunks, while the benchmarked async row uses the default 5. It therefore
-demonstrates the mechanism but overstates its magnitude for that row (roughly
-1.8x rather than 6.5x, scaling with chunk count). The PCIe traces are
-configuration-matched to their benchmark rows at 5 chunks.
-
-Now the PCIe contention cost in detail, comparing the aggregate time of the
-statistics kernel on GPU0:
-
-| Configuration | Launches | Stats-kernel time | vs its sync baseline |
-| --- | --- | --- | --- |
-| sync, **1 GPU** | 1 | 3.723 ms | — |
-| async, **1 GPU** | 5 | 3.772 ms | **+1.3%** |
-| sync, 2 GPU `packed` | 1 | 2.834 ms | — |
-| async, 2 GPU `packed` | 5 | 5.457 ms | **1.93x** |
-| sync, 2 GPU `f64` | 1 | 2.806 ms | — |
-| async, 2 GPU `f64` | 5 | 12.549 ms | **4.47x** |
-
-On one GPU, where the collective is a no-op, splitting the work into five
-chunked launches costs 1.3% — so chunking itself is free and is not the
-explanation. On two GPUs the same kernel takes 1.9x to 4.5x longer, and the
-inflation grows with the volume communicated (`f64` moves 3x the bytes of
-`packed` and suffers 2.3x the inflation). That is the signature of SM
-contention: NCCL's persistent `RING_LL` kernels hold streaming multiprocessors
-while they wait on data, so a concurrent compute kernel gets fewer of them.
-
-So async's balance sheet is *compute hidden* minus *chunking paid*, and which
-term dominates is a property of the link, not of the code. On PCIe the
-chunking is free and the hidden compute is real profit. On NVLink the
-chunking is the whole story: there is only 0.47 ms of communication to hide
-behind, and splitting it into chunks costs more than the hiding returns.
-Consistent with this, NVLink's async penalty *worsens* under compression
-(-9.3% → -23.4%) — compression shrinks the communication that overlap needs
-while leaving the per-chunk latency count untouched. That last step is an
-inference: no `packed` NVLink trace exists, because the payload flag postdates
-those captures.
-
-A methodological caveat that applies to both hosts: an NCCL kernel's duration
-includes spin-waiting on peers, so "comm" here is kernel occupancy, not pure
-transfer. It matters on NVLink, where real transfer is sub-millisecond — GPU1
-reports 7.37 ms of collective against GPU0's 2.45 ms in the same run, the
-difference being wait — and much less on PCIe, where the two GPUs agree to
-within 0.3% because genuine transfer dominates. Per-GPU figures are reported
-rather than averaged for this reason.
-
-Trace timings carry profiling overhead and come from single runs, so they are
-used here only to attribute mechanism; every speedup number in this README
-comes from the benchmark medians.
-
-### Caveats on scope
-
-P2P is unavailable on this host, so the 78x gap measures *PCIe with host
-staging*, which is a real multi-tenant configuration but slower than direct
-PCIe P2P; a P2P-capable host would sit somewhere between the two columns. And
-the PCIe pod's kernel is 14% faster than the SXM pod's (4.31 vs 5.00 ms for
-identical code), so absolute totals are not comparable across the two
-columns — every ratio above is computed within a single machine, against a
-baseline measured in the same session.
+The deciding factor is not the interconnect's name but whether the
+collective is **bandwidth-bound**. Under payload reduction, effective
+bandwidth stays flat on PCIe (~1.5 GB/s, the link is genuinely saturated) and
+*falls* on NVLink (119 -> 76 GB/s, the collective is latency- and launch-bound
+and smaller messages cannot fill it). Only a saturated link converts saved
+bytes into saved time roughly one-for-one.
+[Full analysis](docs/analysis.md#which-regime-the-collective-is-in).
 
 ## Findings / limitations
 
@@ -396,17 +238,12 @@ baseline measured in the same session.
   pipeline (slot-free event recorded before the finalize kernel that reads
   the slot); fixed by reordering, after which every chunk size validates
   bit-exact. See the comment in `engine/src/nccl/nccl_main.cu`.
-- On NVLink this workload's AllReduce (56 MB six-stat tensor, ~0.5 ms) is
-  ~11% of kernel time, so async overlap loses its A/B even though the pipeline
-  works. Overlap's ceiling is `min(compute, comm)/total`, so it pays when the
-  two are comparable rather than when communication is large — which corrects
-  this project's original "async targets slow interconnects" hypothesis. Its
-  cost, however, is paid differently on each link, and both were measured:
-  chunking inflates the *collective* 6.5x on latency-bound NVLink (18 chunks,
-  0.371 → 2.428 ms) while leaving it unchanged on bandwidth-bound PCIe, where
-  instead SM contention with NCCL's persistent kernels inflates the *compute*
-  kernel 1.9-4.5x — and there it can be hidden. Chunking with no collective at
-  all (1 GPU) costs 1.3%.
+- Async overlap loses its A/B on NVLink even though the pipeline works,
+  because overlap's ceiling is `min(compute, comm)/total` — it pays when the
+  two are comparable, not when communication is large. That corrects this
+  project's original "async targets slow interconnects" hypothesis. The cost
+  is paid differently on each link and both were measured; see
+  [the mechanism](docs/analysis.md#why-overlap-is-capped-on-both-links).
 - Lossless 3x payload compression hits the same ceiling from the other side:
   the collective really does get 1.9x faster, but it was 10.7% of the
   iteration, so end-to-end gain is 4.3%.
