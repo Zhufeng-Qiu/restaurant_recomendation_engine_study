@@ -138,3 +138,78 @@ backend's unit tests. Cases:
 4. Every parallel backend matches serial C++ within TOL at all
    thread/rank/GPU/chunk counts (partition invariance).
 5. Performance measurements begin only after gates 1–4 pass.
+
+## 9. Collective payload representations
+
+Added 2026-08-28. This section is **non-normative for the mathematics** — it
+constrains only how the six-stat tensor is represented on the wire during the
+distributed reduction. Every representation below must reproduce §5 tolerances
+exactly; a representation that cannot is a bug, not a trade-off.
+
+### 9.1 Why the payload compresses
+
+The kernel accumulates `S = (n, Σx, Σy, Σx², Σy², Σxy)` as float64, and the
+distributed backends AllReduce that tensor. But when the fixture's ratings are
+non-negative integers — as they are for Yelp stars, `{1,2,3,4,5}` — every one
+of the six is an **exact non-negative integer**, bounded by the longest rating
+row `N`:
+
+```
+n <= N          Σx, Σy <= vmax·N          Σx², Σy², Σxy <= vmax²·N
+```
+
+For `item_full` (`N = 1363`, `vmax = 5`): the loosest bound is 34,075, which
+needs 16 bits. The tensor is being carried in 384 bits per pair.
+
+Because the partition is over the rating dimension `D`, a field's cross-GPU
+sum **is** the global total, so these bounds hold for the reduced result as
+well as for each partial.
+
+### 9.2 The three representations
+
+| `--payload` | Layout | Bytes/pair | `item_full` AllReduce | Ratio |
+| ----------- | ------ | ---------- | --------------------- | ----- |
+| `f64`       | 6 × float64 | 48 | 56.25 MB | 1.00× |
+| `i32`       | 6 × int32   | 24 | 28.12 MB | 2.00× |
+| `packed`    | 2 × uint64  | 16 | 18.75 MB | 3.00× |
+
+`packed` gives each field `kPackBits = 21` bits with **no shared carry space**:
+
+```
+word0 = n | Σx << 21 | Σy << 42
+word1 = Σx² | Σy² << 21 | Σxy << 42
+```
+
+### 9.3 Homomorphic reduction
+
+Since no field can overflow into its neighbour, packing distributes over
+addition:
+
+```
+pack(a) + pack(b) == pack(a + b)
+```
+
+so the packed words are handed **directly to `ncclSum` over `ncclUint64`**.
+The collective never sees the uncompressed form; unpacking happens once, in
+the finalize kernel, after the reduction. This is what keeps the compression
+free of any accuracy budget — it is lossless by construction, not lossy within
+a tolerance.
+
+### 9.4 Domain gate
+
+`check_payload_domain()` refuses `i32` and `packed` up front unless
+
+1. every rating is a non-negative integer, and
+2. `vmax² · N` fits the field width (2²¹−1 packed, 2³¹−1 for i32).
+
+A silently overflowed field would corrupt the sum while every backend still
+agreed with itself, so this is checked rather than assumed. Fixtures outside
+the domain must use `--payload f64`, which carries no such precondition.
+
+### 9.5 Verification
+
+`cuda_emulation_test` runs all three representations against golden
+similarities at 1-, 2-, and 3-way rank splits. For `packed` it packs each
+rank's partial and sums the *packed words*, exercising §9.3 directly rather
+than the claim about it. Both full fixtures pass at `max_abs_diff = 0.0`:
+1,171,857 pairs (`item_full`) and 1,411,864 (`user_full`).

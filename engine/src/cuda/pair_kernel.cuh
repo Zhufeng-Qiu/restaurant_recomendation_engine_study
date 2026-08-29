@@ -79,21 +79,79 @@ EC_HD double finalize_six(const double* s) {
   return (num == 0.0 || vx <= 0.0 || vy <= 0.0) ? 0.0 : num / std::sqrt(vx * vy);
 }
 
+// ---------------------------------------------------------------------------
+// Compressed collective payloads (docs/pearson_contract.md §9).
+//
+// The contract's ratings are small non-negative integers, so every one of the
+// six sufficient statistics is an exact non-negative integer bounded by the
+// longest rating row N:  n <= N,  Sx,Sy <= vmax*N,  Sxx,Syy,Sxy <= vmax^2*N.
+// The AllReduce payload is therefore compressible with no loss at all, which
+// is what lets the bit-exact contract survive compression:
+//
+//   f64     6 x double    48 B/pair    baseline
+//   i32     6 x int32     24 B/pair    2.00x
+//   packed  2 x uint64    16 B/pair    3.00x, and reducible in place
+//
+// `packed` gives each field its own kPackBits with no shared carry space.
+// Partitioning is over the rating dimension, so a field's cross-GPU sum is
+// exactly the global total, which the domain check bounds below 2^kPackBits.
+// No field can therefore carry into its neighbour, and the packed words can
+// be handed straight to ncclSum without being decompressed first --
+// homomorphic reduction, in the sense that sum(pack(a), pack(b)) ==
+// pack(a + b).
+//
+// 21 bits x 3 fields = 63 of the 64 available bits per word.
+constexpr int kPackBits = 21;
+constexpr uint64_t kPackMask = (1ull << kPackBits) - 1;
+constexpr int64_t kPackMaxField = (1ll << kPackBits) - 1;
+
+EC_HD void pack_six(const double* s, uint64_t* w) {
+  w[0] = static_cast<uint64_t>(static_cast<int64_t>(s[0]))
+       | (static_cast<uint64_t>(static_cast<int64_t>(s[1])) << kPackBits)
+       | (static_cast<uint64_t>(static_cast<int64_t>(s[2])) << (2 * kPackBits));
+  w[1] = static_cast<uint64_t>(static_cast<int64_t>(s[3]))
+       | (static_cast<uint64_t>(static_cast<int64_t>(s[4])) << kPackBits)
+       | (static_cast<uint64_t>(static_cast<int64_t>(s[5])) << (2 * kPackBits));
+}
+
+EC_HD void unpack_six(const uint64_t* w, double* s) {
+  s[0] = static_cast<double>(w[0] & kPackMask);
+  s[1] = static_cast<double>((w[0] >> kPackBits) & kPackMask);
+  s[2] = static_cast<double>((w[0] >> (2 * kPackBits)) & kPackMask);
+  s[3] = static_cast<double>(w[1] & kPackMask);
+  s[4] = static_cast<double>((w[1] >> kPackBits) & kPackMask);
+  s[5] = static_cast<double>((w[1] >> (2 * kPackBits)) & kPackMask);
+}
+
+// Convenience for the emulation test: the round trip a packed AllReduce
+// performs on one pair, including the in-compressed-form summation.
+EC_HD void pack_add(const uint64_t* a, const uint64_t* b, uint64_t* out) {
+  out[0] = a[0] + b[0];
+  out[1] = a[1] + b[1];
+}
+
 #if defined(__CUDACC__)
 
-// stats layout: [n_pairs][6] doubles = n, sx, sy, sxx, syy, sxy.
-__global__ void pair_stats_kernel(const int64_t* __restrict__ offsets,
-                                  const int32_t* __restrict__ dims,
-                                  const double* __restrict__ vals,
-                                  const int32_t* __restrict__ pairs,
-                                  int64_t n_pairs, int32_t dim_lo,
-                                  int32_t dim_hi, double* __restrict__ stats) {
+// Accumulate + warp-reduce one pair's six statistics. Shared by every payload
+// variant so the arithmetic that produces the numbers is identical across
+// them; the variants differ only in how lane 0 writes them out. The
+// accumulation stays in double: the values are exact integers far inside
+// double's 53-bit exact range, so narrowing at emit is lossless.
+__device__ inline bool warp_pair_stats(const int64_t* __restrict__ offsets,
+                                       const int32_t* __restrict__ dims,
+                                       const double* __restrict__ vals,
+                                       const int32_t* __restrict__ pairs,
+                                       int64_t n_pairs, int32_t dim_lo,
+                                       int32_t dim_hi, int64_t* warp_id_out,
+                                       double* s) {
   const int64_t warp_id =
       (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) / kWarp;
   const int lane = threadIdx.x % kWarp;
-  if (warp_id >= n_pairs) return;
+  *warp_id_out = warp_id;
+  if (warp_id >= n_pairs) return false;
 
-  double s[6] = {0, 0, 0, 0, 0, 0};
+#pragma unroll
+  for (int i = 0; i < 6; ++i) s[i] = 0.0;
   pair_lane_stats(offsets, dims, vals, pairs[2 * warp_id],
                   pairs[2 * warp_id + 1], dim_lo, dim_hi, lane, kWarp, s);
 #pragma unroll
@@ -102,11 +160,58 @@ __global__ void pair_stats_kernel(const int64_t* __restrict__ offsets,
     for (int i = 0; i < 6; ++i)
       s[i] += __shfl_down_sync(0xffffffff, s[i], off);
   }
-  if (lane == 0) {
-    double* dst = stats + 6 * warp_id;
+  return lane == 0;
+}
+
+// stats layout: [n_pairs][6] doubles = n, sx, sy, sxx, syy, sxy.
+__global__ void pair_stats_kernel(const int64_t* __restrict__ offsets,
+                                  const int32_t* __restrict__ dims,
+                                  const double* __restrict__ vals,
+                                  const int32_t* __restrict__ pairs,
+                                  int64_t n_pairs, int32_t dim_lo,
+                                  int32_t dim_hi, double* __restrict__ stats) {
+  int64_t k;
+  double s[6];
+  if (!warp_pair_stats(offsets, dims, vals, pairs, n_pairs, dim_lo, dim_hi,
+                       &k, s))
+    return;
+  double* dst = stats + 6 * k;
 #pragma unroll
-    for (int i = 0; i < 6; ++i) dst[i] = s[i];
-  }
+  for (int i = 0; i < 6; ++i) dst[i] = s[i];
+}
+
+// stats layout: [n_pairs][6] int32 — 2x smaller collective payload.
+__global__ void pair_stats_kernel_i32(const int64_t* __restrict__ offsets,
+                                      const int32_t* __restrict__ dims,
+                                      const double* __restrict__ vals,
+                                      const int32_t* __restrict__ pairs,
+                                      int64_t n_pairs, int32_t dim_lo,
+                                      int32_t dim_hi,
+                                      int32_t* __restrict__ stats) {
+  int64_t k;
+  double s[6];
+  if (!warp_pair_stats(offsets, dims, vals, pairs, n_pairs, dim_lo, dim_hi,
+                       &k, s))
+    return;
+  int32_t* dst = stats + 6 * k;
+#pragma unroll
+  for (int i = 0; i < 6; ++i) dst[i] = static_cast<int32_t>(s[i]);
+}
+
+// stats layout: [n_pairs][2] uint64 — 3x smaller, and summable as-is.
+__global__ void pair_stats_kernel_packed(const int64_t* __restrict__ offsets,
+                                         const int32_t* __restrict__ dims,
+                                         const double* __restrict__ vals,
+                                         const int32_t* __restrict__ pairs,
+                                         int64_t n_pairs, int32_t dim_lo,
+                                         int32_t dim_hi,
+                                         uint64_t* __restrict__ stats) {
+  int64_t k;
+  double s[6];
+  if (!warp_pair_stats(offsets, dims, vals, pairs, n_pairs, dim_lo, dim_hi,
+                       &k, s))
+    return;
+  pack_six(s, stats + 2 * k);
 }
 
 // One thread per pair.
@@ -115,6 +220,30 @@ __global__ void finalize_kernel(const double* __restrict__ stats,
   const int64_t k = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (k >= n_pairs) return;
   sims[k] = finalize_six(stats + 6 * k);
+}
+
+__global__ void finalize_kernel_i32(const int32_t* __restrict__ stats,
+                                    int64_t n_pairs,
+                                    double* __restrict__ sims) {
+  const int64_t k = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (k >= n_pairs) return;
+  const int32_t* src = stats + 6 * k;
+  double s[6];
+#pragma unroll
+  for (int i = 0; i < 6; ++i) s[i] = static_cast<double>(src[i]);
+  sims[k] = finalize_six(s);
+}
+
+// Unpacking happens here, after the reduction — the collective itself never
+// sees the uncompressed form.
+__global__ void finalize_kernel_packed(const uint64_t* __restrict__ stats,
+                                       int64_t n_pairs,
+                                       double* __restrict__ sims) {
+  const int64_t k = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (k >= n_pairs) return;
+  double s[6];
+  unpack_six(stats + 2 * k, s);
+  sims[k] = finalize_six(s);
 }
 
 #endif  // __CUDACC__

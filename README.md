@@ -79,6 +79,45 @@ Raw benchmark logs live in `results/bench/` (regenerate figures with
 `engine/bench/make_figures.py <bench.json>`); Nsight traces in
 `results/profiles/`.
 
+## Lossless compression of the collective payload
+
+The AllReduce carries `(n, Sx, Sy, Sxx, Syy, Sxy)` as six float64 per pair --
+56.25 MB for `item_full`. But the fixture's ratings are Yelp stars, taking
+exactly five values `{1,2,3,4,5}`, so **all six statistics are exact
+non-negative integers**, bounded by the longest rating row `N = 1363`:
+`n <= N`, `Sx,Sy <= 5N`, `Sxx,Syy,Sxy <= 25N = 34,075`. Sixteen bits of
+content in 384 bits of wire format.
+
+`--payload` selects the representation (`docs/pearson_contract.md` §9):
+
+| `--payload` | Layout | Bytes/pair | AllReduce | Ratio |
+| --- | --- | --- | --- | --- |
+| `f64` (default) | 6 x float64 | 48 | 56.25 MB | 1.00x |
+| `i32` | 6 x int32 | 24 | 28.12 MB | 2.00x |
+| `packed` | 2 x uint64 | 16 | 18.75 MB | 3.00x |
+
+`packed` gives each field 21 bits with no shared carry space
+(`word0 = n | Sx<<21 | Sy<<42`). Because the partition is over the rating
+dimension, a field's cross-GPU sum *is* the global total, which the domain
+gate bounds below 2^21 -- so no field can carry into its neighbour and
+`pack(a) + pack(b) == pack(a + b)`. The packed words therefore go **straight
+to `ncclSum` over `ncclUint64`**: the collective never sees the uncompressed
+form, and unpacking happens once, in the finalize kernel.
+
+This is lossless by construction rather than lossy within a tolerance, which
+is what lets the frozen bit-exact contract survive compression untouched.
+`check_payload_domain()` refuses `i32`/`packed` up front on any fixture
+outside the domain -- a silently overflowed field would corrupt the sum while
+every backend still agreed with itself.
+
+**Verified on CPU, not yet on GPU.** `cuda_emulation_test` runs all three
+representations against golden similarities at 1-, 2-, and 3-way rank splits,
+packing each rank's partial and summing the *packed words*. All pass at
+`max_abs_diff = 0.0` over 1,171,857 pairs (`item_full`) and 1,411,864
+(`user_full`). The device path compiles from the same header but has not been
+run on a GPU host; `--payload` timings are not yet measured, so the table
+above reports payload size, which is exact, and no speedup, which is not.
+
 ## Findings / limitations
 
 - The Gate D chunk sweep caught a real double-buffering race in the async
