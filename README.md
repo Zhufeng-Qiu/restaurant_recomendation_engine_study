@@ -137,8 +137,11 @@ Collective payload compression (A100 pod; right panel is the one that matters
 ![AllReduce payload comparison](results/figures/payload_comparison.png)
 
 Raw benchmark logs live in `results/bench/` (regenerate figures with
-`engine/bench/make_figures.py <bench.json>`); Nsight traces in
-`results/profiles/`.
+`engine/bench/make_figures.py <bench.json>`). The Nsight traces behind
+[docs/analysis.md](docs/analysis.md) are not shipped: `nsys` records the
+profiled process's environment into the trace, and these were captured on
+hosts with credentials in the environment. Everything derived from them is
+written up there.
 
 ## Lossless compression of the collective payload
 

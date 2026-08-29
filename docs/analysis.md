@@ -4,7 +4,10 @@ Companion to [README.md](../README.md), which reports *what* was measured.
 This file is *how we know*: where each gain and each loss actually came from,
 and which measurements rule out the alternative explanations.
 
-Every number here is from `results/bench/*.json` and `results/profiles/*`.
+Every number here comes from `results/bench/*.json` and from Nsight traces
+read with `tools/nsys_overlap.py`. The traces themselves are not in the
+repository — `nsys` captures the profiled process's environment, and these
+were taken on hosts that had credentials in theirs.
 Two hosts: **2x A100-SXM4-80GB (NV12 NVLink)** and **2x A100 80GB PCIe (PHB,
 no P2P)**, both CUDA 12.8 / NCCL 2.25.1, `item_full` (1,171,857 pairs),
 median of 5 trials after 2 warm-ups.

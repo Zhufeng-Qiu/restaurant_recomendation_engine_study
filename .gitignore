@@ -18,14 +18,15 @@ results/*.sims.bin
 results/*_predict.json
 results/bench/*.bin
 
-# Nsight traces are the exception to the rule above: they are NOT regenerable.
-# The SXM host that produced nccl_*.sqlite is gone, and a fresh one measures
-# ~4% differently, so the .sqlite (read offline by tools/nsys_overlap.py) and
-# the .nsys-rep timeline it was exported from are both tracked. Intermediates
-# and any other profiler output are not.
-results/profiles/*
-!results/profiles/*.nsys-rep
-!results/profiles/*.sqlite
+# Nsight traces are NEVER tracked. nsys records the profiled process's
+# environment into the trace, and the RunPod hosts used here had
+# RUNPOD_API_KEY and JUPYTER_PASSWORD set -- both .sqlite and .nsys-rep
+# carried live credentials. GitHub push protection caught it; the traces were
+# purged from history. Everything derived from them (tools/nsys_overlap.py
+# output) is already written up in docs/analysis.md, which is the part worth
+# keeping. If you re-capture, `unset RUNPOD_API_KEY JUPYTER_PASSWORD` first
+# and check with `strings <trace> | grep -E 'rpa_|PASSWORD='` before adding.
+results/profiles/
 original_code/python/result/
 original_code/scala/result/
 original_code/scala/target/
