@@ -9,6 +9,50 @@ backends — every one validated against the same golden similarities.
 Prediction and RMSE evaluation stay in Python; native backends stop at
 similarities.
 
+## Start here
+
+This is a study of one question: **when is it worth compressing what a
+collective sends?**
+
+The workload is a recommender kernel, but its shape will be familiar from
+data-parallel training. Each GPU computes a partial result over its shard of
+the data, then an **AllReduce** sums the partials. In DDP those partials are
+gradients; here they are six statistics per item pair — 1,171,857 pairs x 6
+float64 = **56 MB moved every iteration**.
+
+The finding: those six numbers are secretly small integers, because the
+ratings behind them are 1-5 stars. So the 56 MB packs into **18.7 MB with no
+loss at all** — and the packed words can be summed *while still packed*, so
+NCCL never sees the uncompressed form.
+
+Whether that 3x is worth anything depends entirely on the link:
+
+| | NVLink | PCIe |
+| --- | --- | --- |
+| Communication is... | 11% of the iteration | 91% of the iteration |
+| ...so compressing 3x buys | **4%** | **55%** |
+
+Same binary, same data, same GPU model. Only the interconnect changed. That
+is the point: **compressing a collective pays when the collective is the
+bottleneck, and not otherwise** — and the second half of that sentence is the
+part usually left out.
+
+Three terms used throughout, if the vocabulary is unfamiliar:
+
+- **six-stat tensor** — the AllReduce payload: `(n, Sx, Sy, Sxx, Syy, Sxy)`
+  per pair. Enough to finish the correlation after summing, the way gradient
+  buffers are enough to finish an optimizer step.
+- **sync vs async** — sync does one big AllReduce after all the compute.
+  Async splits the pairs into chunks and overlaps chunk *c*'s AllReduce with
+  chunk *c+1*'s compute, the way DDP overlaps gradient buckets with backward.
+- **f64 / i32 / packed** — the three payload encodings, 48 / 24 / 16 bytes
+  per pair. All three produce bit-identical results.
+
+**Reading path.** The section below gives the numbers. "Lossless compression"
+explains how the packing works. "The same techniques on a slow interconnect"
+is the main result. Everything after that is the Nsight evidence and is safe
+to skip unless you want the mechanism.
+
 ## Layout
 
 | Path | Contents |
@@ -50,37 +94,39 @@ collectives), speedup vs same-machine serial.
 | OpenMP 16t dynamic | EPYC (pod) | 85.8 ms | 15.3x |
 | MPI 8 ranks | Apple M5 | 256.3 ms | 3.1x |
 | CUDA warp-per-pair | 1x A100 | 5.00 ms | 262x |
-| NCCL sync (`packed`) | 2x A100 | 4.20 ms | 312x |
+| NCCL sync (`packed`) | 2x A100 | 4.21 ms | 312x |
 | NCCL async double-buffered | 2x A100 | 4.80 ms | 273x |
 
 ![CPU vs GPU backend latency on item_full](results/figures/gpu_comparison.png)
 
 Key takeaways:
 
-- **GPUs vs best CPU config**: ~17-20x over OpenMP 16t (the 262-312x
-  headline is vs one CPU core).
-- **Two GPUs gain only 1.14-1.20x** (1.14x at `f64`, 1.20x at `packed`) —
-  each GPU still touches every pair, so per-pair fixed costs don't halve; the
-  AllReduce itself is nearly free on NVLink (0.47 ms for the 56 MB six-stat
-  tensor).
-- **Async overlap is real but doesn't pay here**: 31-34% of comm is hidden
-  (Nsight-verified), yet sync wins because comm is only ~11% of kernel time.
-- **Compressing the collective 3x buys 4.3%** — same reason.
-- **Both verdicts reverse on PCIe**, where comm is 91% of the iteration:
-  compression buys 55%, async turns positive, and the two together cut the
-  iteration by 60%. Same binary, different regime — see the section below.
-- **End-to-end RMSE 0.8652** (archived Spark model: 0.8657; target 0.9).
+- **262-312x over one CPU core**, ~17-20x over the best 16-thread OpenMP
+  configuration.
+- **A second GPU adds only 1.14-1.20x.** Only the rating dimension is split;
+  every GPU still touches every pair, so the per-pair work does not halve.
+- **On NVLink, neither optimisation is worth it.** Compressing the collective
+  3x buys 4.3%; async overlap *costs* 9.3%. Communication is 11% of the
+  iteration, so there is very little there to win.
+- **On PCIe, both reverse.** Compression buys 55%, async turns positive, and
+  together they cut the iteration 60% — same binary, same data.
+- **End-to-end RMSE 0.8652** (archived Spark model 0.8657; target 0.9).
 
-GPU rows come from the 2026-08-29 session, which re-measured everything after
+<details>
+<summary>Why the GPU numbers differ slightly from the earlier session</summary>
+
+The GPU rows come from the 2026-08-29 run, which re-measured everything after
 `pair_stats_kernel` and `finalize_kernel` were refactored to share
 `warp_pair_stats`. Two effects separate cleanly, and both are measured rather
 than assumed: a same-GPU A/B against the pre-refactor header puts the
 refactor's cost at **+2.4%** (4.854 → 4.972 ms), and the identical
-pre-refactor code runs **4.2%** slower on this pod than on the one used in
-the earlier session (4.854 vs 4.660 ms), which is host-to-host variation, not
-code. Serial and OpenMP, which do not include the CUDA header, reproduced
-their archived numbers to within 0.8%, confirming the drift is specific to the
-GPU path.
+pre-refactor code runs **4.2%** slower on this pod than on the one used in the
+earlier session (4.854 vs 4.660 ms) — host-to-host variation, not code.
+Serial and OpenMP, which do not include the CUDA header, reproduced their
+archived numbers to within 0.8%, confirming the drift is specific to the GPU
+path.
+
+</details>
 
 OpenMP scaling (M5; the 4→8t knee is the P-core/E-core boundary):
 
