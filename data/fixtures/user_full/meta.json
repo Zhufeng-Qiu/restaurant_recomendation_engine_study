@@ -1,0 +1,39 @@
+{
+  "schema": "pearson-fixture-v1",
+  "mode": "user",
+  "source": "original_code/python/data/train_review.json",
+  "source_sha256": "4628366bdfd4f248c0c19775d57829c905bf8219f9b41e5ff6cba7ff90a678a5",
+  "subset": null,
+  "policy": {
+    "min_overlap": 3,
+    "eps": 1e-14,
+    "tolerance": 1e-12,
+    "duplicate_policy": "last-line-wins",
+    "jaccard_threshold": 0.01
+  },
+  "counts": {
+    "n_entities": 26184,
+    "n_dims": 10253,
+    "nnz": 488560,
+    "n_pairs": 1411864,
+    "n_emitted": 634993
+  },
+  "layout": {
+    "endianness": "little",
+    "offsets.bin": "int64[n_entities+1]",
+    "dims.bin": "int32[nnz], ascending within each entity row",
+    "vals.bin": "float64[nnz]",
+    "pairs.bin": "int32[2*n_pairs], (i,j) with i<j, lexicographically sorted",
+    "golden.bin": "float64[n_pairs], unfiltered Pearson sim per pair"
+  },
+  "files": {
+    "entities.txt": "360dedf77a0129794214d6c3df6fca28400e2ab895b557b8af4b9158fd6f8f6a",
+    "dims.txt": "f3935e6c4b68ac258138362af50cc48f1b1798ef965f3d8b1dbeb0b61096b5c1",
+    "offsets.bin": "7eb215e11d9b97fdec1228cb355f4d6bde56fe563542a1c710ac4f6917c8fc4f",
+    "dims.bin": "ab72b814665ac786c3c818c80bd22df48b38f1d669520d79f701079fee7dfd60",
+    "vals.bin": "7aa1a0b81d823859f3608c84a72e4cd89ea91998a4c748493a4718ea81197fe7",
+    "pairs.bin": "59b473c4e6f4f2919634a358ae7751fc8206afb3739d0f4e2dd6405dcc570418",
+    "golden.bin": "098b2cbd780ebc22aaabcc62b06a627a7d7cfb967825f2dc4259d217eeca14d1"
+  },
+  "export_duration_s": 33.2
+}

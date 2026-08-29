@@ -1,0 +1,6 @@
+# Pinned environment for the maintained Spark reference pipeline.
+# Resolved on macOS arm64, 2026-08-26:
+#   Python 3.11 (uv venv .venv)
+#   OpenJDK 17.0.20.1 (brew openjdk@17)
+#   JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+pyspark==3.5.9

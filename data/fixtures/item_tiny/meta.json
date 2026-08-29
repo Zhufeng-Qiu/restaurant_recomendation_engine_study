@@ -1,0 +1,39 @@
+{
+  "schema": "pearson-fixture-v1",
+  "mode": "item",
+  "source": "data/sources/tiny_dense.json",
+  "source_sha256": "026c9d7828f528e75c5b861cd731d89ed10d0c76bd824e534454cc3538dd6c8f",
+  "subset": null,
+  "policy": {
+    "min_overlap": 3,
+    "eps": 1e-14,
+    "tolerance": 1e-12,
+    "duplicate_policy": "last-line-wins",
+    "jaccard_threshold": null
+  },
+  "counts": {
+    "n_entities": 50,
+    "n_dims": 14317,
+    "nnz": 35656,
+    "n_pairs": 1223,
+    "n_emitted": 889
+  },
+  "layout": {
+    "endianness": "little",
+    "offsets.bin": "int64[n_entities+1]",
+    "dims.bin": "int32[nnz], ascending within each entity row",
+    "vals.bin": "float64[nnz]",
+    "pairs.bin": "int32[2*n_pairs], (i,j) with i<j, lexicographically sorted",
+    "golden.bin": "float64[n_pairs], unfiltered Pearson sim per pair"
+  },
+  "files": {
+    "entities.txt": "793c069c52fff3c8c1d11bfb7c7d6af6fc029b160b840f34e8e6c0598d742ae0",
+    "dims.txt": "d7dfb8db5b0a0c51a54702495981efc66a6f3e8a23cd4968892f1a763f4f546f",
+    "offsets.bin": "43590df8ea13112fb4f8b86f1c90af9fb03c8f7865ca2095acec464728a880cc",
+    "dims.bin": "3558545eb29a70f0660aa1b8cafb6cb88e50fcea3bbeb5f03eb24dfa6c6df54b",
+    "vals.bin": "c916bc2cb4b1ce91c9ab5bbe4f3d739644cab8bb3c7ad5c3f61ce7c7a3366e0e",
+    "pairs.bin": "4b12c98e1affe126142908388d90b89bb2b161ff2f9b8fd07b2748abc95e536f",
+    "golden.bin": "11b10bf6a33cb48d4de78d6579c24ffa168adfd5a6ab17860da33385199d0970"
+  },
+  "export_duration_s": 3.8
+}

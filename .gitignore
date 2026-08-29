@@ -1,0 +1,27 @@
+# Regenerable environments and build trees
+.venv/
+engine/build/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Large regenerable artifacts. Everything here is reproducible from
+# original_code/ via spark_pipeline/export_fixture.py and engine/bench/run_bench.py;
+# the evidence that matters (bench JSON/CSV, figures, env capture) stays tracked.
+original_code/python/data/
+data/fixtures/*/dims.bin
+data/fixtures/*/vals.bin
+data/fixtures/*/pairs.bin
+data/fixtures/*/golden.bin
+data/fixtures/*/offsets.bin
+results/*.model
+results/*.sims.bin
+results/*_predict.json
+results/bench/*.bin
+results/profiles/
+original_code/python/result/
+original_code/scala/result/
+original_code/scala/target/
+data/sources/
+original_code/scala/project/target/
+original_code/scala/out/

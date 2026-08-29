@@ -1,0 +1,98 @@
+{
+  "schema": "pearson-microcases-v1",
+  "policy": {
+    "min_overlap": 3,
+    "eps": 1e-14,
+    "tolerance": 1e-12
+  },
+  "comment": "Hand-computed cases for the frozen Pearson contract (docs/pearson_contract.md §7). 'expect' is null when the pair is not a valid candidate (n < min_overlap). Stats are exact integers/rationals where possible; 'sim' values are exact doubles. sim 2/sqrt(7) = 0.7559289460184544.",
+  "cases": [
+    {
+      "name": "identical",
+      "x": { "u1": 1, "u2": 2, "u3": 3 },
+      "y": { "u1": 1, "u2": 2, "u3": 3 },
+      "expect": {
+        "n": 3,
+        "sum_x": 6, "sum_y": 6, "sum_xx": 14, "sum_yy": 14, "sum_xy": 14,
+        "sim": 1.0,
+        "emit": true
+      }
+    },
+    {
+      "name": "inverse",
+      "x": { "u1": 1, "u2": 2, "u3": 3 },
+      "y": { "u1": 3, "u2": 2, "u3": 1 },
+      "expect": {
+        "n": 3,
+        "sum_x": 6, "sum_y": 6, "sum_xx": 14, "sum_yy": 14, "sum_xy": 10,
+        "sim": -1.0,
+        "emit": false
+      }
+    },
+    {
+      "name": "one_overlap",
+      "x": { "u1": 5, "u2": 1 },
+      "y": { "u1": 4, "u3": 2 },
+      "expect": null,
+      "n": 1
+    },
+    {
+      "name": "no_overlap",
+      "x": { "u1": 1, "u2": 2 },
+      "y": { "u3": 5, "u4": 4 },
+      "expect": null,
+      "n": 0
+    },
+    {
+      "name": "two_overlap",
+      "x": { "u1": 1, "u2": 2 },
+      "y": { "u1": 2, "u2": 4 },
+      "expect": null,
+      "n": 2
+    },
+    {
+      "name": "zero_variance",
+      "x": { "u1": 4, "u2": 4, "u3": 4 },
+      "y": { "u1": 1, "u2": 3, "u3": 5 },
+      "expect": {
+        "n": 3,
+        "sum_x": 12, "sum_y": 9, "sum_xx": 48, "sum_yy": 35, "sum_xy": 36,
+        "sim": 0.0,
+        "emit": false
+      }
+    },
+    {
+      "name": "orthogonal",
+      "x": { "u1": 1, "u2": 2, "u3": 3 },
+      "y": { "u1": 2, "u2": 4, "u3": 2 },
+      "expect": {
+        "n": 3,
+        "sum_x": 6, "sum_y": 8, "sum_xx": 14, "sum_yy": 24, "sum_xy": 16,
+        "sim": 0.0,
+        "emit": false
+      }
+    },
+    {
+      "name": "fractional",
+      "x": { "u1": 1, "u2": 2, "u3": 4 },
+      "y": { "u1": 1, "u2": 3, "u3": 3 },
+      "expect": {
+        "n": 3,
+        "sum_x": 7, "sum_y": 7, "sum_xx": 21, "sum_yy": 19, "sum_xy": 19,
+        "sim": 0.7559289460184544,
+        "emit": true
+      }
+    },
+    {
+      "name": "intersection_only",
+      "x": { "u1": 1, "u2": 2, "u3": 4, "u4": 5 },
+      "y": { "u1": 1, "u2": 3, "u3": 3, "u5": 2 },
+      "expect": {
+        "n": 3,
+        "sum_x": 7, "sum_y": 7, "sum_xx": 21, "sum_yy": 19, "sum_xy": 19,
+        "sim": 0.7559289460184544,
+        "emit": true
+      }
+    }
+  ]
+}
