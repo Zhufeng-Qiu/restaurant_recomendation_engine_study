@@ -5,15 +5,14 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# The exported fixtures ARE tracked (56 MB): they are what makes every
+# bit-exactness claim in the README checkable by anyone who clones this, and
+# the raw corpus they came from is too large to ship.
+#
 # Large regenerable artifacts. Everything here is reproducible from
 # original_code/ via spark_pipeline/export_fixture.py and engine/bench/run_bench.py;
 # the evidence that matters (bench JSON/CSV, figures, env capture) stays tracked.
 original_code/python/data/
-data/fixtures/*/dims.bin
-data/fixtures/*/vals.bin
-data/fixtures/*/pairs.bin
-data/fixtures/*/golden.bin
-data/fixtures/*/offsets.bin
 results/*.model
 results/*.sims.bin
 results/*_predict.json

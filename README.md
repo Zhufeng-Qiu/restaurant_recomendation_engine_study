@@ -272,6 +272,10 @@ export PYSPARK_PYTHON=$PWD/.venv/bin/python PYSPARK_DRIVER_PYTHON=$PWD/.venv/bin
 
 ### 1. Spark baseline and fixtures
 
+The exported fixtures are committed, so **a fresh clone can skip straight to
+step 2**. This step re-derives them and needs the raw Yelp corpus
+(`original_code/python/data`, 492 MB), which is too large to ship.
+
 ```bash
 DATA=original_code/python/data
 # Reproduce the archived golden model (item-based CF):
