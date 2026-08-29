@@ -1,9 +1,15 @@
-"""Generate CPU scaling figures from a run_bench.py JSON file.
+"""Generate scaling and comparison figures from a run_bench.py JSON file.
 
 Usage:
     python engine/bench/make_figures.py results/bench/bench_<stamp>.json
 
-Writes results/figures/*.png. GPU figures are added in the GPU phases.
+    # interconnect A/B — writes only interconnect_comparison.png, so it cannot
+    # overwrite figures whose documented source is a different run
+    python engine/bench/make_figures.py <a.json> --compare <b.json> \
+        --labels "NVLink (NV12),PCIe (PHB, no P2P)"
+
+Writes results/figures/*.png. CPU figures always; the GPU comparison and the
+AllReduce payload comparison only when the JSON contains those configs.
 """
 
 import json
@@ -14,14 +20,122 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+PAYLOADS = ("f64", "i32", "packed")
+PAYLOAD_LABEL = {"f64": "f64 (6x float64)", "i32": "i32 (6x int32)",
+                 "packed": "packed (2x uint64)"}
+
+
+def nccl_name(by_name, mode, gpus, payload):
+    """Resolve an nccl config across the pre/post --payload naming.
+
+    Runs predating --payload are named nccl_{mode}_g{gpus} and were f64, so
+    the bare spelling resolves only for f64. Returns None if absent.
+    """
+    candidates = [f"nccl_{mode}_g{gpus}_{payload}"]
+    if payload == "f64":
+        candidates.append(f"nccl_{mode}_g{gpus}")
+    for n in candidates:
+        if n in by_name:
+            return n
+    return None
+
+
+def load_configs(path):
+    with open(path) as f:
+        doc = json.load(f)
+    return {r["config"]: r for r in doc["results"] if "median_s" in r}, doc
+
+
+def interconnect_comparison(path_a, path_b, labels, out_dir):
+    """A/B the same payload sweep across two interconnects.
+
+    Left panel is the mechanism (what the collective costs, log scale because
+    the two links differ by ~2 orders of magnitude); right panel is the
+    consequence, normalised per link so the regime flip is visible despite
+    that gap.
+    """
+    a, doc_a = load_configs(path_a)
+    b, _ = load_configs(path_b)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12.5, 4.6))
+
+    width = 0.38
+    xs = range(len(PAYLOADS))
+    for i, (D, label) in enumerate(((a, labels[0]), (b, labels[1]))):
+        off = (i - 0.5) * width
+        vals, tags = [], []
+        for p in PAYLOADS:
+            n = nccl_name(D, "sync", 2, p)
+            r = D[n] if n else None
+            ar = r.get("median_allreduce_s") if r else None
+            vals.append(ar * 1e3 if ar else float("nan"))
+            # Effective algorithmic bandwidth: bytes moved / wall time.
+            gb = (r["allreduce_bytes"] / 1e9 / ar) if (r and ar) else None
+            tags.append(f"{ar*1e3:.2f} ms\n{gb:.2f} GB/s" if gb else "")
+        bars = ax1.bar([x + off for x in xs], vals, width, label=label)
+        for bar, v, t in zip(bars, vals, tags):
+            if t:
+                ax1.text(bar.get_x() + bar.get_width() / 2, v, t, ha="center",
+                         va="bottom", fontsize=7)
+    ax1.set_yscale("log")
+    ax1.set_xticks(list(xs))
+    ax1.set_xticklabels([f"{p}\n{48 if p=='f64' else 24 if p=='i32' else 16} B/pair"
+                         for p in PAYLOADS])
+    ax1.set_ylabel("AllReduce time (ms, log scale)")
+    ax1.set_title("Collective cost — sync, 2 GPU")
+    ax1.legend(fontsize=8)
+    ax1.grid(alpha=0.3, axis="y")
+    ax1.margins(y=0.45)
+
+    combos = [("sync", "f64"), ("sync", "packed"),
+              ("async", "f64"), ("async", "packed")]
+    for i, (D, label) in enumerate(((a, labels[0]), (b, labels[1]))):
+        off = (i - 0.5) * width
+        base = D[nccl_name(D, "sync", 2, "f64")]["median_s"]
+        vals = [100.0 * D[nccl_name(D, m, 2, p)]["median_s"] / base
+                for m, p in combos]
+        abs_ms = [D[nccl_name(D, m, 2, p)]["median_s"] * 1e3 for m, p in combos]
+        bars = ax2.bar([x + off for x in range(len(combos))], vals, width,
+                       label=label)
+        for bar, v, ms in zip(bars, vals, abs_ms):
+            ax2.text(bar.get_x() + bar.get_width() / 2, v, f"{v:.0f}%\n{ms:.1f} ms",
+                     ha="center", va="bottom", fontsize=7)
+    ax2.axhline(100, color="black", lw=0.8, ls="--")
+    ax2.set_xticks(list(range(len(combos))))
+    ax2.set_xticklabels([f"{m}\n{p}" for m, p in combos])
+    ax2.set_ylabel("Total device time (% of that link's sync f64)")
+    ax2.set_title("Same techniques, opposite verdicts")
+    ax2.legend(fontsize=8)
+    ax2.grid(alpha=0.3, axis="y")
+    ax2.margins(y=0.28)
+
+    fixture = os.path.basename(doc_a["fixture"])
+    fig.suptitle(f"{fixture} · 2 GPU · median of {doc_a['repeats']} trials "
+                 f"after {doc_a['warmups']} warm-ups", y=0.02, fontsize=8,
+                 va="bottom")
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    p = os.path.join(out_dir, "interconnect_comparison.png")
+    fig.savefig(p, dpi=150)
+    print("wrote:", p)
+
 
 def main():
     bench_path = sys.argv[1]
-    with open(bench_path) as f:
-        doc = json.load(f)
     out_dir = os.path.join(os.path.dirname(os.path.dirname(bench_path)), "figures")
     os.makedirs(out_dir, exist_ok=True)
-    by_name = {r["config"]: r for r in doc["results"]}
+
+    if "--compare" in sys.argv:
+        other = sys.argv[sys.argv.index("--compare") + 1]
+        labels = ("A", "B")
+        if "--labels" in sys.argv:
+            labels = tuple(sys.argv[sys.argv.index("--labels") + 1].split(",", 1))
+        interconnect_comparison(bench_path, other, labels, out_dir)
+        return
+
+    with open(bench_path) as f:
+        doc = json.load(f)
+    # Configs that failed are recorded with an "error" and no timings; drop
+    # them so the "is this config present" guards below skip them.
+    by_name = {r["config"]: r for r in doc["results"] if "median_s" in r}
     fixture = os.path.basename(doc["fixture"])
     cpu = doc["environment"]["cpu"]
     src = f"{fixture} · {cpu} · median of {doc['repeats']} trials after {doc['warmups']} warm-ups"
@@ -104,17 +218,20 @@ def main():
     print("wrote:", p3)
 
     # --- Figure 4 (GPU host only): backend latency comparison ------------------
-    gpu_names = [n for n in ("cuda_1gpu", "nccl_sync_g1", "nccl_sync_g2",
-                             "nccl_async_g2") if n in by_name]
-    if gpu_names:
+    # The f64 rows stand in for the GPU backends here; payload variants get
+    # their own figure below.
+    gpu_specs = [("cuda_1gpu", "CUDA 1 GPU"),
+                 (nccl_name(by_name, "sync", 1, "f64"), "NCCL sync 1 GPU"),
+                 (nccl_name(by_name, "sync", 2, "f64"), "NCCL sync 2 GPU"),
+                 (nccl_name(by_name, "async", 2, "f64"), "NCCL async 2 GPU")]
+    gpu_specs = [(n, lab) for n, lab in gpu_specs if n and n in by_name]
+    if gpu_specs:
         fig, ax = plt.subplots(figsize=(9, 4.2))
         best_omp = min((by_name[f"openmp_t{t}_dynamic"]["median_s"], t)
                        for t in threads if f"openmp_t{t}_dynamic" in by_name)
-        names = ["serial", f"openmp_t{best_omp[1]}_dynamic"] + gpu_names
-        labels = ["serial", f"OMP best ({best_omp[1]}t)"] + [
-            {"cuda_1gpu": "CUDA 1 GPU", "nccl_sync_g1": "NCCL sync 1 GPU",
-             "nccl_sync_g2": "NCCL sync 2 GPU",
-             "nccl_async_g2": "NCCL async 2 GPU"}[n] for n in gpu_names]
+        names = ["serial", f"openmp_t{best_omp[1]}_dynamic"] + [n for n, _ in gpu_specs]
+        labels = (["serial", f"OMP best ({best_omp[1]}t)"]
+                  + [lab for _, lab in gpu_specs])
         med = [by_name[n]["median_s"] for n in names]
         bars = ax.bar(labels, med)
         for b, m in zip(bars, med):
@@ -129,6 +246,69 @@ def main():
         p4 = os.path.join(out_dir, "gpu_comparison.png")
         fig.savefig(p4, dpi=150)
         print("wrote:", p4)
+
+    # --- Figure 5 (GPU host only): AllReduce payload comparison ----------------
+    # Left: total device time per (mode, gpus) for each payload — does a 3x
+    # smaller collective show up end to end? Right: the AllReduce itself, which
+    # is only separately measurable in sync mode (the async pipeline overlaps
+    # it into a single timed region by construction).
+    combos = [(m, g) for m in ("sync", "async") for g in (1, 2)]
+    present = [p for p in PAYLOADS
+               if any(nccl_name(by_name, m, g, p) for m, g in combos)]
+    combos = [(m, g) for m, g in combos
+              if all(nccl_name(by_name, m, g, p) for p in present)]
+    if len(present) > 1 and combos:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.4))
+        width = 0.8 / len(present)
+        xs = range(len(combos))
+        for i, p in enumerate(present):
+            off = (i - (len(present) - 1) / 2) * width
+            vals = [by_name[nccl_name(by_name, m, g, p)]["median_s"] * 1e3
+                    for m, g in combos]
+            bars = ax1.bar([x + off for x in xs], vals, width,
+                           label=PAYLOAD_LABEL[p])
+            for b, v in zip(bars, vals):
+                ax1.text(b.get_x() + b.get_width() / 2, v, f"{v:.2f}",
+                         ha="center", va="bottom", fontsize=7)
+        ax1.set_xticks(list(xs))
+        ax1.set_xticklabels([f"{m}\n{g} GPU" for m, g in combos])
+        ax1.set_ylabel("Total device time (ms)")
+        ax1.set_title("Device time by AllReduce payload")
+        ax1.legend(fontsize=8)
+        ax1.grid(alpha=0.3, axis="y")
+
+        # AllReduce time vs payload, sync only, widest GPU count available.
+        sync_g = [g for g in (2, 1)
+                  if all(nccl_name(by_name, "sync", g, p) for p in present)]
+        drawn = False
+        if sync_g:
+            g = sync_g[0]
+            names = [nccl_name(by_name, "sync", g, p) for p in present]
+            ar = [by_name[n].get("median_allreduce_s") for n in names]
+            if all(v is not None for v in ar):
+                bars = ax2.bar([PAYLOAD_LABEL[p].split(" ")[0] for p in present],
+                               [v * 1e3 for v in ar], color="tab:orange")
+                for b, v, n in zip(bars, ar, names):
+                    mb = by_name[n].get("allreduce_bytes")
+                    tag = f"{v*1e3:.2f} ms"
+                    if mb:
+                        tag += f"\n{mb / 1e6:.1f} MB"
+                    ax2.text(b.get_x() + b.get_width() / 2, v * 1e3, tag,
+                             ha="center", va="bottom", fontsize=8)
+                ax2.set_ylabel("AllReduce time (ms)")
+                ax2.set_title(f"Collective cost vs payload — sync, {g} GPU")
+                ax2.grid(alpha=0.3, axis="y")
+                ax2.margins(y=0.2)
+                drawn = True
+        if not drawn:
+            ax2.axis("off")
+            ax2.text(0.5, 0.5, "no separable AllReduce timing\nin this run",
+                     ha="center", va="center", fontsize=9)
+        fig.suptitle(src, y=0.02, fontsize=8, va="bottom")
+        fig.tight_layout(rect=(0, 0.05, 1, 1))
+        p5 = os.path.join(out_dir, "payload_comparison.png")
+        fig.savefig(p5, dpi=150)
+        print("wrote:", p5)
 
 
 if __name__ == "__main__":

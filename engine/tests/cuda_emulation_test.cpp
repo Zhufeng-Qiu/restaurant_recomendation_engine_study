@@ -10,8 +10,9 @@
 //
 // This catches algorithmic bugs (slice bounds, x/y orientation, binary
 // search, range splits) before the code ever sees an nvcc. It cannot catch
-// launch-config or memory bugs; those wait for the GPU host (gates A-D in
-// docs/gpu_runbook.md).
+// launch-config or memory bugs; those wait for the correctness ladder on a
+// GPU host (single-GPU CUDA, then NCCL at 1 and 2 GPUs, then the async
+// pipeline swept across chunk sizes).
 //
 // Usage: cuda_emulation_test <fixture_dir> [<fixture_dir> ...]
 

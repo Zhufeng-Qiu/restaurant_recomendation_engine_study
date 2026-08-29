@@ -8,6 +8,7 @@ Usage:
     python3 engine/bench/run_bench.py [--fixture data/fixtures/item_full]
                                       [--repeats 5] [--warmups 2]
                                       [--out results/bench]
+                                      [--gpu] [--payloads f64,i32,packed]
 
 Configurations run (all on the chosen fixture):
     serial
@@ -15,7 +16,11 @@ Configurations run (all on the chosen fixture):
     mpi     ranks in {1,2,4,8}            (skipped if pearson_engine_mpi absent)
     --gpu adds:
     cuda    single GPU (pearson_engine --backend cuda)
-    nccl    gpus in {1,2} x mode in {sync, async}   (pearson_engine_nccl)
+    nccl    gpus in {1,2} x mode in {sync, async} x payload in --payloads,
+            named nccl_{mode}_g{gpus}_{payload}      (pearson_engine_nccl)
+
+Runs before the --payload feature are named nccl_{mode}_g{gpus} with no
+suffix; those are f64 runs. make_figures.py resolves both spellings.
 """
 
 import argparse
@@ -93,6 +98,9 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "results/bench"))
     ap.add_argument("--gpu", action="store_true",
                     help="add cuda + nccl configurations (GPU host only)")
+    ap.add_argument("--payloads", default="f64,i32,packed",
+                    help="comma-separated AllReduce payload representations to "
+                         "sweep for the nccl backend (contract §9)")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
 
@@ -117,19 +125,31 @@ def main():
         configs.append({"name": "cuda_1gpu",
                         "cmd": [ENGINE, args.fixture, "--backend", "cuda",
                                 "--validate"], "env": {}, "threads": 1})
-        for mode in ("sync", "async"):
-            for g in (1, 2):
-                configs.append({
-                    "name": f"nccl_{mode}_g{g}",
-                    "cmd": [ENGINE_NCCL, args.fixture, "--gpus", str(g),
-                            "--mode", mode, "--validate"],
-                    "env": {}, "threads": g,
-                })
+        for payload in args.payloads.split(","):
+            for mode in ("sync", "async"):
+                for g in (1, 2):
+                    configs.append({
+                        "name": f"nccl_{mode}_g{g}_{payload}",
+                        "cmd": [ENGINE_NCCL, args.fixture, "--gpus", str(g),
+                                "--mode", mode, "--payload", payload,
+                                "--validate"],
+                        "env": {}, "threads": g,
+                    })
 
     results = []
     for cfg in configs:
-        trials = bench(cfg["cmd"], cfg["env"], args.warmups, args.repeats)
-        times = [time_of(t) for t in trials]
+        # A config that fails must not cost the whole session: the GPU
+        # configurations run last, and an exception there would discard the CPU
+        # results measured before it. Record the failure and carry on.
+        try:
+            trials = bench(cfg["cmd"], cfg["env"], args.warmups, args.repeats)
+            times = [time_of(t) for t in trials]
+        except Exception as exc:
+            results.append({"config": cfg["name"],
+                            "threads_or_ranks": cfg["threads"],
+                            "error": f"{type(exc).__name__}: {exc}"})
+            print(f"{cfg['name']:26s} FAILED: {type(exc).__name__}: {exc}")
+            continue
         rec = {
             "config": cfg["name"],
             "threads_or_ranks": cfg["threads"],
@@ -141,14 +161,20 @@ def main():
             "tol_failures": max(t["tol_failures"] for t in trials),
             "trials": trials,
         }
-        if "t_allreduce_s" in trials[0]:
+        for field in ("payload", "payload_bytes_per_pair", "allreduce_bytes"):
+            if field in trials[0]:
+                rec[field] = trials[0][field]
+        # The async pipeline reports t_allreduce_s = 0: its collectives run
+        # inside the timed pipeline and are not separately measurable. Leave
+        # the field out rather than recording a 0 that reads as "free".
+        if any(t.get("t_allreduce_s", 0.0) > 0.0 for t in trials):
             rec["median_allreduce_s"] = statistics.median(t["t_allreduce_s"] for t in trials)
             if "comm_fraction" in trials[0]:
                 rec["comm_fraction"] = statistics.median(t["comm_fraction"] for t in trials)
             elif rec["median_s"] > 0:
                 rec["comm_fraction"] = rec["median_allreduce_s"] / rec["median_s"]
         results.append(rec)
-        print(f"{cfg['name']:24s} median={rec['median_s']:.4f}s "
+        print(f"{cfg['name']:26s} median={rec['median_s']:.4f}s "
               f"stdev={rec['stdev_s']:.4f}s max_diff={rec['max_abs_diff']:.1e}")
 
     doc = {
@@ -175,13 +201,25 @@ def main():
     with open(csv_path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["config", "threads_or_ranks", "median_s", "min_s", "max_s",
-                    "stdev_s", "comm_fraction", "max_abs_diff", "tol_failures"])
+                    "stdev_s", "payload", "allreduce_bytes", "median_allreduce_s",
+                    "comm_fraction", "max_abs_diff", "tol_failures", "error"])
         for r in results:
+            if "error" in r:
+                w.writerow([r["config"], r["threads_or_ranks"]] + [""] * 10
+                           + [r["error"]])
+                continue
+            ar = r.get("median_allreduce_s")
             w.writerow([r["config"], r["threads_or_ranks"], f"{r['median_s']:.6f}",
                         f"{r['min_s']:.6f}", f"{r['max_s']:.6f}", f"{r['stdev_s']:.6f}",
+                        r.get("payload", ""), r.get("allreduce_bytes", ""),
+                        f"{ar:.6f}" if ar is not None else "",
                         f"{r.get('comm_fraction', '')}", f"{r['max_abs_diff']:.3e}",
-                        r["tol_failures"]])
+                        r["tol_failures"], ""])
+    failed = [r["config"] for r in results if "error" in r]
     print(f"\nwrote {json_path}\nwrote {csv_path}")
+    if failed:
+        print(f"{len(failed)} config(s) FAILED and are recorded as such: "
+              + ", ".join(failed))
 
 
 if __name__ == "__main__":

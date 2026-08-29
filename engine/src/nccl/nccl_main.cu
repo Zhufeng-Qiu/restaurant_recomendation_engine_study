@@ -364,7 +364,7 @@ int main(int argc, char** argv) {
       // GPU 0 finalizes the reduced chunk on its comm stream (in order) and
       // only THEN records the slot-free event: recording before finalize let
       // chunk c+2's stats kernel overwrite slot b while finalize still read
-      // it (caught by the Gate D chunk sweep at chunk < 262144).
+      // it (caught by the async chunk-size sweep at chunk < 262144).
       CUDA_CHECK(cudaSetDevice(0));
       launch_finalize(payload, len, devs[0].comm,
                       stats_at(devs[0].stats, payload, chunk * b),

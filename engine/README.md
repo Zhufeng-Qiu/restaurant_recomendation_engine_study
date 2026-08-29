@@ -51,8 +51,10 @@ Backend toggles: `-DENGINE_OPENMP=ON`, `-DENGINE_CUDA=ON`, `-DENGINE_MPI=ON`,
 | serial  | microcases + 4 fixtures vs golden                    | max abs diff 0.0; 1.44M pairs/s on item_full |
 | openmp  | bit-identical at 1/2/4/8/16 threads, static+dynamic  | pass; 0.794s -> 0.108s (7.4x at 16 threads) |
 | mpi     | invariant at 1/2/4/8 ranks vs golden and each other   | pass, bit-identical; comm fraction 2.6% (2r) -> 18.7% (8r), 56 MB AllReduce |
-| cuda    | validated on A100: bit-exact on all 4 fixtures         | stats kernel 4.6 ms on item_full (~280x serial) |
-| nccl    | validated on 2x A100 NVLink: sync + async bit-exact    | sync 4.0 ms; async 5.0 ms, 31-34% of comm overlapped (Nsight) |
+| cuda    | validated on A100: bit-exact on all 4 fixtures         | stats kernel 5.0 ms on item_full (~262x serial) |
+| nccl    | validated on 2x A100 NVLink: sync + async bit-exact    | sync 4.4 ms; async 4.8 ms, 31-34% of comm overlapped (Nsight) |
+| nccl    | `--payload f64/i32/packed` x sync/async x 1/2 GPU: 18 gates | pass, all bit-exact; packed 4.2 ms (3x smaller collective, 1.9x faster AllReduce, 4.3% end to end) |
+| nccl    | same 18 gates re-run on 2x A100 PCIe (PHB, no P2P)     | pass, all bit-exact; AllReduce 78x costlier, so packed cuts the iteration 55% and async turns positive — best config 15.9 ms `async packed` |
 
 MPI note: contiguous dimension ranges summed in rank order reproduce the
 serial ascending-dim summation order exactly, which is why partition

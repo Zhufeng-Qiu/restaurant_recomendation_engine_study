@@ -18,7 +18,15 @@ results/*.model
 results/*.sims.bin
 results/*_predict.json
 results/bench/*.bin
-results/profiles/
+
+# Nsight traces are the exception to the rule above: they are NOT regenerable.
+# The SXM host that produced nccl_*.sqlite is gone, and a fresh one measures
+# ~4% differently, so the .sqlite (read offline by tools/nsys_overlap.py) and
+# the .nsys-rep timeline it was exported from are both tracked. Intermediates
+# and any other profiler output are not.
+results/profiles/*
+!results/profiles/*.nsys-rep
+!results/profiles/*.sqlite
 original_code/python/result/
 original_code/scala/result/
 original_code/scala/target/
