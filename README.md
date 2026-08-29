@@ -1,13 +1,10 @@
 # Multi-Backend Pearson Similarity Engine
 
-An archived INF553 Yelp recommender (PySpark, MinHash/LSH + collaborative
-filtering) evolved into a systems study: the Pearson-similarity kernel is
-extracted behind a frozen numerical contract, exported as backend-neutral
-binary workloads, and re-implemented across serial C++, OpenMP, MPI,
-single-GPU CUDA, and two-GPU NCCL (synchronous and async/overlapped)
-backends — every one validated against the same golden similarities.
-Prediction and RMSE evaluation stay in Python; native backends stop at
-similarities.
+An archived Yelp recommender — originally USC INF553-Data-Mining-2020 project: PySpark, MinHash/LSH, item- and user-based collaborative filtering — rebuilt as a systems study.
+
+Collaborative filtering scores a candidate pair of items by how alike their co-raters rated them, and that score is a Pearson correlation. This project extracts that one kernel behind a frozen numerical contract, exports it as backend-neutral binary workloads, and re-implements it across serial C++, OpenMP, MPI, single-GPU CUDA, and two-GPU NCCL (synchronous and async/overlapped) — every backend validated against the same golden similarities. Prediction and RMSE evaluation stay in Python; the native backends stop at similarities.
+
+Hope this project can start my research journey of MLSys, AI infra, and parallel computing.
 
 ## Start here
 
@@ -48,11 +45,6 @@ Three terms used throughout, if the vocabulary is unfamiliar:
 - **f64 / i32 / packed** — the three payload encodings, 48 / 24 / 16 bytes
   per pair. All three produce bit-identical results.
 
-**Reading path.** This README is the result. The section below gives the
-numbers, "Lossless compression" explains how the packing works, and "The same
-techniques on a slow interconnect" is the main finding. The mechanism behind
-all of it — overlap ceilings, Nsight traces, per-link regimes — lives in
-[docs/analysis.md](docs/analysis.md).
 
 ## Layout
 
