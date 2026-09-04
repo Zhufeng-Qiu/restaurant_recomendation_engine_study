@@ -150,6 +150,13 @@ def main():
                             "error": f"{type(exc).__name__}: {exc}"})
             print(f"{cfg['name']:26s} FAILED: {type(exc).__name__}: {exc}")
             continue
+        # Quartiles need enough samples to mean anything; below 4 trials
+        # report them as None rather than a number computed from 2 points.
+        if len(times) >= 4:
+            q1, _, q3 = statistics.quantiles(times, n=4)
+            iqr, p25, p75 = q3 - q1, q1, q3
+        else:
+            iqr = p25 = p75 = None
         rec = {
             "config": cfg["name"],
             "threads_or_ranks": cfg["threads"],
@@ -157,6 +164,10 @@ def main():
             "min_s": min(times),
             "max_s": max(times),
             "stdev_s": statistics.stdev(times) if len(times) > 1 else 0.0,
+            "p25_s": p25,
+            "p75_s": p75,
+            "iqr_s": iqr,
+            "n_trials": len(times),
             "max_abs_diff": max(t["max_abs_diff"] for t in trials),
             "tol_failures": max(t["tol_failures"] for t in trials),
             "trials": trials,
@@ -200,19 +211,23 @@ def main():
     csv_path = os.path.join(args.out, f"bench_{stamp}.csv")
     with open(csv_path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["config", "threads_or_ranks", "median_s", "min_s", "max_s",
-                    "stdev_s", "payload", "allreduce_bytes", "median_allreduce_s",
+        w.writerow(["config", "threads_or_ranks", "n_trials", "median_s",
+                    "min_s", "max_s", "stdev_s", "iqr_s", "p25_s", "p75_s",
+                    "payload", "allreduce_bytes", "median_allreduce_s",
                     "comm_fraction", "max_abs_diff", "tol_failures", "error"])
         for r in results:
             if "error" in r:
-                w.writerow([r["config"], r["threads_or_ranks"]] + [""] * 10
+                w.writerow([r["config"], r["threads_or_ranks"]] + [""] * 14
                            + [r["error"]])
                 continue
             ar = r.get("median_allreduce_s")
-            w.writerow([r["config"], r["threads_or_ranks"], f"{r['median_s']:.6f}",
+            fmt = lambda v: f"{v:.6f}" if v is not None else ""
+            w.writerow([r["config"], r["threads_or_ranks"], r.get("n_trials", ""),
+                        f"{r['median_s']:.6f}",
                         f"{r['min_s']:.6f}", f"{r['max_s']:.6f}", f"{r['stdev_s']:.6f}",
+                        fmt(r.get("iqr_s")), fmt(r.get("p25_s")), fmt(r.get("p75_s")),
                         r.get("payload", ""), r.get("allreduce_bytes", ""),
-                        f"{ar:.6f}" if ar is not None else "",
+                        fmt(ar),
                         f"{r.get('comm_fraction', '')}", f"{r['max_abs_diff']:.3e}",
                         r["tol_failures"], ""])
     failed = [r["config"] for r in results if "error" in r]
