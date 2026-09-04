@@ -35,6 +35,7 @@
 #include <vector>
 
 #include "common/fixture.hpp"
+#include "common/payload_domain.hpp"
 #include "common/pearson.hpp"
 #include "cuda/pair_kernel.cuh"
 
@@ -125,33 +126,22 @@ void* stats_at(void* base, Payload p, int64_t pair_offset) {
 // row small enough that no statistic can overflow its field. Checked up front
 // and refused loudly -- a silently overflowed field would corrupt the sum
 // while every backend still agreed with itself.
-void check_payload_domain(const engine::Fixture& fx, Payload p) {
-  if (p == Payload::F64) return;
-
-  int64_t max_row = 0;
-  for (size_t i = 0; i + 1 < fx.offsets.size(); ++i)
-    max_row = std::max(max_row, fx.offsets[i + 1] - fx.offsets[i]);
-
-  double vmax = 0.0;
-  for (double v : fx.vals) {
-    if (v < 0.0 || v != std::floor(v))
-      throw std::runtime_error(
-          std::string("--payload ") + payload_name(p) +
-          " requires non-negative integer ratings; found " + std::to_string(v));
-    vmax = std::max(vmax, v);
+//
+// The predicate itself lives in common/payload_domain.hpp so that it is
+// testable without a GPU (engine/tests/payload_domain_test.cpp); this wrapper
+// only turns its verdict into the exception main() reports.
+engine::PayloadKind domain_kind(Payload p) {
+  switch (p) {
+    case Payload::I32: return engine::PayloadKind::I32;
+    case Payload::Packed: return engine::PayloadKind::Packed;
+    default: return engine::PayloadKind::F64;
   }
+}
 
-  // Loosest bound of the six: Sxx, Syy, Sxy <= vmax^2 * n, and n <= max_row.
-  const double hi = vmax * vmax * static_cast<double>(max_row);
-  const double limit = (p == Payload::Packed)
-                           ? static_cast<double>(engine_cuda::kPackMaxField)
-                           : 2147483647.0;
-  if (hi > limit)
-    throw std::runtime_error(
-        std::string("--payload ") + payload_name(p) + ": max statistic " +
-        std::to_string(hi) + " exceeds field capacity " + std::to_string(limit) +
-        " (max_row=" + std::to_string(max_row) +
-        ", max_rating=" + std::to_string(vmax) + "); use --payload f64");
+void check_payload_domain(const engine::Fixture& fx, Payload p) {
+  const engine::DomainVerdict v =
+      engine::check_payload_domain(fx, domain_kind(p));
+  if (!v.ok) throw std::runtime_error(v.reason);
 }
 
 // Payload-dispatching launchers. The three variants share their accumulation
@@ -196,9 +186,26 @@ void launch_finalize(Payload p, int64_t len, cudaStream_t s, const void* stats,
   }
 }
 
+// Body of main. Kept separate so main() can be a thin exception boundary:
+// a refused payload is a diagnosable user error, not a crash, and letting the
+// exception escape main() terminates on SIGABRT (exit 134, core dumped) with
+// the message buried under "terminate called after throwing...".
+int run(int argc, char** argv);
+
 }  // namespace
 
 int main(int argc, char** argv) {
+  try {
+    return run(argc, argv);
+  } catch (const std::exception& e) {
+    std::fprintf(stderr, "error: %s\n", e.what());
+    return 2;
+  }
+}
+
+namespace {
+
+int run(int argc, char** argv) {
   if (argc < 2) {
     std::fprintf(stderr,
                  "usage: %s <fixture_dir> [--gpus N] [--mode sync|async] "
@@ -426,3 +433,5 @@ int main(int argc, char** argv) {
   for (int g = 0; g < n_gpus; ++g) ncclCommDestroy(comms[g]);
   return (validate && failures > 0) ? 1 : 0;
 }
+
+}  // namespace
