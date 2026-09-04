@@ -448,9 +448,32 @@ paper's claim, now on three points instead of two.
 Async does not track it. It still *loses* at 76% communication and only turns
 positive on the host-staged link, so "async pays when the collective is the
 bottleneck" is too coarse: at 76% comm the overlap ceiling is 23.7% and
-chunking still costs more than it returns. The crossing point sits between
-the two PCIe configurations, and no trace was captured on the P2P host to
-localise it further.
+chunking still costs more than it returns.
+
+### The controlled version of that comparison
+
+The table above still compares *hosts*. `NCCL_P2P_DISABLE=1` makes the same
+comparison *within* one host — same binary, same GPUs, same session, with the
+transport as the only variable. 30 trials after 3 warm-ups, every trial
+validated (`engine/bench/p2p_ab.py`, data in `results/bench/p2p_ab.json`):
+
+| | P2P on | P2P off (host-staged) | Δ |
+| --- | --- | --- | --- |
+| `sync f64` | 12.477 ms | 14.884 ms | +19.3% |
+| `sync packed` | 9.331 ms | 9.940 ms | +6.5% |
+| AllReduce, `f64` | 9.409 ms | 11.889 ms | +26.4% |
+| **compression, `f64` → `packed`** | **−25.2%** | **−33.2%** | |
+| `sync` → `async` at `f64` | +7.2% | +0.1% | |
+
+Both trends reproduce with one variable moved: slowing the transport raises
+what compression buys (−25.2% → −33.2%) and pushes async from a clear loss
+toward break-even. This is the claim without the cross-host confound.
+
+It also shows the archived `PHB` pod's 36.7 ms was **not** mostly about P2P.
+Disabling P2P here costs 26.4% on the collective; that pod was ~4x slower
+than this one's P2P-off number. Topology and host memory path dominate, which
+is one more reason to read the three-host table as regimes rather than as a
+controlled sweep.
 
 **The 2-GPU rows are the noisy ones.** IQR as a fraction of median, 30 trials:
 
@@ -497,6 +520,27 @@ penalty would worsen under compression (−9.3% → −23.4%); at 30 trials it i
 13–18% IQR on those rows, neither ordering is established — the supportable
 claim is that async loses on NVLink at every payload.
 
+### PCIe traces (`SYS`, P2P available)
+
+The same four captures on the PCIe host, GPU0, warm-up excluded:
+
+| trace | collective | compute | overlapped |
+| --- | --- | --- | --- |
+| `sync f64` | 9.091 ms | 2.807 ms | **0.000 ms** |
+| `sync packed` | 6.560 ms | 2.834 ms | **0.000 ms** |
+| `async f64` | 11.179 ms (**1.23x**) | 2.869 ms (1.02x) | 0.023 ms |
+| `async packed` | 9.102 ms (**1.39x**) | 3.532 ms (1.25x) | 0.901 ms |
+
+Sync measures 0.000 ms on a third independent host. The chunking penalty is
+far smaller here than on NVLink — 1.23x against 3.41x at `f64` — which is
+what a less latency-bound link should show. Yet async still loses, because
+the overlap actually achieved on GPU0 is nearly nothing (0.023 ms, 0.2% of
+the collective). GPU1 hides much more (55% of its compute) but its collective
+time is inflated by spin-wait, so GPU0 is the binding side. **On this link
+async fails for a different reason than on NVLink:** there the chunking cost
+dominates, here the pipeline simply does not overlap on the critical GPU —
+consistent with GPU0 also running finalize on its communication stream.
+
 Traces are not shipped. `nsys` records the profiled process's environment,
 and these again captured a live `RUNPOD_API_KEY` despite unsetting it in the
 launching shell — Runpod injects it into the container's init environment,
@@ -506,14 +550,12 @@ verify with `strings <trace> | grep rpa_` before sharing any capture.
 ### Still open
 
 - **A `PHB`/no-P2P host at 30 trials.** The 91%-communication column is still
-  5-trial, and it is the one carrying the −55.5% headline. Attempted and
-  blocked: every A100 80GB PCIe host available on 2026-09-04 ran a driver
-  capped at CUDA 12.5, too old for the CUDA 12.8 / NCCL 2.25.1 stack the
-  archived run used. Measuring on a `cu124` image would produce a fourth
-  configuration rather than a re-measurement of the third, so the column was
-  left as it is rather than silently changing its software stack.
-- **PCIe traces.** Neither PCIe host produced usable traces: the archived pod
-  predates the payload flag, and the P2P pod's Nsight (2022.4.2) left
-  unfinalised `.qdstrm` files. Localising the async crossing point between
-  76% and 91% communication needs a capture on a P2P host with a current
-  profiler.
+  5-trial. Not a CUDA problem, as first assumed: the A100 PCIe hosts offered
+  on 2026-09-04 advertise a driver capped at CUDA 12.5, but
+  `NVIDIA_DISABLE_REQUIRE=1` starts the CUDA 12.8 image on them anyway and
+  every correctness gate passes bit-exact — 12.x minor-version compatibility
+  covers the gap, so toolkit and NCCL still match the archived runs. The real
+  obstacle is that the pool only yielded `SYS`-topology machines with P2P
+  available; `PHB` with P2P unavailable was never offered. The within-host
+  A/B above is the closest substitute and shows that configuration is not
+  reachable by disabling P2P alone.

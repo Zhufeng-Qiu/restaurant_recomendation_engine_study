@@ -295,6 +295,63 @@ Async-2-GPU spread is 15–70x the single-GPU spread. This is why the archived
 is a reason to read every async median with its IQR attached. Trace timings
 remain single-run and are used only to attribute mechanism.
 
+### PCIe traces, and why async fails differently on each link
+
+The PCIe captures now exist too (`SYS`, P2P available, same four
+configurations, GPU0, warm-up excluded):
+
+| trace | collective | compute | overlapped |
+| --- | --- | --- | --- |
+| `sync f64` | 9.091 ms | 2.807 ms | **0.000 ms** |
+| `sync packed` | 6.560 ms | 2.834 ms | **0.000 ms** |
+| `async f64` | 11.179 ms (1.23x) | 2.869 ms (1.02x) | 0.023 ms |
+| `async packed` | 9.102 ms (1.39x) | 3.532 ms (1.25x) | 0.901 ms |
+
+Sync reads 0.000 ms on a third independent host, so the control has held on
+every machine measured. Chunking costs 1.23x here against 3.41x on NVLink,
+exactly as a less latency-bound link should behave — yet async still loses.
+The reason is not the chunking: GPU0 achieves 0.023 ms of overlap, 0.2% of its
+collective, so the pipeline effectively does not overlap on the GPU that binds.
+GPU1 hides 55% of its compute but its collective is inflated by spin-wait. The
+likely cause is the one noted above — GPU0 also runs the finalize kernel on its
+communication stream — which is a fixable scheduling choice, not a property of
+the link.
+
+**So async fails for a different reason in each regime.** On NVLink the
+chunking cost dominates (3.41x). On P2P PCIe chunking is cheap but the overlap
+does not materialise on the binding GPU. On host-staged PCIe it finally wins.
+Only the last was measured before, which is why the earlier one-line
+explanation did not generalise.
+
+### A controlled interconnect A/B
+
+`NCCL_P2P_DISABLE=1` moves the transport within a single host, which is the
+comparison the cross-host table cannot make. 30 trials after 3 warm-ups, every
+trial validated (`engine/bench/p2p_ab.py`, `results/bench/p2p_ab.json`):
+
+| | P2P on | P2P off | Δ |
+| --- | --- | --- | --- |
+| `sync f64` | 12.477 ms | 14.884 ms | +19.3% |
+| `sync packed` | 9.331 ms | 9.940 ms | +6.5% |
+| AllReduce, `f64` | 9.409 ms | 11.889 ms | +26.4% |
+| compression `f64`→`packed` | −25.2% | −33.2% | |
+| `sync`→`async` at `f64` | +7.2% | +0.1% | |
+
+Both central trends survive with one variable moved: a slower transport raises
+what compression buys and pushes async toward break-even. This is the first
+version of the claim in this project that is not confounded by hardware
+differences.
+
+It also bounds how much of the archived `PHB` pod's 36.7 ms was P2P. Removing
+P2P here costs 26.4% on the collective; that pod was roughly 4x slower than
+this one with P2P already off. Most of the archived gap is topology and host
+memory path, not the P2P flag — another reason the three-host table describes
+regimes rather than a swept variable.
+
+Still open: a `PHB`/no-P2P host at 30 trials. The pool on 2026-09-04 offered
+only `SYS`-with-P2P machines, and the A/B above shows that configuration is
+not reachable by disabling P2P alone.
+
 ### Credential hazard, restated
 
 `nsys` again captured a live `RUNPOD_API_KEY` even though the launching shell
