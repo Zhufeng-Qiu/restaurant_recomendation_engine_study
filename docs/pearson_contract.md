@@ -213,3 +213,69 @@ similarities at 1-, 2-, and 3-way rank splits. For `packed` it packs each
 rank's partial and sums the *packed words*, exercising §9.3 directly rather
 than the claim about it. Both full fixtures pass at `max_abs_diff = 0.0`:
 1,171,857 pairs (`item_full`) and 1,411,864 (`user_full`).
+
+## 10. Sep. 4th 2026 - Update
+
+Non-normative. §§1–9 are unamended, no policy or tolerance moves, no fixture
+or golden result needs regenerating. Version stays 1.0.
+
+### 10.1 §9.1 quotes a per-field width, not a total
+
+§9.1 says the loosest bound "needs 16 bits" and then compares against 384 bits
+per pair. Both are true, but together they read as though 16 bits were the
+total — which is how the README came to say "Sixteen bits of content in 384
+bits of wire format". The total is the sum of the six widths:
+
+| field | `item_full` | bits | `user_full` | bits |
+| --- | --- | --- | --- | --- |
+| `n` | 1,363 | 11 | 1,265 | 11 |
+| `Σx`, `Σy` | 6,815 | 13 each | 6,325 | 13 each |
+| `Σx²`, `Σy²`, `Σxy` | 34,075 | 16 each | 31,625 | 15 each |
+| total | | **85** | | **82** |
+
+Read §9.1's 16 bits as *the widest field* — the quantity §9.2's 21-bit slot has
+to hold. §9.4 bounds each statistic separately, so this changes no result and
+no claim in §9.3. Audit:
+
+```bash
+python3 tools/payload_bit_audit.py --observed data/fixtures/item_full
+```
+
+`--observed` also reports what each statistic actually reaches over every pair.
+On `item_full` the tightest is `Σy²` at 4,437 — 473x inside its 21-bit field.
+§9.4 gates on the bound, not the observation, so refusal precedes overflow by
+a wide margin.
+
+### 10.2 §9.4's rejection branches are now tested
+
+The gate had only ever accepted: every shipped fixture is inside the domain by
+construction. `tools/make_domain_fixtures.py` writes five synthetic fixtures to
+`data/fixtures/domain/`; `engine/tests/payload_domain_test.cpp` (CTest target
+`payload_domain`) asserts the full matrix.
+
+| fixture | violates | `f64` | `i32` | `packed` |
+| --- | --- | --- | --- | --- |
+| `ok` | — (control) | accept | accept | accept |
+| `fractional` | integrality (3.5) | accept | reject | reject |
+| `negative` | non-negativity (−2) | accept | reject | reject |
+| `packed_overflow` | 2²¹−1 capacity | accept | accept | reject |
+| `i32_overflow` | 2³¹−1 capacity | accept | reject | reject |
+
+15 checks, 7 rejections. Each fixture is also a valid workload — the serial
+oracle reproduces all five goldens at `max_abs_diff = 0.0` — so the gate is
+exercised on well-formed input, not on data that would fail for other reasons.
+
+The predicate is now host-compilable at `engine/src/common/payload_domain.hpp`,
+deriving its field width from `engine_cuda::kPackBits` so it cannot drift from
+§9.2. `src/nccl/nccl_main.cu` keeps its own throwing copy.
+
+The two were checked against each other on an A100 host: all five fixtures x
+`i32`/`packed`, **10/10 identical verdicts**, so the duplicate is verified
+rather than assumed. The same run found a defect in how the copy refuses. The
+exception escapes `main`, so a refused payload terminates on `SIGABRT`
+(exit 134, core dumped) with `terminate called after throwing...` wrapping the
+message, instead of exiting cleanly. The diagnostic text is correct — the
+domain bound and the offending value are both reported — so §9.4's guarantee
+that a bad fixture is refused rather than silently corrupted still holds; only
+the exit path is wrong. Fixing it (wrap `main`, and collapse the duplicate onto
+the header) needs a GPU host to recompile.
