@@ -27,6 +27,17 @@ results/bench/*.bin
 # keeping. If you re-capture, `unset RUNPOD_API_KEY JUPYTER_PASSWORD` first
 # and check with `strings <trace> | grep -E 'rpa_|PASSWORD='` before adding.
 results/profiles/
+
+# This repository is public. Personal working documents and scratch output
+# directories are kept outside the tree and must never be committed here.
+# A backstop, not the mechanism: nothing matching these rules has ever been
+# tracked, and the point is to keep it that way if a stray file lands in the
+# working tree.
+outputs/
+work/
+*.docx
+*.doc
+
 original_code/python/result/
 original_code/scala/result/
 original_code/scala/target/

@@ -208,3 +208,97 @@ The PCIe pod's kernel is also 14% faster than the SXM pod's (4.31 vs 5.00 ms
 for identical code), so absolute totals are not comparable across machines.
 Every ratio in this document and in the README is therefore computed *within*
 a single machine, against a baseline measured in the same session.
+
+## Sep. 4th 2026 - Update
+
+Re-measured on fresh pods at 30 trials, with configuration-matched traces.
+Two things above are corrected by measurement; the mechanism findings hold.
+
+### The cross-host caveat is the binding one
+
+The README claimed "Same binary, same data, same GPU model. Only the
+interconnect changed." The *Caveats on scope* paragraph above is the correct
+account. The pods differ in CPU (EPYC 7742 vs 7763) and in direction: the
+PCIe pod's GPU path is 13.8% faster while its `serial` is 1.1% slower. Two
+opposite signs cannot both be the link. Every ratio here was already
+within-host, so nothing below changes.
+
+### A third regime: PCIe with P2P
+
+The missing middle point now exists. A `SYS`-topology A100 pair with P2P
+available sits between NVLink and the host-staged `PHB` pod:
+
+| | NVLink `NV12` | PCIe `SYS`, P2P | PCIe `PHB`, no P2P |
+| --- | --- | --- | --- |
+| AllReduce, `f64` sync 2 GPU | 0.479 ms | 9.958 ms | 36.743 ms |
+| communication share | 11.6% | 76.0% | 91.1% |
+| `f64` → `packed` | −4.7% | −23.5% | −55.5% |
+| sync → async at `f64` | +19.3% | +9.7% | −4.3% |
+
+Compression tracks communication share monotonically over all three points,
+which is the strongest form the central claim has been in.
+
+Overlap does not. It still loses at 76% communication even though the ceiling
+there — `min(compute, comm)/total` = 3.1/13.1 — is **23.7%**, nearly three
+times the 8.9% ceiling on the host-staged link where it wins. So the ceiling
+does not predict the sign, and the account above ("overlap pays when compute
+and communication are comparable") is necessary but not sufficient: on the
+P2P link the per-chunk cost still exceeds the hiding. The crossing point lies
+between 76% and 91% communication and is not localised, because no trace was
+obtained on the P2P host.
+
+### Chunking cost, measured at the benchmarked chunk count
+
+The 18-chunk NVLink capture is superseded. All four configurations were
+recaptured at the default chunk count (5 chunks for `item_full`), GPU0,
+warm-up excluded:
+
+| trace | collective | compute | overlapped |
+| --- | --- | --- | --- |
+| `sync f64` | 0.430 ms | 3.430 ms | **0.000 ms** |
+| `sync packed` | 0.197 ms | 3.461 ms | **0.000 ms** |
+| `async f64` | 1.468 ms (3.41x) | 3.531 ms (1.03x) | 0.161 ms |
+| `async packed` | 1.087 ms (5.52x) | 3.685 ms (1.06x) | 0.769 ms |
+
+Sync measures exactly 0.000 ms overlap on new hardware — the control that
+makes the rest readable still holds. Chunking inflates the collective
+**3.41x** at `f64`, against the ~1.8x this document extrapolated from the
+18-chunk trace: the extrapolation understated it roughly twofold, and the
+direct measurement replaces it. Compute inflation stays negligible
+(1.03–1.06x), confirming the NVLink penalty is paid entirely on the
+collective side.
+
+Per-GPU, the spin-wait asymmetry noted above persists and is larger in async:
+GPU1 reports 2.980 ms of collective against GPU0's 1.453 ms in the same
+`async f64` run, so per-GPU figures remain the honest unit.
+
+### One inference did not survive
+
+This document inferred that NVLink's async penalty *worsens* under
+compression (−9.3% → −23.4%), flagged as an inference because no `packed`
+NVLink trace existed. That trace now exists. At 30 trials the penalty is
++19.3% at `f64` and +9.6% at `packed` — the opposite ordering. But those rows
+carry 13–18% IQR, so neither ordering is established. The supportable claim
+is the weaker one: **async loses on NVLink at every payload.**
+
+### Measurement noise is concentrated in the 2-GPU rows
+
+IQR as a fraction of median, 30 trials:
+
+| | 1 GPU | sync 2 GPU | async 2 GPU |
+| --- | --- | --- | --- |
+| NVLink | 0.24–0.88% | 0.58–1.10% | **13.4–17.6%** |
+| PCIe P2P | 0.34–4.15% | 5.11–5.42% | **6.5–13.0%** |
+
+Async-2-GPU spread is 15–70x the single-GPU spread. This is why the archived
+5-trial `nccl_async_g2_packed` and the 30-trial value differ by 17%, and it
+is a reason to read every async median with its IQR attached. Trace timings
+remain single-run and are used only to attribute mechanism.
+
+### Credential hazard, restated
+
+`nsys` again captured a live `RUNPOD_API_KEY` even though the launching shell
+unset it: Runpod injects the key into the container's init environment and
+`nsys` reads the target's environment from `/proc`, below the shell. Shell-level
+unsetting is not a control. Verify with `strings <trace> | grep rpa_` before
+sharing any capture; traces stay out of this repository.

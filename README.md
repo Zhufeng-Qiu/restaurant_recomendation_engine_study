@@ -341,3 +341,165 @@ done
 Every run must report `max_abs_diff = 0` and `tol_failures = 0`. The async
 chunk sweep is not optional: the double-buffering race below only surfaced
 below 262144 pairs per chunk. Benchmarks come after.
+
+## Sep. 4th 2026 - Update
+
+Two corrections, one new test, and a re-measurement on fresh hardware that
+adds a third interconnect. Everything above is unchanged.
+
+### `Sixteen bits of content` is wrong — it is 85
+
+16 bits is the widest single field, not the total. For `item_full`
+(`N = 1363`, `vmax = 5`):
+
+| field | bound | bits |
+| --- | --- | --- |
+| `n` | 1,363 | 11 |
+| `Sx`, `Sy` | 6,815 | 13 each |
+| `Sxx`, `Syy`, `Sxy` | 34,075 | 16 each |
+| total | | **85** |
+
+85 bits of content in 384 bits of wire format; 82 for `user_full`. Audit with
+`python3 tools/payload_bit_audit.py --observed data/fixtures/item_full`.
+
+Nothing downstream moves — the gate bounds each field separately, and 16 ≤ 21.
+Measured rather than bounded, over all 1,171,857 pairs, the tightest field
+(`Syy`, max 4,437) keeps 473x headroom in its 21-bit slot.
+
+### `Only the interconnect changed` overstates the control
+
+[docs/analysis.md](docs/analysis.md) already said so under *Caveats on scope*.
+The pods differ by more than the link:
+
+| | NVLink pod | PCIe pod |
+| --- | --- | --- |
+| CPU | EPYC 7742 | EPYC 7763 |
+| `cuda_1gpu` (no collective) | 5.002 ms | 4.311 ms — 13.8% faster |
+| `serial` | 1311.96 ms | 1326.39 ms — 1.1% slower |
+| `openmp_t16_dynamic` | 85.82 ms | 88.85 ms — 3.5% slower |
+
+The PCIe pod's GPU path is faster while its CPU path is slower. That is not
+the interconnect. Read the comparison as hosts representing communication
+regimes, not a controlled A/B — which is what the three-regime table below
+now makes explicit.
+
+### Domain gate: the rejection branches now run
+
+`check_payload_domain()` had only ever accepted, since every shipped fixture
+is Yelp stars far inside the domain. Five synthetic fixtures make it refuse.
+
+| fixture | violates | `f64` | `i32` | `packed` |
+| --- | --- | --- | --- | --- |
+| `ok` | — (control) | accept | accept | accept |
+| `fractional` | 3.5 not an integer | accept | reject | reject |
+| `negative` | rating −2 | accept | reject | reject |
+| `packed_overflow` | 5.0e6 > 2²¹−1 | accept | accept | reject |
+| `i32_overflow` | 3.0e10 > 2³¹−1 | accept | reject | reject |
+
+```bash
+python3 tools/make_domain_fixtures.py
+ctest --test-dir engine/build -R payload_domain
+```
+
+15 checks, 7 of them rejections. All five are valid workloads too — the serial
+oracle reproduces their goldens at `max_abs_diff = 0.0`. The predicate now
+sits in [`engine/src/common/payload_domain.hpp`](engine/src/common/payload_domain.hpp),
+host-compilable, taking its field width from `engine_cuda::kPackMaxField`.
+
+`nccl_main.cu` keeps its own copy; on an A100 host the two were checked
+against each other on all five fixtures x `i32`/`packed` and agreed 10/10.
+That run also exposed a defect: the guard refuses correctly but does it by
+letting the exception escape `main`, so the process dies on `SIGABRT`
+(exit 134, core dumped) instead of exiting cleanly with its message. The
+message itself is right; only the exit path is wrong.
+
+### Three interconnect regimes, re-measured at 30 trials
+
+Re-run on fresh pods at `--repeats 30 --warmups 3`, every configuration
+bit-exact. `run_bench.py` now records `n_trials`, `iqr_s`, `p25_s`, `p75_s`.
+The new PCIe host reports `SYS` topology with **P2P available** — a different
+machine from the archived `PHB`/no-P2P pod, and the middle point
+[docs/analysis.md](docs/analysis.md) said was missing.
+
+| | NVLink `NV12` | PCIe `SYS`, P2P ok | PCIe `PHB`, no P2P |
+| --- | --- | --- | --- |
+| trials | 30 | 30 | 5 (archived) |
+| AllReduce, `f64` sync 2 GPU | 0.479 ms | 9.958 ms | 36.743 ms |
+| communication share | 11.6% | 76.0% | 91.1% |
+| `f64` → `packed` | **−4.7%** | **−23.5%** | **−55.5%** |
+| sync → async at `f64` | +19.3% | +9.7% | −4.3% |
+| best configuration | `sync packed` | `sync packed` | `async packed` |
+
+Compression tracks communication share monotonically across all three —
+11.6% / 76% / 91% of the iteration buys 4.7% / 23.5% / 55.5%. That is the
+paper's claim, now on three points instead of two.
+
+Async does not track it. It still *loses* at 76% communication and only turns
+positive on the host-staged link, so "async pays when the collective is the
+bottleneck" is too coarse: at 76% comm the overlap ceiling is 23.7% and
+chunking still costs more than it returns. The crossing point sits between
+the two PCIe configurations, and no trace was captured on the P2P host to
+localise it further.
+
+**The 2-GPU rows are the noisy ones.** IQR as a fraction of median, 30 trials:
+
+| | 1 GPU | sync 2 GPU | async 2 GPU |
+| --- | --- | --- | --- |
+| NVLink | 0.24–0.88% | 0.58–1.10% | **13.4–17.6%** |
+| PCIe P2P | 0.34–4.15% | 5.11–5.42% | **6.5–13.0%** |
+
+Async-2-GPU spread is 15–70x the single-GPU spread, which is why the archived
+5-trial `nccl_async_g2_packed` (5.188 ms) and this run (4.306 ms) differ by
+17%. Single-GPU and sync rows reproduce tightly; async 2-GPU medians should
+be read with their IQR attached. On the CPU side the same re-run moved
+`mpi_r4` −19.5% and `openmp_t16_static` −17.8% against their 5-trial values
+while every within-run IQR stayed at 0.5–2.8%.
+
+Data: `results/bench/bench_20260904_200900.json` (NVLink),
+`bench_20260904_211956.json` (PCIe P2P), `bench_20260904_123357.json` (M5
+CPU), environments in `results/gpu_env_20260904_*.txt`. Redrawn CPU figures
+in `results/figures/20260904_30trials/`; the ones above are untouched.
+
+### Configuration-matched Nsight traces (NVLink)
+
+Both gaps that [docs/analysis.md](docs/analysis.md) recorded are closed: a
+`packed` NVLink trace now exists, and all four captures use the default chunk
+count instead of 18. Per GPU0, warm-up excluded:
+
+| trace | collective | compute | overlapped |
+| --- | --- | --- | --- |
+| `sync f64` | 0.430 ms | 3.430 ms | **0.000 ms** |
+| `sync packed` | 0.197 ms | 3.461 ms | **0.000 ms** |
+| `async f64` | 1.468 ms (**3.41x**) | 3.531 ms (1.03x) | 0.161 ms |
+| `async packed` | 1.087 ms (**5.52x**) | 3.685 ms (1.06x) | 0.769 ms |
+
+Sync still measures exactly 0.000 ms — the control holds on new hardware.
+Chunking inflates the collective **3.41x** at the benchmarked chunk count,
+not the ~1.8x that document extrapolated from its 18-chunk capture; the
+extrapolation understated the effect about twofold. Compute inflation is
+negligible on NVLink (1.03–1.06x), so the NVLink async penalty is entirely a
+collective-side cost, as claimed.
+
+One archived inference does *not* survive. That document predicted the async
+penalty would worsen under compression (−9.3% → −23.4%); at 30 trials it is
++19.3% at `f64` and +9.6% at `packed`, the opposite ordering. Given the
+13–18% IQR on those rows, neither ordering is established — the supportable
+claim is that async loses on NVLink at every payload.
+
+Traces are not shipped. `nsys` records the profiled process's environment,
+and these again captured a live `RUNPOD_API_KEY` despite unsetting it in the
+launching shell — Runpod injects it into the container's init environment,
+where `nsys` reads it from `/proc`. Unsetting in the shell is not sufficient;
+verify with `strings <trace> | grep rpa_` before sharing any capture.
+
+### Still open
+
+- **PCIe traces.** Neither PCIe host produced usable traces: the archived pod
+  predates the payload flag, and the P2P pod's Nsight (2022.4.2) left
+  unfinalised `.qdstrm` files. Localising the async crossing point between
+  76% and 91% communication needs a capture on a P2P host.
+- **`nccl_main.cu` exit path.** Wrap `main` so a refused payload exits
+  cleanly rather than aborting; also collapses its duplicate predicate onto
+  `payload_domain.hpp`. Needs a GPU host to recompile.
+- **A `PHB`/no-P2P host at 30 trials.** The 91%-communication column is still
+  5-trial, and it is the one carrying the −55.5% headline.
