@@ -1,0 +1,48 @@
+{
+  "schema": "pearson-fixture-v1",
+  "mode": "synthetic",
+  "source": "tools/make_domain_fixtures.py",
+  "purpose": "integer but vmax^2*N = 3.0e10 > 2^31-1: both compressed payloads refuse",
+  "subset": null,
+  "policy": {
+    "min_overlap": 3,
+    "eps": 1e-14,
+    "tolerance": 1e-12,
+    "duplicate_policy": "n/a (synthetic, unique keys by construction)",
+    "jaccard_threshold": null
+  },
+  "counts": {
+    "n_entities": 3,
+    "n_dims": 3,
+    "nnz": 9,
+    "n_pairs": 3,
+    "n_emitted": 0
+  },
+  "domain": {
+    "max_row": 3,
+    "max_rating": 100000,
+    "loosest_statistic_bound": 30000000000,
+    "expect_accept": {
+      "f64": true,
+      "i32": false,
+      "packed": false
+    }
+  },
+  "layout": {
+    "endianness": "little",
+    "offsets.bin": "int64[n_entities+1]",
+    "dims.bin": "int32[nnz], ascending within each entity row",
+    "vals.bin": "float64[nnz]",
+    "pairs.bin": "int32[2*n_pairs], (i,j) with i<j, lexicographically sorted",
+    "golden.bin": "float64[n_pairs], unfiltered Pearson sim per pair"
+  },
+  "files": {
+    "entities.txt": "8595101e9a05b7128018cec75e005bdc53217341b327ea2c5c19586d97645a8a",
+    "dims.txt": "8dbd006d5274874abd0a94c072fd635481c0666c9bc8cbd8007adf4b0a467086",
+    "offsets.bin": "df29d6d0dd9b0f5cccfdf3c3c1da3ba4bebc8f899599f5e9a0d173f752540dfa",
+    "dims.bin": "f0f05679062d8d21b52c291de821383c6faaf59c2f7c71b89ea2026f69128725",
+    "vals.bin": "2fcb42b18a870d3ba81ff759154c3c06f30e91f3d449e0768d5717b2348778bf",
+    "pairs.bin": "72373165deffec74d858505d53012fbaf7c533a0434b8179030dea3b85939ca2",
+    "golden.bin": "b3502084436f2785298a83fd0b8b08a4926c848b10b2c8f54b5b804c83130caa"
+  }
+}
