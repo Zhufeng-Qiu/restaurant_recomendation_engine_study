@@ -406,12 +406,23 @@ oracle reproduces their goldens at `max_abs_diff = 0.0`. The predicate now
 sits in [`engine/src/common/payload_domain.hpp`](engine/src/common/payload_domain.hpp),
 host-compilable, taking its field width from `engine_cuda::kPackMaxField`.
 
-`nccl_main.cu` keeps its own copy; on an A100 host the two were checked
-against each other on all five fixtures x `i32`/`packed` and agreed 10/10.
-That run also exposed a defect: the guard refuses correctly but does it by
-letting the exception escape `main`, so the process dies on `SIGABRT`
-(exit 134, core dumped) instead of exiting cleanly with its message. The
-message itself is right; only the exit path is wrong.
+The A100 run that first exercised this found the gate refusing correctly but
+doing it by letting the exception escape `main`, so the process died on
+`SIGABRT` (exit 134, core dumped) with the message buried under
+`terminate called after throwing...`. Both `nccl_main.cu` and `main.cpp` now
+wrap their body in a thin exception boundary, and `nccl_main.cu` calls the
+shared predicate instead of carrying a second copy:
+
+| | before | after |
+| --- | --- | --- |
+| refused payload | exit 134, core dumped | **exit 2**, `error: <reason>` |
+| valid workload | exit 0 | exit 0 |
+
+Re-verified on 2x A100-SXM4-80GB after the change: **all 18 NCCL gates still
+bit-exact** at unchanged emitted counts (557,478 / 634,993), single-GPU CUDA
+unchanged on all three fixtures, and no timing regression — `sync f64`
+4.137 ms and `sync packed` 3.933 ms against the 4.122 / 3.928 ms measured
+before it.
 
 ### Three interconnect regimes, re-measured at 30 trials
 
@@ -494,12 +505,15 @@ verify with `strings <trace> | grep rpa_` before sharing any capture.
 
 ### Still open
 
+- **A `PHB`/no-P2P host at 30 trials.** The 91%-communication column is still
+  5-trial, and it is the one carrying the −55.5% headline. Attempted and
+  blocked: every A100 80GB PCIe host available on 2026-09-04 ran a driver
+  capped at CUDA 12.5, too old for the CUDA 12.8 / NCCL 2.25.1 stack the
+  archived run used. Measuring on a `cu124` image would produce a fourth
+  configuration rather than a re-measurement of the third, so the column was
+  left as it is rather than silently changing its software stack.
 - **PCIe traces.** Neither PCIe host produced usable traces: the archived pod
   predates the payload flag, and the P2P pod's Nsight (2022.4.2) left
   unfinalised `.qdstrm` files. Localising the async crossing point between
-  76% and 91% communication needs a capture on a P2P host.
-- **`nccl_main.cu` exit path.** Wrap `main` so a refused payload exits
-  cleanly rather than aborting; also collapses its duplicate predicate onto
-  `payload_domain.hpp`. Needs a GPU host to recompile.
-- **A `PHB`/no-P2P host at 30 trials.** The 91%-communication column is still
-  5-trial, and it is the one carrying the −55.5% headline.
+  76% and 91% communication needs a capture on a P2P host with a current
+  profiler.

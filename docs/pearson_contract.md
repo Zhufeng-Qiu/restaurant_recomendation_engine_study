@@ -269,13 +269,16 @@ The predicate is now host-compilable at `engine/src/common/payload_domain.hpp`,
 deriving its field width from `engine_cuda::kPackBits` so it cannot drift from
 §9.2. `src/nccl/nccl_main.cu` keeps its own throwing copy.
 
-The two were checked against each other on an A100 host: all five fixtures x
-`i32`/`packed`, **10/10 identical verdicts**, so the duplicate is verified
-rather than assumed. The same run found a defect in how the copy refuses. The
-exception escapes `main`, so a refused payload terminates on `SIGABRT`
-(exit 134, core dumped) with `terminate called after throwing...` wrapping the
-message, instead of exiting cleanly. The diagnostic text is correct — the
-domain bound and the offending value are both reported — so §9.4's guarantee
-that a bad fixture is refused rather than silently corrupted still holds; only
-the exit path is wrong. Fixing it (wrap `main`, and collapse the duplicate onto
-the header) needs a GPU host to recompile.
+The two were first checked against each other on an A100 host: all five
+fixtures x `i32`/`packed`, **10/10 identical verdicts**. That run also found a
+defect in how the copy refused — the exception escaped `main`, so a refused
+payload terminated on `SIGABRT` (exit 134, core dumped) with
+`terminate called after throwing...` wrapping the message. §9.4's guarantee
+held throughout (a bad fixture was refused, never silently corrupted); only
+the exit path was wrong.
+
+Both are now resolved. `nccl_main.cu` calls this header rather than carrying a
+duplicate, and it and `main.cpp` wrap their body in an exception boundary, so
+a refused payload exits **2** with `error: <reason>` on stderr. Re-verified on
+2x A100-SXM4-80GB after the change: all 18 NCCL gates bit-exact at unchanged
+emitted counts, single-GPU CUDA unchanged, and no timing regression.

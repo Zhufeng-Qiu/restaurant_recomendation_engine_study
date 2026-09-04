@@ -48,9 +48,25 @@ double now_s() {
   return duration<double>(steady_clock::now().time_since_epoch()).count();
 }
 
+// Body of main; main() below is a thin exception boundary. Fixture::load and
+// the CUDA backend both throw, and an escaping exception terminates on
+// SIGABRT with the message buried under "terminate called after throwing...".
+int run(int argc, char** argv);
+
 }  // namespace
 
 int main(int argc, char** argv) {
+  try {
+    return run(argc, argv);
+  } catch (const std::exception& e) {
+    std::fprintf(stderr, "error: %s\n", e.what());
+    return 2;
+  }
+}
+
+namespace {
+
+int run(int argc, char** argv) {
   if (argc < 2) {
     std::fprintf(stderr, "usage: %s <fixture_dir> [--backend serial] [--validate] [--out f]\n",
                  argv[0]);
@@ -115,3 +131,5 @@ int main(int argc, char** argv) {
 
   return (validate && failures > 0) ? 1 : 0;
 }
+
+}  // namespace
