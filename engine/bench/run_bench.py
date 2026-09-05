@@ -69,15 +69,19 @@ def time_of(trial):
     return trial["t_local_s"] + trial["t_allreduce_s"] + trial["t_finalize_s"]
 
 
-def one_shot_of(trial):
-    """Cold-invocation total: load + setup/H2D + compute + D2H.
+def cold_data_path_of(trial):
+    """Entry-to-result total: load + runtime init + setup/H2D + compute + D2H.
 
-    The headline speedups are steady-state; a one-shot caller pays staging too,
-    and on the GPU that is the larger term at small sizes. Returns None for
-    runs that predate the schema rather than guessing.
+    NOT a CLI one-shot. Process launch -- mpirun's spawn, the CUDA driver's
+    first-touch, the shell -- is outside every binary that could measure it,
+    so a true one-shot has to be timed by an outer process. What this captures
+    is everything from `main` entry to results in host memory, which is the
+    part the engine controls. Returns None for runs predating the schema.
     """
-    if "one_shot_total_s" in trial:
-        return trial["one_shot_total_s"]
+    if "cold_data_path_s" in trial:
+        return trial["cold_data_path_s"]
+    if "one_shot_total_s" in trial:       # pre-rename runs, and they excluded
+        return trial["one_shot_total_s"]  # NCCL/MPI init entirely
     if "t_h2d_s" in trial and "t_load_s" in trial:   # legacy cuda
         return (trial["t_load_s"] + trial["t_h2d_s"] + time_of(trial)
                 + trial.get("t_d2h_s", 0.0))
@@ -137,6 +141,22 @@ def environment():
     if quota and quota.split()[0] != "max":
         q, period = quota.split()[:2]
         env["cpu_quota_equivalents"] = round(int(q) / int(period), 2)
+    env["git_sha"] = _cmd(["git", "rev-parse", "HEAD"])
+    dirty = _cmd(["git", "status", "--porcelain"])
+    env["git_dirty"] = bool(dirty) if dirty is not None else None
+    # Passed in by whatever launched the container; there is no reliable way to
+    # read your own image digest from inside it.
+    env["image_digest"] = os.environ.get("BENCH_IMAGE_DIGEST")
+    nvcc = _cmd(["sh", "-c", "nvcc --version | sed -n 's/.*release \\([0-9.]*\\).*/\\1/p'"])
+    if nvcc:
+        env["cuda_toolkit"] = nvcc.strip()
+    nccl = _cmd(["sh", "-c",
+                 "ls /usr/lib/x86_64-linux-gnu/libnccl.so.2.* 2>/dev/null | head -1"])
+    if nccl:
+        env["nccl"] = nccl.rsplit(".so.", 1)[-1]
+    p2p = _cmd(["sh", "-c", "nvidia-smi topo -p2p rw 2>/dev/null | head -6"])
+    if p2p:
+        env["p2p_matrix"] = p2p
     gpus = _cmd(["nvidia-smi", "--query-gpu=name,uuid,driver_version",
                  "--format=csv,noheader"])
     if gpus:
@@ -310,9 +330,9 @@ def main():
             "timing_basis": trials[0].get("timing_basis", "legacy"),
             "trials": trials,
         }
-        one_shots = [v for v in (one_shot_of(t) for t in trials) if v is not None]
-        if one_shots:
-            rec["one_shot_median_s"] = statistics.median(one_shots)
+        colds = [v for v in (cold_data_path_of(t) for t in trials) if v is not None]
+        if colds:
+            rec["cold_data_path_median_s"] = statistics.median(colds)
         for field in ("payload", "payload_bytes_per_pair", "allreduce_bytes"):
             if field in trials[0]:
                 rec[field] = trials[0][field]
@@ -324,7 +344,13 @@ def main():
             if "comm_fraction" in trials[0]:
                 rec["comm_fraction"] = statistics.median(t["comm_fraction"] for t in trials)
             elif rec["median_s"] > 0:
-                rec["comm_fraction"] = rec["median_allreduce_s"] / rec["median_s"]
+                # A share of the iteration only where the stages are serial.
+                # In async they overlap, so allreduce/pipeline is a ratio that
+                # can legitimately exceed 1 and is not a fraction of anything;
+                # it is named for what it is.
+                key = ("allreduce_sum_over_pipeline"
+                       if trials[0].get("mode") == "async" else "comm_fraction")
+                rec[key] = rec["median_allreduce_s"] / rec["median_s"]
         results.append(rec)
         print(f"{cfg['name']:26s} median={rec['median_s']:.4f}s "
               f"stdev={rec['stdev_s']:.4f}s max_diff={rec['max_abs_diff']:.1e}")
