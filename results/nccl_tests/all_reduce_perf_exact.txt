@@ -1,0 +1,50 @@
+# nccl-tests all_reduce_perf, exact engine payload sizes, 2 GPUs
+# host: 2x A100-SXM4-80GB NV12, 580.126.16
+# nccl-tests SHA: b4d5beebca8a76cf01335f724d154b9b9d394d96
+# engine AllReduce is IN-PLACE: ncclAllReduce(slot, slot, ...)  -> read the in-place columns
+# columns: size count type redop root | OOP: time algbw busbw wrong | IP: time algbw busbw wrong
+
+### payload=packed  bytes=18749712  dtype=uint64
+$ ./build/all_reduce_perf -b 18749712 -e 18749712 -d uint64 -g 2 -w 5 -n 20 -c 1
+#  Rank  1 Group  0 Pid   2566 on fdf607fd02a2 device  1 [0000:0f:00] NVIDIA A100-SXM4-80GB
+#
+#                                                              out-of-place                       in-place
+#       size         count      type   redop    root     time   algbw   busbw  #wrong     time   algbw   busbw  #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)             (us)  (GB/s)  (GB/s)        
+    18749712       2343714    uint64     sum      -1   165.85  113.05  113.05       0   157.13  119.33  119.33       0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 116.189 
+#
+# Collective test concluded: all_reduce_perf
+#
+
+
+### payload=i32  bytes=28124568  dtype=int32
+$ ./build/all_reduce_perf -b 28124568 -e 28124568 -d int32 -g 2 -w 5 -n 20 -c 1
+#  Rank  1 Group  0 Pid   2583 on fdf607fd02a2 device  1 [0000:0f:00] NVIDIA A100-SXM4-80GB
+#
+#                                                              out-of-place                       in-place
+#       size         count      type   redop    root     time   algbw   busbw  #wrong     time   algbw   busbw  #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)             (us)  (GB/s)  (GB/s)        
+    28124568       7031142     int32     sum      -1   223.97  125.58  125.58       0   218.10  128.95  128.95       0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 127.264 
+#
+# Collective test concluded: all_reduce_perf
+#
+
+
+### payload=f64  bytes=56249136  dtype=double
+$ ./build/all_reduce_perf -b 56249136 -e 56249136 -d double -g 2 -w 5 -n 20 -c 1
+#  Rank  1 Group  0 Pid   2600 on fdf607fd02a2 device  1 [0000:0f:00] NVIDIA A100-SXM4-80GB
+#
+#                                                              out-of-place                       in-place
+#       size         count      type   redop    root     time   algbw   busbw  #wrong     time   algbw   busbw  #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)             (us)  (GB/s)  (GB/s)        
+    56249136       7031142    double     sum      -1   384.67  146.23  146.23       0   378.28  148.70  148.70       0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 147.462 
+#
+# Collective test concluded: all_reduce_perf
+#
+
