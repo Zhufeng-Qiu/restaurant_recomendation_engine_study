@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <functional>
@@ -68,7 +69,8 @@ namespace {
 
 int run(int argc, char** argv) {
   if (argc < 2) {
-    std::fprintf(stderr, "usage: %s <fixture_dir> [--backend serial] [--validate] [--out f]\n",
+    std::fprintf(stderr, "usage: %s <fixture_dir> [--backend serial] [--validate] [--out f]\n"
+                 "       [--group 1|2|4|8|16|32] [--pair-order source|bylen]\n",
                  argv[0]);
     return 2;
   }
@@ -80,6 +82,25 @@ int run(int argc, char** argv) {
     if (!std::strcmp(argv[a], "--backend") && a + 1 < argc) backend_name = argv[++a];
     else if (!std::strcmp(argv[a], "--out") && a + 1 < argc) out_path = argv[++a];
     else if (!std::strcmp(argv[a], "--validate")) validate = true;
+#if defined(ENGINE_HAVE_CUDA)
+    // Lane mapping (warp packing). Accepted only where a GPU backend exists,
+    // so a CPU-only build rejects them instead of silently ignoring them and
+    // reporting a mapping it never ran.
+    else if (!std::strcmp(argv[a], "--group") && a + 1 < argc) {
+      const int g = std::atoi(argv[++a]);
+      if (g < 1 || g > 32 || (g & (g - 1)) != 0) {
+        std::fprintf(stderr, "--group must be 1, 2, 4, 8, 16 or 32\n");
+        return 2;
+      }
+      engine::cuda_map_options().group = g;
+    }
+    else if (!std::strcmp(argv[a], "--pair-order") && a + 1 < argc) {
+      const std::string v = argv[++a];
+      if (v == "source") engine::cuda_map_options().order = engine::PairOrder::kSource;
+      else if (v == "bylen") engine::cuda_map_options().order = engine::PairOrder::kByShortLen;
+      else { std::fprintf(stderr, "--pair-order must be source or bylen\n"); return 2; }
+    }
+#endif
     else { std::fprintf(stderr, "unknown arg %s\n", argv[a]); return 2; }
   }
 

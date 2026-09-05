@@ -43,6 +43,7 @@
 #include <vector>
 
 #include "common/fixture.hpp"
+#include "common/pair_order.hpp"
 #include "common/payload_domain.hpp"
 #include "common/pearson.hpp"
 #include "cuda/pair_kernel.cuh"
@@ -71,6 +72,7 @@ struct Device {
   int32_t* dims = nullptr;
   double* vals = nullptr;
   int32_t* pairs = nullptr;
+  int32_t* order = nullptr;  // slot -> pair; identical on every device
   void* stats = nullptr;     // elems_per_pair(payload) entries per pair
   double* sims = nullptr;    // n_pairs (device 0 finalizes)
   cudaStream_t compute = nullptr, comm = nullptr;
@@ -158,43 +160,44 @@ void check_payload_domain(const engine::Fixture& fx, Payload p) {
 
 // Payload-dispatching launchers. The three variants share their accumulation
 // path (engine_cuda::warp_pair_stats) and differ only in the width they emit.
-void launch_stats(Payload p, unsigned blocks, cudaStream_t s, const Device& d,
-                  const int32_t* pairs, int64_t len, void* dst) {
+void launch_stats(Payload p, int group, unsigned blocks, cudaStream_t s,
+                  const Device& d, const int32_t* order, int64_t len,
+                  void* dst) {
   using namespace engine_cuda;
   switch (p) {
     case Payload::I32:
-      pair_stats_kernel_i32<<<blocks, kBlock, 0, s>>>(
-          d.offsets, d.dims, d.vals, pairs, len, d.dim_lo, d.dim_hi,
-          static_cast<int32_t*>(dst));
+      ENGINE_DISPATCH_GROUP(group, pair_stats_kernel_i32, blocks, kBlock, s,
+                            d.offsets, d.dims, d.vals, d.pairs, order, len,
+                            d.dim_lo, d.dim_hi, static_cast<int32_t*>(dst));
       break;
     case Payload::Packed:
-      pair_stats_kernel_packed<<<blocks, kBlock, 0, s>>>(
-          d.offsets, d.dims, d.vals, pairs, len, d.dim_lo, d.dim_hi,
-          static_cast<uint64_t*>(dst));
+      ENGINE_DISPATCH_GROUP(group, pair_stats_kernel_packed, blocks, kBlock, s,
+                            d.offsets, d.dims, d.vals, d.pairs, order, len,
+                            d.dim_lo, d.dim_hi, static_cast<uint64_t*>(dst));
       break;
     default:
-      pair_stats_kernel<<<blocks, kBlock, 0, s>>>(
-          d.offsets, d.dims, d.vals, pairs, len, d.dim_lo, d.dim_hi,
-          static_cast<double*>(dst));
+      ENGINE_DISPATCH_GROUP(group, pair_stats_kernel, blocks, kBlock, s,
+                            d.offsets, d.dims, d.vals, d.pairs, order, len,
+                            d.dim_lo, d.dim_hi, static_cast<double*>(dst));
   }
 }
 
 void launch_finalize(Payload p, int64_t len, cudaStream_t s, const void* stats,
-                     double* sims) {
+                     const int32_t* order, double* sims) {
   using namespace engine_cuda;
   const unsigned blocks = static_cast<unsigned>((len + 255) / 256);
   switch (p) {
     case Payload::I32:
       finalize_kernel_i32<<<blocks, 256, 0, s>>>(
-          static_cast<const int32_t*>(stats), len, sims);
+          static_cast<const int32_t*>(stats), order, len, sims);
       break;
     case Payload::Packed:
       finalize_kernel_packed<<<blocks, 256, 0, s>>>(
-          static_cast<const uint64_t*>(stats), len, sims);
+          static_cast<const uint64_t*>(stats), order, len, sims);
       break;
     default:
       finalize_kernel<<<blocks, 256, 0, s>>>(
-          static_cast<const double*>(stats), len, sims);
+          static_cast<const double*>(stats), order, len, sims);
   }
 }
 
@@ -223,6 +226,7 @@ int run(int argc, char** argv) {
                  "usage: %s <fixture_dir> [--gpus N] [--mode sync|async] "
                  "[--chunk PAIRS] [--payload f64|i32|packed] "
                  "[--finalize-stream comm|separate] [--validate] "
+                 "[--group 1|2|4|8|16|32] [--pair-order source|bylen] "
                  "[--out f]\n", argv[0]);
     return 2;
   }
@@ -230,6 +234,8 @@ int run(int argc, char** argv) {
   std::string finalize_stream = "comm";  // async only; "comm" | "separate"
   int n_gpus = 2;
   int64_t chunk = 1 << 18;  // 262144 pairs per chunk (async mode)
+  int group = 32;                     // lanes per pair; 32 == phase-3 mapping
+  std::string order_arg = "source";   // "bylen" enables warp packing
   bool validate = false;
   for (int a = 2; a < argc; ++a) {
     if (!std::strcmp(argv[a], "--gpus") && a + 1 < argc) n_gpus = std::atoi(argv[++a]);
@@ -239,8 +245,14 @@ int run(int argc, char** argv) {
     else if (!std::strcmp(argv[a], "--finalize-stream") && a + 1 < argc) finalize_stream = argv[++a];
     else if (!std::strcmp(argv[a], "--validate")) validate = true;
     else if (!std::strcmp(argv[a], "--out") && a + 1 < argc) out_path = argv[++a];
+    else if (!std::strcmp(argv[a], "--group") && a + 1 < argc) group = std::atoi(argv[++a]);
+    else if (!std::strcmp(argv[a], "--pair-order") && a + 1 < argc) order_arg = argv[++a];
   }
   const Payload payload = parse_payload(payload_arg);
+  if (group < 1 || group > 32 || (group & (group - 1)) != 0)
+    throw std::runtime_error("--group must be 1, 2, 4, 8, 16 or 32");
+  if (order_arg != "source" && order_arg != "bylen")
+    throw std::runtime_error("--pair-order must be source or bylen");
   if (finalize_stream != "comm" && finalize_stream != "separate")
     throw std::runtime_error("--finalize-stream must be comm or separate");
   if (mode == "sync" && finalize_stream != "comm")
@@ -258,6 +270,19 @@ int run(int argc, char** argv) {
 
   int32_t n_dims = 0;
   for (int32_t d : fx.dims) n_dims = std::max(n_dims, d + 1);
+
+  // One plan for every device. It is built over the FULL dimension range, not
+  // each GPU's slice: slot s must mean the same pair on every GPU or the
+  // AllReduce would sum statistics belonging to different pairs. Sorting by
+  // the global shorter-slice length is therefore an approximation of each
+  // GPU's own ordering -- it recovers 19.2% of the two-GPU lane waste against
+  // the 25.3% a per-GPU sort could reach, and a per-GPU sort is not available
+  // at any price while the collective is elementwise.
+  const engine::PairPlan plan =
+      engine::plan_pairs(fx, 0, n_dims,
+                         order_arg == "bylen" ? engine::PairOrder::kByShortLen
+                                              : engine::PairOrder::kSource,
+                         group);
 
   std::vector<Device> devs(n_gpus);
   std::vector<ncclComm_t> comms(n_gpus);
@@ -294,6 +319,7 @@ int run(int argc, char** argv) {
     CUDA_CHECK(cudaMalloc(&d.dims, fx.dims.size() * sizeof(int32_t)));
     CUDA_CHECK(cudaMalloc(&d.vals, fx.vals.size() * sizeof(double)));
     CUDA_CHECK(cudaMalloc(&d.pairs, fx.pairs.size() * sizeof(int32_t)));
+    CUDA_CHECK(cudaMalloc(&d.order, plan.order.size() * sizeof(int32_t)));
     CUDA_CHECK(cudaMalloc(&d.stats, stats_bytes));
     CUDA_CHECK(cudaMalloc(&d.sims, n_pairs * sizeof(double)));
     CUDA_CHECK(cudaMemcpy(d.offsets, fx.offsets.data(),
@@ -304,6 +330,8 @@ int run(int argc, char** argv) {
                           fx.vals.size() * sizeof(double), cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d.pairs, fx.pairs.data(),
                           fx.pairs.size() * sizeof(int32_t), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d.order, plan.order.data(),
+                          plan.order.size() * sizeof(int32_t), cudaMemcpyHostToDevice));
   }
   for (int g = 0; g < n_gpus; ++g) {
     CUDA_CHECK(cudaSetDevice(g));
@@ -330,7 +358,6 @@ int run(int argc, char** argv) {
   const double t_setup = wall() - t1;
 
   using namespace engine_cuda;
-  const int wpb = kBlock / kWarp;
   // Timing contract (see README, unified 2026-09-05):
   //   device_total = stats + allreduce + finalize   -- comparable across
   //                                                    backends, headline uses it
@@ -347,9 +374,9 @@ int run(int argc, char** argv) {
     for (int g = 0; g < n_gpus; ++g) {
       Device& d = devs[g];
       CUDA_CHECK(cudaSetDevice(g));
-      const int64_t blocks = (n_pairs + wpb - 1) / wpb;
-      launch_stats(payload, static_cast<unsigned>(blocks), d.compute, d,
-                   d.pairs, n_pairs, d.stats);
+      const int64_t blocks = (n_pairs * group + kBlock - 1) / kBlock;
+      launch_stats(payload, group, static_cast<unsigned>(blocks), d.compute, d,
+                   d.order, n_pairs, d.stats);
     }
     for (int g = 0; g < n_gpus; ++g) {
       CUDA_CHECK(cudaSetDevice(g));
@@ -382,7 +409,7 @@ int run(int argc, char** argv) {
     const double f0 = wall();
     CUDA_CHECK(cudaSetDevice(0));
     launch_finalize(payload, n_pairs, devs[0].compute, devs[0].stats,
-                    devs[0].sims);
+                    devs[0].order, devs[0].sims);
     CUDA_CHECK(cudaStreamSynchronize(devs[0].compute));
     t_finalize = wall() - f0;
   } else {
@@ -415,11 +442,11 @@ int run(int argc, char** argv) {
         CUDA_CHECK(cudaSetDevice(g));
         // Reuse of slot b must wait until its previous AllReduce finished.
         if (c >= 2) CUDA_CHECK(cudaStreamWaitEvent(d.compute, d.chunk_reduced[b], 0));
-        const int64_t blocks = (len + wpb - 1) / wpb;
+        const int64_t blocks = (len * group + kBlock - 1) / kBlock;
         void* slot = stats_at(d.stats, payload, chunk * b);
         if (g == 0) CUDA_CHECK(cudaEventRecord(es0[c], d.compute));
-        launch_stats(payload, static_cast<unsigned>(blocks), d.compute, d,
-                     d.pairs + 2 * base, len, slot);
+        launch_stats(payload, group, static_cast<unsigned>(blocks), d.compute,
+                     d, d.order + base, len, slot);
         if (g == 0) CUDA_CHECK(cudaEventRecord(es1[c], d.compute));
         CUDA_CHECK(cudaEventRecord(d.chunk_ready[b], d.compute));
         // Communication stream reduces this chunk while the compute stream
@@ -455,9 +482,12 @@ int run(int argc, char** argv) {
           CUDA_CHECK(cudaStreamWaitEvent(fs, devs[0].chunk_allreduced[b], 0));
         }
         CUDA_CHECK(cudaEventRecord(ef0[c], fs));
+        // sims is not offset here: finalize scatters through order, which
+        // holds global pair indices, so the chunk writes straight to its
+        // pairs' slots in the full output.
         launch_finalize(payload, len, fs,
                         stats_at(devs[0].stats, payload, chunk * b),
-                        devs[0].sims + base);
+                        devs[0].order + base, devs[0].sims);
         CUDA_CHECK(cudaEventRecord(ef1[c], fs));
       }
       for (int g = 0; g < n_gpus; ++g) {
@@ -540,6 +570,9 @@ int run(int argc, char** argv) {
       "\"t_finalize_sum_s\":%.6f,"
       "\"device_total_s\":%.6f,\"t_comm_init_s\":%.6f,"
       "\"cold_data_path_s\":%.6f,"
+      "\"group\":%d,\"pair_order\":\"%s\",\"t_plan_s\":%.6f,"
+      "\"plan_effective_elements\":%lld,\"plan_lane_slots\":%lld,"
+      "\"plan_lane_utilisation\":%.5f,"
       "\"t_d2h_s\":%.6f,\"validated\":%s,\"max_abs_diff\":%.3e,"
       "\"tol_failures\":%d,\"emitted\":%lld}\n",
       dir.c_str(), mode.c_str(), n_gpus, static_cast<long long>(chunk),
@@ -555,6 +588,9 @@ int run(int argc, char** argv) {
       t_kernel, t_pipeline,
       t_stats_sum, t_allreduce_sum, t_finalize_sum,
       device_total, t_comm_init, cold_data_path,
+      group, order_arg.c_str(), plan.build_seconds,
+      static_cast<long long>(plan.effective_elements),
+      static_cast<long long>(plan.lane_slots), plan.utilisation(),
       t_d2h, validate ? "true" : "false", max_diff, failures,
       static_cast<long long>(emitted));
 

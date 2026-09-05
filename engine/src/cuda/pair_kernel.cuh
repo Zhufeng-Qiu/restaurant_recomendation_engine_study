@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <cmath>
+#include <stdexcept>
 
 #if defined(__CUDACC__)
 #define EC_HD __host__ __device__
@@ -132,118 +133,174 @@ EC_HD void pack_add(const uint64_t* a, const uint64_t* b, uint64_t* out) {
 
 #if defined(__CUDACC__)
 
-// Accumulate + warp-reduce one pair's six statistics. Shared by every payload
-// variant so the arithmetic that produces the numbers is identical across
-// them; the variants differ only in how lane 0 writes them out. The
-// accumulation stays in double: the values are exact integers far inside
-// double's 53-bit exact range, so narrowing at emit is lossless.
-__device__ inline bool warp_pair_stats(const int64_t* __restrict__ offsets,
-                                       const int32_t* __restrict__ dims,
-                                       const double* __restrict__ vals,
-                                       const int32_t* __restrict__ pairs,
-                                       int64_t n_pairs, int32_t dim_lo,
-                                       int32_t dim_hi, int64_t* warp_id_out,
-                                       double* s) {
-  const int64_t warp_id =
-      (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) / kWarp;
-  const int lane = threadIdx.x % kWarp;
-  *warp_id_out = warp_id;
-  if (warp_id >= n_pairs) return false;
+// ---------------------------------------------------------------------------
+// Warp packing. See common/pair_order.hpp for why the ordering matters.
+//
+// The phase-3 mapping was one warp per pair: 32 lanes stride the shorter
+// restricted slice, so a pair costs 32 * ceil(L / 32) lane slots and the
+// partly-filled last round is waste -- 14.42% of the slots at one GPU, 25.32%
+// at two.
+//
+// Packing gives a pair a SUB-WARP of G lanes, so a warp carries 32/G pairs and
+// the tail wastes at most G-1 slots. The groups in a warp run in lockstep, so
+// the warp costs 32 * max_g ceil(L_g / G): one long pair among short ones pays
+// for all of them. `order` therefore arrives sorted by shorter-slice length.
+// Unsorted, the model says G=1 costs 63% MORE than the baseline.
+//
+// Indexing. `order` is slot -> pair, and the caller may pass a slice of it
+// (the async path launches per chunk). Statistics are written at the SLOT
+// index, so the collective payload stays contiguous and chunkable exactly as
+// before; the permutation is undone in finalize, which scatters to
+// sims[order[slot]]. Every GPU must be given the same `order`, or the
+// AllReduce would sum slots that stand for different pairs -- which is why the
+// plan is built from the full dimension range rather than each GPU's slice.
+//
+// G == 32 with an identity order is the phase-3 mapping plus one broadcast
+// load, so the baseline and every packed arm run this same code.
+//
+// No lane returns early: threads past the end keep zeroed accumulators and
+// still take part in the shuffles, so the full-warp mask stays honest.
+template <int G>
+__device__ inline bool subwarp_pair_stats(const int64_t* __restrict__ offsets,
+                                          const int32_t* __restrict__ dims,
+                                          const double* __restrict__ vals,
+                                          const int32_t* __restrict__ pairs,
+                                          const int32_t* __restrict__ order,
+                                          int64_t n_slots, int32_t dim_lo,
+                                          int32_t dim_hi, int64_t* slot_out,
+                                          double* s) {
+  static_assert(G >= 1 && G <= kWarp && (G & (G - 1)) == 0,
+                "group size must be a power of two in [1, 32]");
+  const int64_t tid =
+      static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t slot = tid / G;
+  const int sublane = static_cast<int>(threadIdx.x) % G;
+  const bool active = slot < n_slots;
+  *slot_out = slot;
 
 #pragma unroll
   for (int i = 0; i < 6; ++i) s[i] = 0.0;
-  pair_lane_stats(offsets, dims, vals, pairs[2 * warp_id],
-                  pairs[2 * warp_id + 1], dim_lo, dim_hi, lane, kWarp, s);
+  if (active) {
+    const int64_t k = order[slot];
+    pair_lane_stats(offsets, dims, vals, pairs[2 * k], pairs[2 * k + 1], dim_lo,
+                    dim_hi, sublane, G, s);
+  }
+
+  __syncwarp();
 #pragma unroll
-  for (int off = kWarp / 2; off > 0; off >>= 1) {
+  for (int off = G / 2; off > 0; off >>= 1) {
 #pragma unroll
     for (int i = 0; i < 6; ++i)
-      s[i] += __shfl_down_sync(0xffffffff, s[i], off);
+      s[i] += __shfl_down_sync(0xffffffff, s[i], off, G);
   }
-  return lane == 0;
+  return active && sublane == 0;
 }
 
-// stats layout: [n_pairs][6] doubles = n, sx, sy, sxx, syy, sxy.
+// stats layout: [n_slots][6] doubles = n, sx, sy, sxx, syy, sxy.
+template <int G>
 __global__ void pair_stats_kernel(const int64_t* __restrict__ offsets,
                                   const int32_t* __restrict__ dims,
                                   const double* __restrict__ vals,
                                   const int32_t* __restrict__ pairs,
-                                  int64_t n_pairs, int32_t dim_lo,
+                                  const int32_t* __restrict__ order,
+                                  int64_t n_slots, int32_t dim_lo,
                                   int32_t dim_hi, double* __restrict__ stats) {
-  int64_t k;
+  int64_t slot;
   double s[6];
-  if (!warp_pair_stats(offsets, dims, vals, pairs, n_pairs, dim_lo, dim_hi,
-                       &k, s))
+  if (!subwarp_pair_stats<G>(offsets, dims, vals, pairs, order, n_slots, dim_lo,
+                             dim_hi, &slot, s))
     return;
-  double* dst = stats + 6 * k;
+  double* dst = stats + 6 * slot;
 #pragma unroll
   for (int i = 0; i < 6; ++i) dst[i] = s[i];
 }
 
-// stats layout: [n_pairs][6] int32 — 2x smaller collective payload.
+// stats layout: [n_slots][6] int32 -- 2x smaller collective payload.
+template <int G>
 __global__ void pair_stats_kernel_i32(const int64_t* __restrict__ offsets,
                                       const int32_t* __restrict__ dims,
                                       const double* __restrict__ vals,
                                       const int32_t* __restrict__ pairs,
-                                      int64_t n_pairs, int32_t dim_lo,
+                                      const int32_t* __restrict__ order,
+                                      int64_t n_slots, int32_t dim_lo,
                                       int32_t dim_hi,
                                       int32_t* __restrict__ stats) {
-  int64_t k;
+  int64_t slot;
   double s[6];
-  if (!warp_pair_stats(offsets, dims, vals, pairs, n_pairs, dim_lo, dim_hi,
-                       &k, s))
+  if (!subwarp_pair_stats<G>(offsets, dims, vals, pairs, order, n_slots, dim_lo,
+                             dim_hi, &slot, s))
     return;
-  int32_t* dst = stats + 6 * k;
+  int32_t* dst = stats + 6 * slot;
 #pragma unroll
   for (int i = 0; i < 6; ++i) dst[i] = static_cast<int32_t>(s[i]);
 }
 
-// stats layout: [n_pairs][2] uint64 — 3x smaller, and summable as-is.
+// stats layout: [n_slots][2] uint64 -- 3x smaller, and summable as-is.
+template <int G>
 __global__ void pair_stats_kernel_packed(const int64_t* __restrict__ offsets,
                                          const int32_t* __restrict__ dims,
                                          const double* __restrict__ vals,
                                          const int32_t* __restrict__ pairs,
-                                         int64_t n_pairs, int32_t dim_lo,
+                                         const int32_t* __restrict__ order,
+                                         int64_t n_slots, int32_t dim_lo,
                                          int32_t dim_hi,
                                          uint64_t* __restrict__ stats) {
-  int64_t k;
+  int64_t slot;
   double s[6];
-  if (!warp_pair_stats(offsets, dims, vals, pairs, n_pairs, dim_lo, dim_hi,
-                       &k, s))
+  if (!subwarp_pair_stats<G>(offsets, dims, vals, pairs, order, n_slots, dim_lo,
+                             dim_hi, &slot, s))
     return;
-  pack_six(s, stats + 2 * k);
+  pack_six(s, stats + 2 * slot);
 }
 
-// One thread per pair.
+// Runtime G -> template instantiation. Anything else is a caller bug, not a
+// fallback: quietly running a mapping other than the one on the command line
+// would corrupt the comparison.
+#define ENGINE_DISPATCH_GROUP(group, KERNEL, GRID, BLOCK, STREAM, ...)         \
+  do {                                                                        \
+    switch (group) {                                                          \
+      case 1:  KERNEL<1><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;      \
+      case 2:  KERNEL<2><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;      \
+      case 4:  KERNEL<4><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;      \
+      case 8:  KERNEL<8><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;      \
+      case 16: KERNEL<16><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;     \
+      case 32: KERNEL<32><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;     \
+      default: throw std::runtime_error("group must be 1, 2, 4, 8, 16 or 32"); \
+    }                                                                         \
+  } while (0)
+
+// One thread per slot. Undoes the permutation: slot s holds pair order[s].
 __global__ void finalize_kernel(const double* __restrict__ stats,
-                                int64_t n_pairs, double* __restrict__ sims) {
-  const int64_t k = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (k >= n_pairs) return;
-  sims[k] = finalize_six(stats + 6 * k);
+                                const int32_t* __restrict__ order,
+                                int64_t n_slots, double* __restrict__ sims) {
+  const int64_t s = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (s >= n_slots) return;
+  sims[order[s]] = finalize_six(stats + 6 * s);
 }
 
 __global__ void finalize_kernel_i32(const int32_t* __restrict__ stats,
-                                    int64_t n_pairs,
-                                    double* __restrict__ sims) {
-  const int64_t k = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (k >= n_pairs) return;
-  const int32_t* src = stats + 6 * k;
-  double s[6];
+                                    const int32_t* __restrict__ order,
+                                    int64_t n_slots, double* __restrict__ sims) {
+  const int64_t s = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (s >= n_slots) return;
+  const int32_t* src = stats + 6 * s;
+  double v[6];
 #pragma unroll
-  for (int i = 0; i < 6; ++i) s[i] = static_cast<double>(src[i]);
-  sims[k] = finalize_six(s);
+  for (int i = 0; i < 6; ++i) v[i] = static_cast<double>(src[i]);
+  sims[order[s]] = finalize_six(v);
 }
 
-// Unpacking happens here, after the reduction — the collective itself never
+// Unpacking happens here, after the reduction -- the collective itself never
 // sees the uncompressed form.
 __global__ void finalize_kernel_packed(const uint64_t* __restrict__ stats,
-                                       int64_t n_pairs,
+                                       const int32_t* __restrict__ order,
+                                       int64_t n_slots,
                                        double* __restrict__ sims) {
-  const int64_t k = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (k >= n_pairs) return;
-  double s[6];
-  unpack_six(stats + 2 * k, s);
-  sims[k] = finalize_six(s);
+  const int64_t s = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (s >= n_slots) return;
+  double v[6];
+  unpack_six(stats + 2 * s, v);
+  sims[order[s]] = finalize_six(v);
 }
 
 #endif  // __CUDACC__
