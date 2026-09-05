@@ -394,49 +394,44 @@ effect replicated across three independent sessions at **−4.81% / −4.99% /
 
 ## Update: implement warp packing -- 20260905
 
-The optimisation the September audit left unimplemented. It works — and not for
-the reason the audit predicted. Full record, with the correctness ladder, the
-paired intervals and the mechanism analysis:
+The optimisation the September audit left unimplemented. It works; the model
+that predicted it does not explain it; and the mechanism this document first
+proposed instead has since been tested and rejected. Full record:
 **[docs/warp_packing_experiment_20260905.md](docs/warp_packing_experiment_20260905.md)**.
 
-A pair now gets a sub-warp of `G` lanes instead of all 32, with pairs sorted by
-shorter-slice length so the groups sharing a warp need the same round count
-(`--group`, `--pair-order`, on both GPU binaries).
+A pair now gets a sub-warp of `G` lanes instead of all 32 (`--group`), and can
+be ordered by shorter-slice length so the groups sharing a warp need the same
+round count (`--pair-order`).
 
-| | vs the pre-packing binary | 95% CI |
+**The default is now `--group 4 --pair-order source`.** It is better than the
+old mapping on every basis measured, so it is not a trade:
+
+| vs the phase-3 mapping | effect | 95% CI |
 | --- | --- | --- |
-| CUDA 1 GPU, `item_full` | **−34.68%** | [−34.98, −34.37] |
-| NCCL 2 GPU sync `packed` | **−47.62%** | [−47.99, −47.24] |
+| `device_total`, `item_full` | **−17.59%** | [−19.75, −15.38] |
+| `device_total`, `user_full` | **−42.23%** | [−42.54, −41.92] |
+| `cold_data_path`, `item_full` | −3.08% | [−9.75, +4.08] |
+| vs the pre-packing binary | −11.43% | [−11.84, −11.02] |
 
-30 balanced crossover blocks each, seeds recorded, **steady state only**. 172
-correctness checks pass bit-exact first — every payload, 1/2/3 ranks, every
-group size and ordering — with output byte-identical to the baseline's and no
-memory errors under `compute-sanitizer`.
+`--pair-order bylen` buys another ~25% of steady state (−33.20% [−33.62,
+−32.77] against the pre-packing binary; −47.62% for NCCL 2-GPU `packed`) but
+costs ~100 ms of sorting against a ~3 ms kernel, so it **pays back after about
+57 queries** and is opt-in rather than default: a resident engine wants it, a
+single CLI invocation does not.
 
-**On the cold path packing loses**, because building the sorted plan costs
-roughly thirty times the kernel it accelerates. No break-even figure is quoted
-yet: the plan timer itself was wrong when those runs happened (it charged a
-descriptive pass that execution never needs, to both backends), and the
-cold-path fields were single samples rather than distributions. Both are fixed;
-the numbers are being re-measured.
+172 correctness checks pass bit-exact before anything is timed — every payload,
+1/2/3 ranks, every group size, ordering and hoist setting, output
+byte-identical to the baseline's, no memory errors under `compute-sanitizer`.
+All paired results are 30 balanced crossover blocks with recorded seeds, and
+the primary effect reproduced on two independent pods (−36.78%, −36.18%).
 
-**The lane-slot model was quantitatively wrong.** It predicted 19.2% at two
-GPUs from recovering the partly-filled last warp round. Critical lane slots did
-fall 18.3%, but stats time fell 51.2%. The `lane_full` fixture settles that
-much: its lane slots vary by 0.02% across group sizes and its time still drops
-13.5%, so the gain is not tail recovery. What replaces the model is a
-*hypothesis* — a cost proportional to the thread count, of which the largest
-identifiable candidate is the four `lower_bound` searches `pair_lane_stats`
-repeats in every lane of a group. Hoisting them is the A/B that would settle
-it, and it is not yet run. `G=1`, which the model calls optimal at 99.96% lane
-utilisation, is the *worst* arm measured — consistent with losing coalescing,
-also not demonstrated.
+**Two negative results worth as much as the positive one.** The lane-slot model
+predicted 19.2% at two GPUs from recovering the partly-filled last warp round;
+critical lane slots did fall 18.3%, but stats time fell 51.2%, and the
+`lane_full` fixture — whose lane slots vary by 0.02% across group sizes — still
+gained 13.5%. So the gain is not tail recovery. The replacement hypothesis was
+that four `lower_bound` searches are repeated per lane; hoisting them into one
+lane and broadcasting was implemented and measured at **+0.15% [−0.08,
++0.38]** — no effect. A cost proportional to the thread count is real and
+remains unattributed.
 
-This is therefore **warp packing v1**: `G=4` is optimal for a kernel that still
-repeats that search per lane, and would likely move if it were hoisted.
-
-**The default is unchanged.** `--group 4 --pair-order bylen` is the
-recommendation, but switching it obliges re-running the headline matrix and the
-compression A/B on a frozen SHA, and this session stopped at its spending cap
-first. The table above and the headline table earlier both describe the
-mapping the binaries actually default to today.

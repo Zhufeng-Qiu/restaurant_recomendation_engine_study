@@ -93,13 +93,31 @@ frame, 0 spill stores, 0 spill loads** (`-Xptxas=-v`, `sm_80`, separate build;
 
 What that supports, exactly: **register allocation and spilling do not explain
 the differences between group sizes.** The count is identical across all of
-them and nothing spills. It does *not* support "the accumulators cost nothing"
-— 37 registers per thread can still cap occupancy below 100%, and **absolute
-occupancy was not measured**: `ncu` is unavailable here. The binaries now emit
-a theoretical figure from `cudaFuncGetAttributes` and
-`cudaOccupancyMaxActiveBlocksPerMultiprocessor` (active blocks and warps per
-SM, the limiting resource), which is an upper bound on the achieved value, not
-a measurement of it. That field postdates the runs below.
+them and nothing spills.
+
+It does *not* support "the accumulators cost nothing", and the driver says so.
+From `cudaFuncGetAttributes` and
+`cudaOccupancyMaxActiveBlocksPerMultiprocessor` on this host:
+
+| | |
+| --- | --- |
+| registers / thread | 37 |
+| local bytes / thread | 0 |
+| block size | 128 (4 warps) |
+| active blocks / SM | 12 |
+| active warps / SM | 48 of 64 |
+| **theoretical occupancy** | **0.75** |
+| limiter | **registers** |
+
+So the six double accumulators do cost something: they hold the kernel to 75%
+of the machine's warp slots, and registers are the binding constraint (12
+blocks fit; a 13th would need 66,560 of the SM's 65,536 registers once
+allocation granularity is applied). What they do not do is vary with `G`, which
+is the only thing the group-size comparison needed them not to do.
+
+This is **theoretical** occupancy — an upper bound the driver will state
+without any counters. Achieved occupancy is still unmeasured: `ncu` fails with
+`ERR_NVGPUCTRPERM` on this host as on every previous one.
 
 ## 4. Screening
 
@@ -165,6 +183,8 @@ block order shuffled from a recorded seed. Estimator is the mean of
 `log(candidate/baseline)` over blocks; the CI is `1.96 x SE` over the 30 block
 log-ratios and describes this session.
 
+**Session 1** (pod `1d532d19`, GPUs `c3aab2f9` / `7ef491a4`):
+
 | candidate | baseline | effect | 95% CI |
 | --- | --- | --- | --- |
 | `cuda:4:bylen` | `cuda:32:source` | **−36.78%** | [−37.08, −36.47] |
@@ -174,7 +194,23 @@ log-ratios and describes this session.
 | `nccl2:4:bylen:packed` | `nccl2:32:source:packed` | **−47.62%** | [−47.99, −47.24] |
 | `nccl1:4:bylen:packed` | `nccl1:32:source:packed` | −35.41% | [−36.88, −33.90] |
 
-Every interval excludes zero.
+**Session 2**, a different pod (`0fd9…`, GPUs `5749bb50` / `7826451f`), after
+the planner and harness fixes:
+
+| candidate | baseline | effect | 95% CI |
+| --- | --- | --- | --- |
+| `cuda:4:bylen` | `cuda:32:source` | **−36.18%** | [−38.73, −33.52] |
+| `cuda:4:bylen` | `legacy` | −33.20% | [−33.62, −32.77] |
+| `cuda:4:source` | `cuda:32:source` | −17.59% | [−19.75, −15.38] |
+| `cuda:4:source` | `legacy` | −11.43% | [−11.84, −11.02] |
+| `cuda:4:bylen:hoist` | `cuda:4:bylen` | +0.15% | [−0.08, +0.38] |
+
+Every interval excludes zero except the last, which is the point of it.
+
+**The primary effect replicated across two independent pods** — −36.78% and
+−36.18% for the same comparison, on different physical GPUs. That is one
+crossing of the boundary the audit's compression result needed three of, and
+it is worth exactly that much: the effect is not an artefact of one machine.
 
 **The third row is the one that would have been easy not to publish.** The
 instrumented tree at its default mapping is **3.28% slower than the binary that
@@ -258,55 +294,95 @@ searches), a smaller genuine lane-tail term (visible as `lane_tail` gaining
 memory-behaviour penalty that ends the descent at `G=4`. `G=4` is where those three meet on this hardware and this
 workload; nothing here says 4 is universal.
 
-**The obvious follow-up, now quantified.** If the dominant cost is four
-redundant searches per thread, compute the slice bounds *once per group* and
-broadcast them with a shuffle. That is a contained change to
-`subwarp_pair_stats`, and this data says it is worth more than the packing that
-found it. It is not implemented here: it is a different optimisation, and
-folding it in would have meant re-running the whole ladder and every A/B above.
+### The hypothesis, tested and rejected
 
-## 7. Cold path — provisional, and currently mismeasured
+If the dominant cost is four redundant searches per thread, computing the slice
+bounds once per group and broadcasting them with a shuffle should recover most
+of it. That was implemented (`--hoist on`: `pair_slice_bounds` in one lane,
+`__shfl_sync` to the rest, verified bit-identical to per-lane computation over
+10,917 host checks) and measured as a full 2x2 against the group size.
 
-Packing is a **steady-state** optimisation, and this document originally
-reported only steady state. The cold path points the other way, and the
-numbers below are provisional for two independent reasons.
+**It does nothing.** Paired A/B at `G=4`, 30 blocks:
 
-Under the timing in force during these runs, on `item_full`:
+    hoist on vs hoist off      +0.15%   95% CI [-0.08%, +0.38%]
 
-| arm | `device_total` | `t_plan` | `cold_data_path` |
+The interval contains zero, and the screen agrees at every group size — hoisted
+arms land within about 1% of their unhoisted twins and, uniformly, very
+slightly *slower*:
+
+| G (bylen) | hoist off | hoist on | delta |
 | --- | --- | --- | --- |
-| `cuda:32:source` | 4.891 ms | 50.28 ms | 77.72 ms |
-| `cuda:4:bylen` | 3.099 ms | 102.89 ms | 128.44 ms |
+| 32 | 4.9030 | 4.9780 | +1.53% |
+| 16 | 3.7380 | 3.7885 | +1.35% |
+| 8 | 3.2460 | 3.2575 | +0.35% |
+| 4 | 3.1330 | 3.1695 | +1.17% |
+| 2 | 3.5025 | 3.5250 | +0.64% |
+| 1 | 6.9120 | 6.9425 | +0.44% |
 
-Building the plan costs roughly thirty times the kernel it accelerates, so a
-caller that runs the binary once is worse off, not better.
+So the `a*G` term is real and large, and **the four `lower_bound` searches are
+not it.** The named hypothesis is dead; what survives is only the weaker claim
+the fit actually supported — a cost proportional to the thread count, of
+unknown composition. Candidates that remain, none of them tested here: the
+shuffle reduction tree, whose per-pair cost is `G * log2(G) * 6` shuffles and
+which shrinks 20-fold from `G=32` to `G=4`; the launch and scheduling of
+`n_pairs * G` threads rather than `n_pairs * G / 8`; the per-thread zeroing of
+six accumulators; the `order[slot]` load.
 
-**Why these are not publishable numbers yet.**
+That the negative result is *cheap to state* is the point of having run it. It
+also has a practical consequence: since hoisting does not move the optimum, the
+best group size is stable with respect to it, which is what makes it safe to
+freeze a default without waiting for the mechanism to be settled.
 
-1. **The `t_plan_s` they were measured under was wrong.** `plan_pairs`
-   unconditionally computed shorter-slice lengths and lane-slot metrics, even
-   for `--pair-order source`, which needs neither. That descriptive pass is
-   most of the 50.28 ms on the baseline arm, and it sat inside
-   `cold_data_path_s` in **both** backends — NCCL's separately-timed
-   `t_plan_metrics_s` covered only the per-device diagnostics added later, not
-   the full-dimension metrics. Required planning and diagnostics are now split
-   in the common planner, so the baseline's cold path should fall sharply and
-   the candidate's relative disadvantage should get **worse**, not better.
-2. **They are single samples.** The harness kept only the first record per
-   arm, so every `t_plan` and `cold_data_path` figure above is one observation
-   with no median, IQR or interval, while the `device_total` columns elsewhere
-   are medians of ten. The harness now stores all cold-path fields per trial
-   and the paired runner reports a per-stage effect with a CI.
+## 7. Cold path, correctly measured
 
-**No break-even figure is stated here.** The arithmetic on the numbers above
-gives about 28 queries, and that is the correct arithmetic on the wrong
-baseline: it compares against the instrumented arm, which itself carries both
-the 3.28% plumbing regression and ~50 ms of diagnostics. The product
-comparison is against the pre-packing binary, whose cold path this schema never
-recorded. A rough re-estimate lands nearer 56 queries against a corrected
-instrumented baseline and higher still against legacy, but every input to that
-is being re-measured, so the honest statement is: **packing loses on the cold
-path, by a margin yet to be measured.**
+Packing's gain is **steady state**. The cold path points the other way, and
+until the planner was fixed it pointed there by the wrong amount.
+
+`plan_pairs` used to compute shorter-slice lengths and lane-slot metrics
+unconditionally, even for `--pair-order source`, which needs neither. That
+descriptive pass sat inside `cold_data_path_s` in **both** backends. Split out
+(`t_plan_metrics_s`), the baseline's planning cost collapses and the gap widens
+exactly as predicted:
+
+| | `t_plan` before the fix | `t_plan` after | `cold_data_path` after |
+| --- | --- | --- | --- |
+| `cuda:32:source` | 50.28 ms | **1.92 ms** | 24.53 ms |
+| `cuda:4:bylen` | 102.89 ms | 101.88 ms | 127.10 ms |
+
+Paired, 30 blocks, per stage:
+
+| stage | `cuda:32:source` | `cuda:4:bylen` | effect | 95% CI |
+| --- | --- | --- | --- | --- |
+| `device_total` | 4.953 ms | 3.149 ms | **−36.18%** | [−38.73, −33.52] |
+| `t_stats` | 4.894 ms | 3.071 ms | −36.97% | [−39.53, −34.30] |
+| `t_finalize` | 0.060 ms | 0.077 ms | **+28.88%** | [+28.43, +29.33] |
+| `t_plan` | 1.917 ms | 101.883 ms | +5314% | [+5114, +5522] |
+| `cold_data_path` | 24.534 ms | 127.101 ms | **+372.62%** | [+327.31, +422.73] |
+
+Sorting the pairs costs about a hundred milliseconds against a kernel of about
+three. **Break-even is roughly 57 queries** — 102.6 ms of extra planning
+divided by 1.80 ms saved per query — so `bylen` belongs to a resident engine
+and not to a single invocation of this binary. The earlier "28 queries" was
+correct arithmetic on a baseline inflated by its own diagnostics.
+
+The `t_finalize` row is the scatter, and it is a genuine stage regression: it
+is simply small.
+
+**The way out is not to choose between the two bases.** `--group 4` without the
+sort improves steady state *and* leaves the cold path alone, because it builds
+no sorted order:
+
+| | vs `cuda:32:source` | 95% CI |
+| --- | --- | --- |
+| `cuda:4:source` `device_total`, `item_full` | **−17.59%** | [−19.75, −15.38] |
+| `cuda:4:source` `device_total`, `user_full` | **−42.23%** | [−42.54, −41.92] |
+| `cuda:4:source` `cold_data_path`, `item_full` | −3.08% | [−9.75, +4.08] |
+| `cuda:4:source` `cold_data_path`, `user_full` | −5.60% | [−14.52, +4.24] |
+| `cuda:4:source` vs **legacy**, `item_full` | −11.43% | [−11.84, −11.02] |
+
+Both cold-path intervals span zero: there is no penalty to find. That
+configuration dominates the phase-3 mapping on every basis measured, which is
+what makes it the default rather than a trade.
 
 ## 8. What the per-device reporting changed
 
@@ -325,17 +401,20 @@ Against the gates fixed before the numbers were seen:
 
 * **Correctness gate — passed.** Every check in §2, no memory errors, all three
   payloads bit-exact, output order preserved.
-* **Effect gate — passed, far above the 3% bar.** `cuda:4:bylen` beats the
-  pre-packing binary by 34.68% with the CI entirely on the favourable side, and
-  beats it on every fixture tested.
+* **Effect gate — passed, far above the 3% bar.** The chosen default beats the
+  pre-packing binary by 11.43% [−11.84, −11.02] on `item_full` and the phase-3
+  mapping by 17.59% and 42.23% on the two real fixtures. The opt-in `bylen`
+  reaches 33.20% [−33.62, −32.77] against legacy.
 * **Control gate — passed, with one honest caveat.** Every fixture improves
   against base: `user_full` −50.8%, `lane_tail` −18.8% (at `G=8`), `lane_full`
-  −13.2% (at `G=8`), and at the proposed `G=4` default −10.7%. Measured against
-  `legacy` rather than base, though, the lane bands are much thinner:
-  `cuda:4:bylen` is −7.1% on `lane_tail` and only **−0.9%** on `lane_full`. On
-  a fixture with no tail to recover and short rows, the 3.28% plumbing cost
-  eats nearly all of the gain. That is consistent with §6 rather than
-  unexplained, but it is the case where packing nearly fails to pay.
+  −13.2% (at `G=8`), and −10.7% at `G=4`. Measured against `legacy` rather than
+  base, though, the lane bands are much thinner: `cuda:4:bylen` is −7.1% on
+  `lane_tail` and only **−0.9%** on `lane_full`. On a fixture with no tail to
+  recover and short rows, the plumbing cost eats nearly all of the gain — the
+  case where packing nearly fails to pay.
+* **Hoist gate — the mechanism hypothesis failed.** +0.15% [−0.08, +0.38];
+  see §6. The group-size result is unaffected, which is why a default could be
+  frozen anyway.
 * **Two-GPU gate — passed on `device_total` (−47.62%), with one stage
   regressing.** AllReduce stayed stable (0.229–0.251 ms, no trend in `G`), but
   finalize rose 0.049 → 0.073 ms, about +49%, because it now scatters through
@@ -345,43 +424,56 @@ Against the gates fixed before the numbers were seen:
 * **Default-path gate — NOT passed as written.** The instrumented default is
   3.28% slower than legacy, above the 1% threshold.
 
-**Recommendation: make `--group 4 --pair-order bylen` the default.** The
-default-path regression is real but it is an argument about a mapping that
-would no longer be the default; anyone on the new default is 34.68% faster than
-legacy, and a separate legacy fast path would mean maintaining a second kernel
-for a configuration that is 34.68% slower.
+**Decision: the default is now `--group 4 --pair-order source`.**
 
-**The default has NOT been changed in this commit.** Changing it obliges
-re-running the same-machine headline matrix and the NVLink `f64→packed`
-compression A/B on the frozen SHA — compute makes up a larger share of a faster
-kernel, so the compression percentage will move — and this session stopped at
-the spending cap before that could be done. Flipping the default while the
-README still quotes numbers from the old mapping would reintroduce exactly the
-inconsistency the September audit spent its time removing.
+That is not the configuration this document originally proposed. `bylen` is
+faster in steady state — another 25% — but it costs ~100 ms of sorting against
+a ~3 ms kernel, so it makes every one-shot caller pay for an order they never
+amortise (§7). `--group 4` alone takes most of the win and leaves the cold path
+untouched: it is better than the phase-3 mapping on `device_total`, on
+`cold_data_path`, on both real fixtures, and against the pre-packing binary,
+with no interval on the wrong side. A default should not be a trade the user
+has to know about.
+
+`--pair-order bylen` stays available and documented as the resident-engine
+setting, with its break-even stated.
+
+**On the default-path gate.** The 3.28% plumbing regression is still there and
+still real, but it is now moot as a *default-path* question: nobody lands on
+`--group 32 --pair-order source` unless they ask for it, and the new default is
+11.43% faster than legacy with the plumbing included. A separate legacy fast
+path would mean maintaining a second kernel to serve a configuration that is
+slower than the default on every measure. Not added.
+
+**What this obliges.** The headline matrix and the NVLink compression A/B are
+re-run on the frozen SHA with the real default command, because the CUDA and
+NCCL rows now describe a different kernel and a faster kernel changes the
+communication share the compression result depends on.
 
 ## 10. Still open
 
-* **Cold-path re-measurement.** Required, and blocking any break-even claim:
-  the planner split changes `t_plan_s` for every arm.
-* **The headline re-run.** Required before a new default is merged or
-  published — the experiment branch sets the proposed default first, then a
-  clean SHA is frozen and the headline re-run with the real default command. Same-machine
-  matrix plus the compression paired experiment, on a frozen SHA.
-* **Hoisting the slice-bound search** (§6). Larger prize than the packing that
-  revealed it.
+* **The mechanism.** The `a*G` term is real, large, and unattributed. Hoisting
+  the slice-bound searches — the leading candidate — was implemented and came
+  back null (§6). Untested candidates: the shuffle reduction tree
+  (`G * log2(G) * 6` shuffles per pair, a 20-fold difference between `G=32` and
+  `G=4`), launch and scheduling of `n_pairs * G` threads, the per-thread
+  accumulator zeroing.
 * **Async.** Correctness is verified at three chunk sizes and both finalize
   streams. Performance is deliberately *not* measured: chunks are contiguous
   slot runs, so an ascending-by-length order hands early chunks the short pairs
   and late chunks the long ones, changing pipeline balance for reasons that
   have nothing to do with lane packing. A chunk-balanced order is a separate
-  piece of work.
-* **`G=4` is not established as universal.** It won on two real fixtures; `G=8`
-  won on both synthetic lane bands. A workload-aware choice, or simply leaving
-  the flag exposed, may be better than a constant.
-* **`ncu` remains unavailable** (`ERR_NVGPUCTRPERM`), so the coalescing
-  explanation for `G=1` is inference from the fit's residuals, not a measured
-  memory-transaction count.
-* **One session.** Every number here comes from a single pod. The compression
-  effect in the audit needed three sessions before it was worth trusting to
-  0.3 percentage points; these effects are far larger than that spread, but
-  they have not been replicated across hosts.
+  piece of work — and it only matters for `bylen`, which is no longer the
+  default.
+* **`G=4` is not established as universal.** It won on both real fixtures;
+  `G=8` won on both synthetic lane bands, and the two are within 3.4% of each
+  other. This is one GPU generation, one block size, one workload family.
+* **Achieved occupancy** is still unmeasured (`ncu`, `ERR_NVGPUCTRPERM`). The
+  theoretical figure is 0.75, register-limited, and identical across group
+  sizes — so it cannot be what separates them, but the achieved figure could
+  still differ.
+* **The `G=1` coalescing explanation** remains inference from residuals, for
+  the same reason.
+* **Two sessions, one host class.** The primary effect reproduced on two
+  independent pods (−36.78%, −36.18%), both 2x A100-SXM4-80GB with NV12. No
+  other GPU, interconnect or CUDA version has seen this code.
