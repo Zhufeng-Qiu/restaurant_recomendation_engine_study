@@ -422,9 +422,14 @@ int run(int argc, char** argv) {
         if (g == 0) CUDA_CHECK(cudaEventRecord(ea0[c], d.comm));
         NCCL_CHECK(ncclAllReduce(slot, slot, epp * len, nccl_dtype(payload),
                                  ncclSum, comms[g], d.comm));
-        if (g == 0) CUDA_CHECK(cudaEventRecord(ea1[c], d.comm));
       }
       NCCL_CHECK(ncclGroupEnd());
+      // The closing event must come AFTER ncclGroupEnd: grouped collectives are
+      // only enqueued to the stream when the group closes, so an event recorded
+      // between the ncclAllReduce call and the group end brackets nothing and
+      // reports ~0.02 ms of pure event overhead instead of the collective.
+      CUDA_CHECK(cudaSetDevice(0));
+      CUDA_CHECK(cudaEventRecord(ea1[c], devs[0].comm));
       // GPU 0 finalizes the reduced chunk, and only THEN is slot b declared
       // free: recording the slot-free event before finalize let chunk c+2's
       // stats kernel overwrite slot b while finalize still read it (caught by
