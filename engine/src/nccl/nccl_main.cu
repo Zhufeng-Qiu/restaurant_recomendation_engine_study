@@ -243,6 +243,11 @@ int run(int argc, char** argv) {
   const Payload payload = parse_payload(payload_arg);
   if (finalize_stream != "comm" && finalize_stream != "separate")
     throw std::runtime_error("--finalize-stream must be comm or separate");
+  if (mode == "sync" && finalize_stream != "comm")
+    throw std::runtime_error(
+        "--finalize-stream applies to --mode async only; a sync run has a "
+        "single finalize outside the pipeline. Refusing rather than recording "
+        "a sync result labelled with a setting that did nothing.");
   const bool finalize_separate = (finalize_stream == "separate");
 
   const double t0 = wall();
@@ -320,7 +325,15 @@ int run(int argc, char** argv) {
 
   using namespace engine_cuda;
   const int wpb = kBlock / kWarp;
-  double t_kernel = 0, t_allreduce = 0, t_pipeline = 0;
+  // Timing contract (see README, unified 2026-09-05):
+  //   device_total = stats + allreduce + finalize   -- comparable across
+  //                                                    backends, headline uses it
+  //   one_shot_total = load + setup + device_total + d2h
+  // Async cannot sum its stages (that is the point of overlapping them), so it
+  // reports pipeline_total as its comparable number and the three stage SUMS
+  // separately, for mechanism only.
+  double t_kernel = 0, t_allreduce = 0, t_finalize = 0, t_pipeline = 0;
+  double t_stats_sum = 0, t_allreduce_sum = 0, t_finalize_sum = 0;
 
   if (mode == "sync") {
     // 1. Partial statistics on every GPU over its dim range (all pairs).
@@ -356,16 +369,36 @@ int run(int argc, char** argv) {
     }
     t_allreduce = wall() - a0;
 
-    // 3. Finalize on GPU 0.
+    // 3. Finalize on GPU 0. Timed: cuda and mpi both count their finalize in
+    //    their totals, and until 2026-09-05 this one ran outside the timed
+    //    region, which made every NCCL sync number a stats+AllReduce subtotal
+    //    and quietly favoured it in cross-backend comparisons by 0.5-1%.
+    const double f0 = wall();
     CUDA_CHECK(cudaSetDevice(0));
     launch_finalize(payload, n_pairs, devs[0].compute, devs[0].stats,
                     devs[0].sims);
     CUDA_CHECK(cudaStreamSynchronize(devs[0].compute));
+    t_finalize = wall() - f0;
   } else {
     // Async: chunked, double-buffered pipeline. Buffer b of GPU g holds the
     // stats of the chunk currently using slot b.
-    const double p0 = wall();
     const int64_t n_chunks = (n_pairs + chunk - 1) / chunk;
+
+    // Per-chunk stage timing on GPU0 (the binding side). Events are stream
+    // markers, so recording them does not reorder anything; all elapsed times
+    // are read after the final synchronize so the pipeline is never stalled to
+    // measure it. These sums are for MECHANISM ONLY -- they overlap, so they
+    // do not add up to pipeline_total, which is the comparable number.
+    std::vector<cudaEvent_t> es0(n_chunks), es1(n_chunks), ea0(n_chunks),
+        ea1(n_chunks), ef0(n_chunks), ef1(n_chunks);
+    CUDA_CHECK(cudaSetDevice(0));
+    for (int64_t c = 0; c < n_chunks; ++c) {
+      CUDA_CHECK(cudaEventCreate(&es0[c])); CUDA_CHECK(cudaEventCreate(&es1[c]));
+      CUDA_CHECK(cudaEventCreate(&ea0[c])); CUDA_CHECK(cudaEventCreate(&ea1[c]));
+      CUDA_CHECK(cudaEventCreate(&ef0[c])); CUDA_CHECK(cudaEventCreate(&ef1[c]));
+    }
+
+    const double p0 = wall();
     for (int64_t c = 0; c < n_chunks; ++c) {
       const int b = static_cast<int>(c & 1);
       const int64_t base = c * chunk;
@@ -378,14 +411,18 @@ int run(int argc, char** argv) {
         if (c >= 2) CUDA_CHECK(cudaStreamWaitEvent(d.compute, d.chunk_reduced[b], 0));
         const int64_t blocks = (len + wpb - 1) / wpb;
         void* slot = stats_at(d.stats, payload, chunk * b);
+        if (g == 0) CUDA_CHECK(cudaEventRecord(es0[c], d.compute));
         launch_stats(payload, static_cast<unsigned>(blocks), d.compute, d,
                      d.pairs + 2 * base, len, slot);
+        if (g == 0) CUDA_CHECK(cudaEventRecord(es1[c], d.compute));
         CUDA_CHECK(cudaEventRecord(d.chunk_ready[b], d.compute));
         // Communication stream reduces this chunk while the compute stream
         // moves on to the next one.
         CUDA_CHECK(cudaStreamWaitEvent(d.comm, d.chunk_ready[b], 0));
+        if (g == 0) CUDA_CHECK(cudaEventRecord(ea0[c], d.comm));
         NCCL_CHECK(ncclAllReduce(slot, slot, epp * len, nccl_dtype(payload),
                                  ncclSum, comms[g], d.comm));
+        if (g == 0) CUDA_CHECK(cudaEventRecord(ea1[c], d.comm));
       }
       NCCL_CHECK(ncclGroupEnd());
       // GPU 0 finalizes the reduced chunk, and only THEN is slot b declared
@@ -400,16 +437,17 @@ int run(int argc, char** argv) {
       // own stream, chained to the collective by an explicit event so the
       // ordering is unchanged; the slot-free event then comes off that stream.
       CUDA_CHECK(cudaSetDevice(0));
-      if (finalize_separate) {
-        CUDA_CHECK(cudaEventRecord(devs[0].chunk_allreduced[b], devs[0].comm));
-        CUDA_CHECK(cudaStreamWaitEvent(devs[0].fin, devs[0].chunk_allreduced[b], 0));
-        launch_finalize(payload, len, devs[0].fin,
+      {
+        cudaStream_t fs = finalize_separate ? devs[0].fin : devs[0].comm;
+        if (finalize_separate) {
+          CUDA_CHECK(cudaEventRecord(devs[0].chunk_allreduced[b], devs[0].comm));
+          CUDA_CHECK(cudaStreamWaitEvent(fs, devs[0].chunk_allreduced[b], 0));
+        }
+        CUDA_CHECK(cudaEventRecord(ef0[c], fs));
+        launch_finalize(payload, len, fs,
                         stats_at(devs[0].stats, payload, chunk * b),
                         devs[0].sims + base);
-      } else {
-        launch_finalize(payload, len, devs[0].comm,
-                        stats_at(devs[0].stats, payload, chunk * b),
-                        devs[0].sims + base);
+        CUDA_CHECK(cudaEventRecord(ef1[c], fs));
       }
       for (int g = 0; g < n_gpus; ++g) {
         Device& d = devs[g];
@@ -428,6 +466,17 @@ int run(int argc, char** argv) {
         CUDA_CHECK(cudaStreamSynchronize(devs[0].fin));
     }
     t_pipeline = wall() - p0;
+
+    CUDA_CHECK(cudaSetDevice(0));
+    for (int64_t c = 0; c < n_chunks; ++c) {
+      float ms = 0;
+      CUDA_CHECK(cudaEventElapsedTime(&ms, es0[c], es1[c])); t_stats_sum += ms / 1e3;
+      CUDA_CHECK(cudaEventElapsedTime(&ms, ea0[c], ea1[c])); t_allreduce_sum += ms / 1e3;
+      CUDA_CHECK(cudaEventElapsedTime(&ms, ef0[c], ef1[c])); t_finalize_sum += ms / 1e3;
+      cudaEventDestroy(es0[c]); cudaEventDestroy(es1[c]);
+      cudaEventDestroy(ea0[c]); cudaEventDestroy(ea1[c]);
+      cudaEventDestroy(ef0[c]); cudaEventDestroy(ef1[c]);
+    }
   }
 
   const double d0 = wall();
@@ -454,21 +503,46 @@ int run(int argc, char** argv) {
             static_cast<std::streamsize>(sims.size() * sizeof(double)));
   }
 
+  // Unified timing schema. device_total is the cross-backend comparable number
+  // for sync (stats + allreduce + finalize); async cannot sum overlapping
+  // stages, so it reports pipeline_total and keeps the stage SUMS for
+  // mechanism only. one_shot_total adds everything a cold invocation pays.
+  const bool is_async = (mode != "sync");
+  const double device_total = is_async ? t_pipeline
+                                       : (t_kernel + t_allreduce + t_finalize);
+  const double one_shot_total = t_load + t_setup + device_total + t_d2h;
+  // Held in a named string: taking .c_str() off a temporary inside the printf
+  // argument list would dangle before printf reads it.
+  const std::string fs_field =
+      is_async ? ("\"" + finalize_stream + "\"") : std::string("\"not_applicable\"");
   std::printf(
       "{\"fixture\":\"%s\",\"backend\":\"nccl\",\"mode\":\"%s\",\"gpus\":%d,"
-      "\"chunk\":%lld,\"finalize_stream\":\"%s\","
+      "\"chunk\":%lld,\"finalize_stream\":%s,"
       "\"payload\":\"%s\",\"payload_bytes_per_pair\":%lld,"
       "\"allreduce_bytes\":%lld,\"n_pairs\":%lld,"
+      "\"timing_basis\":\"%s\","
       "\"t_load_s\":%.6f,\"t_setup_s\":%.6f,"
-      "\"t_kernel_s\":%.6f,\"t_allreduce_s\":%.6f,\"t_pipeline_s\":%.6f,"
+      "\"t_stats_s\":%.6f,\"t_allreduce_s\":%.6f,\"t_finalize_s\":%.6f,"
+      "\"t_kernel_s\":%.6f,\"t_pipeline_s\":%.6f,"
+      "\"t_stats_sum_s\":%.6f,\"t_allreduce_sum_s\":%.6f,"
+      "\"t_finalize_sum_s\":%.6f,"
+      "\"device_total_s\":%.6f,\"one_shot_total_s\":%.6f,"
       "\"t_d2h_s\":%.6f,\"validated\":%s,\"max_abs_diff\":%.3e,"
       "\"tol_failures\":%d,\"emitted\":%lld}\n",
       dir.c_str(), mode.c_str(), n_gpus, static_cast<long long>(chunk),
-      finalize_stream.c_str(), payload_name(payload),
+      fs_field.c_str(),
+      payload_name(payload),
       static_cast<long long>(payload_bytes_per_pair(payload)),
       static_cast<long long>(payload_bytes_per_pair(payload) * n_pairs),
-      static_cast<long long>(n_pairs), t_load, t_setup, t_kernel, t_allreduce,
-      t_pipeline, t_d2h, validate ? "true" : "false", max_diff, failures,
+      static_cast<long long>(n_pairs),
+      is_async ? "pipeline_total" : "device_total",
+      t_load, t_setup,
+      is_async ? t_stats_sum : t_kernel, is_async ? t_allreduce_sum : t_allreduce,
+      is_async ? t_finalize_sum : t_finalize,
+      t_kernel, t_pipeline,
+      t_stats_sum, t_allreduce_sum, t_finalize_sum,
+      device_total, one_shot_total,
+      t_d2h, validate ? "true" : "false", max_diff, failures,
       static_cast<long long>(emitted));
 
   for (int g = 0; g < n_gpus; ++g) ncclCommDestroy(comms[g]);
