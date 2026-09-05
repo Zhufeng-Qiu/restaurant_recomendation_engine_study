@@ -1,0 +1,58 @@
+{
+  "sync_f64": {
+    "median_ms": 6.1370000000000005,
+    "iqr_ms": 0.07175000000000065
+  },
+  "async_sep_f64_c32768": {
+    "median_ms": 7.0335,
+    "iqr_ms": 0.19625000000000004
+  },
+  "async_sep_f64_c65536": {
+    "median_ms": 6.3085,
+    "iqr_ms": 0.20300000000000118
+  },
+  "async_sep_f64_c131072": {
+    "median_ms": 5.7509999999999994,
+    "iqr_ms": 0.41850000000000165
+  },
+  "async_sep_f64_c262144": {
+    "median_ms": 5.7705,
+    "iqr_ms": 0.5187500000000007
+  },
+  "async_sep_f64_c524288": {
+    "median_ms": 7.073,
+    "iqr_ms": 1.0764999999999993
+  },
+  "async_sep_f64_c1048576": {
+    "median_ms": 7.082000000000001,
+    "iqr_ms": 0.2004999999999999
+  },
+  "sync_packed": {
+    "median_ms": 4.1565,
+    "iqr_ms": 0.06974999999999909
+  },
+  "async_sep_packed_c32768": {
+    "median_ms": 5.2415,
+    "iqr_ms": 0.1307500000000008
+  },
+  "async_sep_packed_c65536": {
+    "median_ms": 4.5405,
+    "iqr_ms": 0.2737499999999988
+  },
+  "async_sep_packed_c131072": {
+    "median_ms": 4.089500000000001,
+    "iqr_ms": 0.26424999999999965
+  },
+  "async_sep_packed_c262144": {
+    "median_ms": 3.8385,
+    "iqr_ms": 0.5760000000000001
+  },
+  "async_sep_packed_c524288": {
+    "median_ms": 5.1315,
+    "iqr_ms": 1.1057500000000005
+  },
+  "async_sep_packed_c1048576": {
+    "median_ms": 4.516,
+    "iqr_ms": 0.10274999999999945
+  }
+}
