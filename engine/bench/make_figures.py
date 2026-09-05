@@ -25,6 +25,32 @@ PAYLOAD_LABEL = {"f64": "f64 (6x float64)", "i32": "i32 (6x int32)",
                  "packed": "packed (2x uint64)"}
 
 
+def iqr_err(rec):
+    """Asymmetric [lower, upper] error from p25/p75 when the run recorded them.
+
+    Runs before 2026-09-04 have no quartiles; fall back to min/max so older
+    bench files still plot, and return None only when neither exists. Without
+    this the async 2-GPU bars look as settled as the sync ones, and they are
+    not -- they carry 12-44% IQR against sync's 0.3%.
+    """
+    m = rec["median_s"]
+    lo = rec.get("p25_s")
+    hi = rec.get("p75_s")
+    if lo is None or hi is None:
+        lo, hi = rec.get("min_s"), rec.get("max_s")
+    if lo is None or hi is None:
+        return None
+    return [max(0.0, m - lo), max(0.0, hi - m)]
+
+
+def err_pair(recs):
+    """Column-wise [[lower...],[upper...]] for a list of records, or None."""
+    es = [iqr_err(r) for r in recs]
+    if any(e is None for e in es):
+        return None
+    return [[e[0] for e in es], [e[1] for e in es]]
+
+
 def nccl_name(by_name, mode, gpus, payload):
     """Resolve an nccl config across the pre/post --payload naming.
 
@@ -233,13 +259,20 @@ def main():
         labels = (["serial", f"OMP best ({best_omp[1]}t)"]
                   + [lab for _, lab in gpu_specs])
         med = [by_name[n]["median_s"] for n in names]
-        bars = ax.bar(labels, med)
-        for b, m in zip(bars, med):
-            ax.text(b.get_x() + b.get_width() / 2, m, f"{m*1e3:.1f} ms",
+        e = err_pair([by_name[n] for n in names])
+        bars = ax.bar(labels, med, yerr=e, capsize=4,
+                      error_kw={"ecolor": "0.25", "lw": 1.2})
+        for b, m, n in zip(bars, med, names):
+            top = m + (iqr_err(by_name[n]) or [0, 0])[1]
+            ax.text(b.get_x() + b.get_width() / 2, top, f"{m*1e3:.1f} ms",
                     ha="center", va="bottom", fontsize=8)
-        ax.set_ylabel("Compute time (s)")
+        # Log scale is not decoration here: the span is 1258 ms to 4.1 ms, so a
+        # linear axis flattens every GPU bar to the baseline and hides the IQR
+        # whiskers that are the point of showing them.
+        ax.set_yscale("log")
+        ax.set_ylabel("Compute time (s, log scale)")
         ax.set_title(f"CPU vs GPU backend latency — {fixture}")
-        ax.grid(alpha=0.3, axis="y")
+        ax.grid(alpha=0.3, axis="y", which="both")
         plt.setp(ax.get_xticklabels(), rotation=20, ha="right")
         fig.suptitle(src, y=0.02, fontsize=8, va="bottom")
         fig.tight_layout(rect=(0, 0.05, 1, 1))
@@ -263,10 +296,14 @@ def main():
         xs = range(len(combos))
         for i, p in enumerate(present):
             off = (i - (len(present) - 1) / 2) * width
-            vals = [by_name[nccl_name(by_name, m, g, p)]["median_s"] * 1e3
-                    for m, g in combos]
+            recs = [by_name[nccl_name(by_name, m, g, p)] for m, g in combos]
+            vals = [r["median_s"] * 1e3 for r in recs]
+            e = err_pair(recs)
+            if e is not None:
+                e = [[v * 1e3 for v in e[0]], [v * 1e3 for v in e[1]]]
             bars = ax1.bar([x + off for x in xs], vals, width,
-                           label=PAYLOAD_LABEL[p])
+                           label=PAYLOAD_LABEL[p], yerr=e, capsize=3,
+                           error_kw={"ecolor": "0.25", "lw": 1.0})
             for b, v in zip(bars, vals):
                 ax1.text(b.get_x() + b.get_width() / 2, v, f"{v:.2f}",
                          ha="center", va="bottom", fontsize=7)

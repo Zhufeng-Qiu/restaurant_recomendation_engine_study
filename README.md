@@ -95,6 +95,11 @@ collectives), speedup vs same-machine serial.
 
 ![CPU vs GPU backend latency on item_full](results/figures/gpu_comparison.png)
 
+Log scale, because the span is 1258 ms to 4.1 ms. Whiskers are the
+interquartile range over 30 trials: note that `NCCL async 2 GPU` has a
+visibly wider one than every other bar, which is the noise finding below
+made visible rather than argued.
+
 Key takeaways:
 
 - **262-312x over one CPU core**, ~17-20x over the best 16-thread OpenMP
@@ -126,17 +131,22 @@ path.
 
 </details>
 
-OpenMP scaling (M5; the 4→8t knee is the P-core/E-core boundary):
+OpenMP scaling (M5, 30 trials; the 4→8t knee is the P-core/E-core boundary —
+and the Sep. 4th update shows that knee, not workload skew, is most of what
+dynamic scheduling buys):
 
 ![OpenMP speedup and efficiency](results/figures/openmp_scaling.png)
 
-MPI scaling (M5; the AllReduce share grows to ~13% at 8 ranks — the same
-tensor NVLink moves in 0.47 ms):
+MPI scaling (M5, 30 trials; the AllReduce share grows to ~13% at 8 ranks on
+`item_full` — but see the Sep. 4th update, where at 9,054 pairs it reaches
+83% and MPI turns net slower than serial):
 
 ![MPI strong scaling and communication fraction](results/figures/mpi_scaling.png)
 
-Collective payload compression (A100 pod; right panel is the one that matters
-— the collective shrinks 1.9x, but it was only 10.7% of the iteration):
+Collective payload compression (A100 NVLink pod, 30 trials; right panel is the
+one that matters — the collective shrinks 1.9x, but it was only ~11% of the
+iteration. In the left panel the `async 2 GPU` group is the only one whose
+IQR whiskers are wide enough to see):
 
 ![AllReduce payload comparison](results/figures/payload_comparison.png)
 
@@ -367,6 +377,7 @@ only annotated:
 | *Layout* | "4 exported workloads", 4 tools | 6 workloads + 5 domain fixtures, 10 tools |
 | *Three regimes* | blamed async's shortfall on chunking cost | superseded note: chunking is 1.23x here; the cause was stream occupancy |
 | this section's finalize result | quoted −11.1% / −16.4% as settled | ten A/B measurements, sign reproducible, magnitude not |
+| all six figures | drawn from 5-trial runs (Aug 28–29), no error bars on the GPU charts | redrawn from the 30-trial runs; `gpu_comparison` and `payload_comparison` now carry IQR whiskers, and `gpu_comparison` moved to a log axis |
 
 The same two corrections were applied to [docs/analysis.md](docs/analysis.md).
 Nothing in the *Results* tables was restated: those numbers stand as measured,
