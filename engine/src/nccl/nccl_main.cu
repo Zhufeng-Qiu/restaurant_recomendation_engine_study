@@ -236,7 +236,8 @@ int run(int argc, char** argv) {
   std::string finalize_stream = "comm";  // async only; "comm" | "separate"
   int n_gpus = 2;
   int64_t chunk = 1 << 18;  // 262144 pairs per chunk (async mode)
-  int group = 32;                     // lanes per pair; 32 == phase-3 mapping
+  int group = 4;                      // lanes per pair; see cuda_backend.hpp
+                                      // (32 was the phase-3 mapping)
   std::string order_arg = "source";   // "bylen" enables warp packing
   std::string hoist_arg = "off";      // slice bounds once per group, broadcast
   bool validate = false;

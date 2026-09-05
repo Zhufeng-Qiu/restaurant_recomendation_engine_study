@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cuda_runtime.h>
+#include <string>
 
 namespace engine_cuda {
 
@@ -23,6 +24,7 @@ struct OccupancyInfo {
   int max_warps_per_sm = 0;
   int multiprocessors = 0;
   double theoretical_occupancy = 0.0;  // active warps / hardware maximum
+  int blocks_if_register_limited = 0;
   const char* limiter = "unknown";
 };
 
@@ -51,15 +53,30 @@ inline OccupancyInfo occupancy_of(K kernel, int block_size, int device = 0) {
   o.theoretical_occupancy =
       o.max_warps_per_sm ? double(o.active_warps_per_sm) / o.max_warps_per_sm : 0.0;
 
-  // Which resource ran out first. Registers and blocks-per-SM are the only
-  // candidates here: these kernels allocate no static shared memory.
-  const int by_regs = fa.numRegs > 0
-      ? prop.regsPerMultiprocessor / (fa.numRegs * block_size) : 1 << 20;
+  // Which resource ran out first. Registers are allocated per warp in fixed
+  // units (256 on sm_80), not per thread, so a naive regsPerSM /
+  // (numRegs * block_size) overestimates how many blocks fit and mislabels a
+  // register-limited kernel as warp-limited -- which is exactly what the first
+  // version of this function did with 37 registers at 128 threads.
+  const int warps_per_block = block_size / prop.warpSize;
+  const int kGranularity = 256;
+  const int regs_per_warp =
+      ((fa.numRegs * prop.warpSize + kGranularity - 1) / kGranularity) * kGranularity;
+  const int by_regs = (fa.numRegs > 0 && warps_per_block > 0)
+      ? prop.regsPerMultiprocessor / (regs_per_warp * warps_per_block)
+      : 1 << 20;
+  const int by_blocks = prop.maxBlocksPerMultiProcessor;
+  const int by_warps = (prop.maxThreadsPerMultiProcessor / prop.warpSize) / warps_per_block;
+  o.blocks_if_register_limited = by_regs;
   if (o.shared_bytes_static > 0) o.limiter = "shared_memory";
-  else if (by_regs <= o.active_blocks_per_sm) o.limiter = "registers";
-  else if (o.active_blocks_per_sm >= prop.maxBlocksPerMultiProcessor)
-    o.limiter = "blocks_per_sm";
+  else if (by_regs <= by_blocks && by_regs <= by_warps) o.limiter = "registers";
+  else if (by_blocks <= by_warps) o.limiter = "blocks_per_sm";
   else o.limiter = "warps_per_sm";
+  // The driver is the authority; if the estimate disagrees, say so instead of
+  // asserting a cause.
+  if (by_regs != o.active_blocks_per_sm && o.limiter == std::string("registers")
+      && by_blocks != o.active_blocks_per_sm && by_warps != o.active_blocks_per_sm)
+    o.limiter = "not_determined";
   return o;
 }
 
@@ -70,12 +87,13 @@ inline int occupancy_json(char* buf, size_t n, const OccupancyInfo& o) {
       "\"shared_bytes_static\":%zu,\"block_size\":%d,"
       "\"active_blocks_per_sm\":%d,\"active_warps_per_sm\":%d,"
       "\"max_warps_per_sm\":%d,\"multiprocessors\":%d,"
-      "\"theoretical_occupancy\":%.4f,\"limiter\":\"%s\","
+      "\"theoretical_occupancy\":%.4f,"
+      "\"blocks_if_register_limited\":%d,\"limiter\":\"%s\","
       "\"measured\":\"theoretical_only_ncu_unavailable\"}",
       o.registers_per_thread, o.local_bytes_per_thread, o.shared_bytes_static,
       o.block_size, o.active_blocks_per_sm, o.active_warps_per_sm,
       o.max_warps_per_sm, o.multiprocessors, o.theoretical_occupancy,
-      o.limiter);
+      o.blocks_if_register_limited, o.limiter);
 }
 
 #define ENGINE_OCC_G(group, H, KERNEL, BLOCK, OUT)                     \

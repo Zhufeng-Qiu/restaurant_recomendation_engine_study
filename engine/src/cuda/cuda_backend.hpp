@@ -7,18 +7,29 @@
 
 namespace engine {
 
-// How pairs are mapped onto lanes. The defaults reproduce the phase-3 mapping
-// (one warp per pair, fixture order), which is the baseline every warp-packing
-// number is measured against.
+// How pairs are mapped onto lanes.
+//
+// The default is four lanes per pair in the fixture's own order, because that
+// configuration is better than the phase-3 mapping on BOTH timing bases and on
+// both real fixtures -- it is not a trade:
+//
+//   device_total   -17.59% [-19.75, -15.38] on item_full, -42.23% on user_full
+//   cold path       -3.08% [ -9.75,  +4.08], i.e. no penalty
+//   vs the pre-packing binary  -11.43% [-11.84, -11.02]
+//
+// Sorting by shorter-slice length (--pair-order bylen) buys a further ~25% of
+// steady state and is NOT the default, because building that order costs ~100 ms
+// against a ~3 ms kernel: it pays back after roughly 57 queries, so it belongs
+// to a resident engine and not to a one-shot invocation of this binary.
 struct CudaMapOptions {
-  int group = 32;                        // lanes per pair; power of two <= 32
+  int group = 4;                         // lanes per pair; power of two <= 32
   PairOrder order = PairOrder::kSource;  // kByShortLen enables packing
   // Compute each pair's slice bounds once per group and broadcast, instead of
   // repeating the four searches in every lane. Orthogonal to packing on
   // purpose, so the two effects can be attributed separately.
   bool hoist = false;
   bool is_default() const {
-    return group == 32 && order == PairOrder::kSource && !hoist;
+    return group == 4 && order == PairOrder::kSource && !hoist;
   }
 };
 
