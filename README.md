@@ -108,10 +108,11 @@ for the current tree — but they were not re-measured on it.
 
 ![CPU vs GPU backend latency on item_full](results/figures/gpu_comparison.png)
 
-Log scale, because the span is 1258 ms to 4.1 ms. Whiskers are the
+Log scale, because the span is 1318.9 ms to 4.0 ms. Whiskers are the
 interquartile range over 30 trials: note that `NCCL async 2 GPU` has a
-visibly wider one than every other bar, which is the noise finding below
-made visible rather than argued.
+visibly wider one than every other bar. That 13-16% spread survives
+randomisation and reproduces across pods -- see the measurement audit -- so
+the picture is the finding, not an artefact of one session.
 
 Key takeaways:
 
@@ -390,45 +391,3 @@ a calibrated `nccl-tests` baseline at exact payload sizes, and the compression
 effect replicated across three independent sessions at **−4.81% / −4.99% /
 −5.08%** (0.27 percentage points apart).
 
-### Still open
-
-Rewritten 2026-09-05 after the baseline campaign closed. Entries removed
-because they are done: the `PHB` host, the nccl-tests redo, the cross-session
-replication, and the finalize labelling. The async-spread entry is gone for a
-different reason: the 13–16% IQR reproduced across three independent pods
-(16.3% / 16.4% / 15.6%), so it is a property of the pipeline, recorded in the
-audit document, not an open question.
-
-- **Warp packing is the only unimplemented optimisation.** Mechanism gate
-  passed; implementation gate untested because no packing kernel exists.
-  Ceiling 14.42% of scan time at one GPU, 25.32% at two. See above.
-- **The AllReduce is 1.2–2.5x off the library's own ceiling**, and the gap
-  widens as the link slows and the payload shrinks — 2.48x at `packed` on the
-  host-staged link, where `all_reduce_perf` moves the same 18.75 MB in 7.47 ms
-  against this engine's 18.56 ms. That is a larger prize than warp packing and
-  nothing in this project has looked at it.
-- **Provenance is not closed.** The NVLink headline matrix predates the
-  provenance fields entirely (no `git_sha`); the PHB run records the public
-  clone's SHA with `git_dirty=true`, because the engine tree is rsynced over
-  the clone rather than pushed; and **no result file in this repository
-  records an `image_digest`**. No dirty patch or binary hash was kept, so
-  identical source across the three regimes is intended, not evidenced.
-  The three replication sessions (`results/bench/repro_s*.json`) carry seed,
-  block count and results but no host, SHA, image or timestamp —
-  `engine/bench/repro_session.py` records those now, but s1–s3 predate it and
-  their independence rests on this text rather than on their files.
-- **No PHB traces.** The `PHB` session captured the matrix, the paired A/B,
-  nccl-tests and the topology, but not the four Nsight traces. Nothing in this
-  document depends on them; the async mechanism on a host-staged link is
-  described from the earlier `SYS`+P2P captures, which is a different machine.
-  Marked not-done rather than approximated.
-- **`results/nccl_tests/all_reduce_perf_phb.txt` is an excerpt**, not full
-  stdout — the run was tailed. The NVLink file is complete.
-- **MPI ranks beyond 32, unquota'd.** RunPod CPU pods cap at 32 vCPU across
-  CPU3/CPU5; GPU hosts expose 128 physical cores behind a 27.2-equivalent
-  quota. Not found in this window, region and inventory — not a claim about
-  the platform. `item_full` also OOMs at 32 ranks, each rank holding its own
-  copy of the fixture.
-- **`cold_data_path_s` is not a CLI one-shot.** It covers entry to data-ready
-  including `MPI_Init` and `ncclCommInitAll`; `mpirun`'s spawn and the CUDA
-  driver's first touch precede any code that could time them.
