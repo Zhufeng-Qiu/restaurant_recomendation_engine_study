@@ -81,17 +81,30 @@ throughout (environments recorded in `results/gpu_env*.txt`).
 
 ### Backend comparison
 
-Median of 5 trials after 2 warm-ups; GPU times are device-side (kernels +
-collectives), speedup vs same-machine serial.
+**One machine, one timing basis.** EPYC 7742 + 2x A100-SXM4-80GB (NV12),
+30 trials after 3 warm-ups, round-robin with a per-round reshuffle
+(seed 20260905). Times are **steady-state**: `device_total = stats +
+allreduce + finalize` for everything except async, which reports
+`pipeline_total` because its stages overlap. Fixture load, device setup and
+H2D/D2H are excluded — see *cold path* below for what a cold caller pays.
 
-| Backend | Hardware | Median | Speedup |
-| --- | --- | --- | --- |
-| Serial C++ (oracle) | EPYC (pod) | 1312.0 ms | 1.0x |
-| OpenMP 16t dynamic | EPYC (pod) | 85.8 ms | 15.3x |
-| MPI 8 ranks | Apple M5 | 256.3 ms | 3.1x |
-| CUDA warp-per-pair | 1x A100 | 5.00 ms | 262x |
-| NCCL sync (`packed`) | 2x A100 | 4.21 ms | 312x |
-| NCCL async double-buffered | 2x A100 | 4.80 ms | 273x |
+| Backend | Median | Speedup vs same-machine serial |
+| --- | --- | --- |
+| Serial C++ (oracle) | 1318.88 ms | 1.00x |
+| OpenMP 16t dynamic | 86.665 ms | 15.22x |
+| MPI 16 ranks | 275.699 ms | 4.78x |
+| CUDA warp-per-pair, 1 GPU | 4.753 ms | 277.48x |
+| **NCCL sync `packed`, 2 GPU** | **3.977 ms** | **331.63x** |
+| NCCL async `packed`, 2 GPU | 4.409 ms | 299.17x |
+
+Every earlier version of this table mixed hardware — MPI from a laptop, GPU
+rows from pods — so its speedups were computed against two different serial
+baselines. This one is not.
+
+Provenance: `results/bench/bench_20260905_064736.json`, measured at commit
+`12e9917`. Later commits changed documentation, the MPI load field and the
+replication tooling, none of which touch the steady-state kernels, so the
+numbers stand for the current tree — but they were not re-measured on it.
 
 ![CPU vs GPU backend latency on item_full](results/figures/gpu_comparison.png)
 
@@ -102,8 +115,8 @@ made visible rather than argued.
 
 Key takeaways:
 
-- **262-312x over one CPU core**, ~17-20x over the best 16-thread OpenMP
-  configuration.
+- **277-332x over one CPU core** on the same machine, ~15-20x over the best
+  16-thread OpenMP configuration on that machine.
 - **A second GPU adds only 1.14-1.20x.** Only the rating dimension is split;
   every GPU still touches every pair, so the per-pair work does not halve.
 - **On NVLink, neither optimisation is worth it.** Compressing the collective
@@ -930,8 +943,9 @@ crossover (15 blocks each direction, 30 total, unprofiled):
 | **observed, tail vs full** | | **−2.08%**, 95% CI [−3.25%, −0.90%] |
 
 Doing a third less useful work at the same lane-slot count buys 2%. **Kernel
-time tracks lane-slots**, so the tail is real cost and warp packing targets a
-real mechanism — with a ceiling of **14.42%** of scan time at one GPU (85.58%
+time mostly tracks lane-slots** — the model predicts 0% and the CI excludes it,
+so this bounds the useful-work model out, not a perfect fit — and the tail is
+therefore real cost that warp packing targets — with a ceiling of **14.42%** of scan time at one GPU (85.58%
 utilisation on `item_full`) and 25.32% at two (74.68%; splitting the dimension
 shortens every slice and raises total lane-slots from 126M to 144M). Packing is
 **not implemented**: that ceiling is the prize, and the kernel rewrite is
@@ -990,7 +1004,11 @@ timing-correct build, 30 rounds:
 | AllReduce vs nccl-tests | 1.59x | — | **2.48x** |
 
 All three regimes are now on the same timing basis, the same randomisation
-protocol and the same build. The compression trend holds across a 10x span in
+protocol and the same working-tree revision. Not literally the same build
+artefact: the pods recorded `git_sha` from the public clone with
+`git_dirty=true` (the engine was synced over it) and no image digest, so
+"same build" is not evidenced — "same timing contract, same source revision"
+is what the records support. The compression trend holds across a 10x span in
 communication share, and the third point is a paired estimate with a CI rather
 than a single 5-trial median.
 
@@ -1016,9 +1034,11 @@ fixture with 6% of the payload, on the same machine in the same session:
 | `item_full_ovl_skew` | 3.35 MB | **7.11x** | **24** |
 
 A 16.8x smaller payload raises the peak 62% and moves the turnover from 16 to
-24. Pure quota starvation would have peaked at the same rank in both. **Both
-mechanisms are present**: the collective sets where the curve turns, the quota
-bounds how high it gets.
+24. Pure quota starvation would have peaked at the same rank in both, so **the
+collective contributes materially to the turnover**. It is not a clean
+isolation: the smaller fixture also changes pair count, per-rank compute and
+cache behaviour, so this bounds the quota-only explanation out rather than
+attributing the turnover to the collective alone.
 
 An unrestricted host was not found. RunPod's CPU pods cap at 32 vCPU across
 the CPU3/CPU5 families, and the GPU hosts expose 128 physical cores (2 sockets
@@ -1028,37 +1048,39 @@ claim about the platform.
 
 ### Still open
 
-Cleaned 2026-09-05: three entries here had been overtaken by measurements
-elsewhere in this section and were contradicting them.
+Rewritten 2026-09-05 after the baseline campaign closed. Entries removed
+because they are done: the `PHB` host, the nccl-tests redo, the cross-session
+replication, the finalize labelling, and the "async noise is intrinsic"
+phrasing (it now reproduces across three independent pods, so it is stated as
+a property of the pipeline in the section above rather than hedged here).
 
-- **A `PHB`/no-P2P host at 30 trials.** The 91%-communication column is still
-  5-trial. Not a CUDA problem, as first assumed: `NVIDIA_DISABLE_REQUIRE=1`
-  starts the CUDA 12.8 image on hosts whose driver advertises 12.5, and every
-  gate passes bit-exact, so toolkit and NCCL still match. The obstacle is that
-  the pool only yields `SYS` machines with P2P available. Disabling P2P is not
-  a substitute — it costs 26% on the collective while the archived `PHB` pod
-  was ~4x slower again.
-- **The headline table predates the timing fix.** Every row in *Results* above
-  was measured before finalize entered the NCCL sync total and before the run
-  order was randomised. It is re-measured under *Sep. 5th* for one host; the
-  three-regime table has not been.
-- **Warp packing.** Superseded in specifics: the lane-slot model puts the
-  ceiling at **14.42%** of scan time on `item_full` at one GPU (85.58%
-  utilisation) and **25.32%** at two (74.68%, because splitting the dimension
-  shortens each slice and worsens every tail). Not implemented, and gated on
-  an unprofiled paired A/B clearing 3% on `device_total` with a CI that does
-  not cross zero — otherwise the added complexity is not worth it.
-- **The nccl-tests baseline needs redoing.** It was run with `-b 16M -e 64M`,
-  which measures 16/32/64 MiB rather than this engine's actual 18,749,712 /
-  28,124,568 / 56,249,136 bytes, and the ratios quoted above read the
-  out-of-place column while `ncclAllReduce(slot, slot, ...)` is in-place. The
-  1.17–1.45x figures are therefore indicative, not a calibrated baseline. The
-  16–64 MiB sweep is kept as a bandwidth background curve.
-- **`cold_data_path_s` is not a CLI one-shot.** It now covers entry to
-  data-ready including `MPI_Init` and `ncclCommInitAll`, but `mpirun`'s spawn
-  and the CUDA driver's first touch happen before any code that could time
-  them. A true one-shot needs an outer process timer.
-- **Async 2-GPU noise persists under randomised interleaving** (13–16% IQR
-  against 0.22–1.12% for sync). One randomisation rules out simple order
-  drift; it does not establish that the variance is intrinsic. The
-  cross-session replication will settle it.
+- **Warp packing is the only unimplemented optimisation.** Mechanism gate
+  passed; implementation gate untested because no packing kernel exists.
+  Ceiling 14.42% of scan time at one GPU, 25.32% at two. See above.
+- **The AllReduce is 1.2–2.5x off the library's own ceiling**, and the gap
+  widens as the link slows and the payload shrinks — 2.48x at `packed` on the
+  host-staged link, where `all_reduce_perf` moves the same 18.75 MB in 7.47 ms
+  against this engine's 18.56 ms. That is a larger prize than warp packing and
+  nothing in this project has looked at it.
+- **Provenance is not closed.** Pod runs record `git_sha` from the public
+  clone with `git_dirty=true`, because the engine tree is rsynced over the
+  clone rather than pushed, and `image_digest` is null on every run before the
+  last two. The three replication sessions (`results/bench/repro_s*.json`)
+  carry seed, block count and results but no host, SHA, image or timestamp —
+  `engine/bench/repro_session.py` records those now, but s1–s3 predate it and
+  their independence rests on this text rather than on their files.
+- **No PHB traces.** The `PHB` session captured the matrix, the paired A/B,
+  nccl-tests and the topology, but not the four Nsight traces. Nothing in this
+  document depends on them; the async mechanism on a host-staged link is
+  described from the earlier `SYS`+P2P captures, which is a different machine.
+  Marked not-done rather than approximated.
+- **`results/nccl_tests/all_reduce_perf_phb.txt` is an excerpt**, not full
+  stdout — the run was tailed. The NVLink file is complete.
+- **MPI ranks beyond 32, unquota'd.** RunPod CPU pods cap at 32 vCPU across
+  CPU3/CPU5; GPU hosts expose 128 physical cores behind a 27.2-equivalent
+  quota. Not found in this window, region and inventory — not a claim about
+  the platform. `item_full` also OOMs at 32 ranks, each rank holding its own
+  copy of the fixture.
+- **`cold_data_path_s` is not a CLI one-shot.** It covers entry to data-ready
+  including `MPI_Init` and `ncclCommInitAll`; `mpirun`'s spawn and the CUDA
+  driver's first touch precede any code that could time them.
