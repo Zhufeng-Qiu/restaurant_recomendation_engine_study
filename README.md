@@ -32,7 +32,7 @@ Whether that 3x is worth anything depends entirely on the link:
 Same binary, same data, same GPU model — but **two different hosts**, so read
 this as two communication regimes rather than one variable swapped. Toggling
 P2P on a *single* machine reproduces the same trend with everything else held
-fixed (Sep. 4th update). The point survives the narrowing: **compressing a
+fixed (see the measurement audit below). The point survives the narrowing: **compressing a
 collective pays when the collective is the bottleneck, and not otherwise** —
 and the second half of that sentence is the part usually left out.
 
@@ -123,7 +123,7 @@ Key takeaways:
   3x buys 4.3%; async overlap *costs* 9.3%. Communication is 11% of the
   iteration, so there is very little there to win.
 - **On PCIe, compression reverses** and buys 55%. Async also turned positive
-  there, but see the Sep. 4th update: every async 2-GPU row in this study
+  there, but see the measurement audit below: every async 2-GPU row in this study
   carries a 12–44% IQR, so async differences of this size are at the edge of
   what these hosts resolve. The compression rows reproduce to under 0.3%.
 - **End-to-end RMSE 0.8652** (archived Spark model 0.8657; target 0.9).
@@ -145,14 +145,14 @@ path.
 </details>
 
 OpenMP scaling (M5, 30 trials; the 4→8t knee is the P-core/E-core boundary —
-and the Sep. 4th update shows that knee, not workload skew, is most of what
+and the measurement audit below shows that knee, not workload skew, is most of what
 dynamic scheduling buys):
 
 ![OpenMP speedup and efficiency](results/figures/openmp_scaling.png)
 
 MPI scaling (EPYC 7742 pod, 30 trials, ranks to 48; peak 5.04x at 16, and the
 AllReduce share climbs to 51% by 48 ranks — the CPU-time quota and the growing
-collective are confounded there, see the Sep. 4th update. On the smaller
+collective are confounded there, see the measurement audit below. On the smaller
 fixtures the collective dominates far earlier: at 9,054 pairs it is 83% and MPI
 turns net slower than serial):
 
@@ -371,7 +371,7 @@ Every run must report `max_abs_diff = 0` and `tol_failures = 0`. The async
 chunk sweep is not optional: the double-buffering race below only surfaced
 below 262144 pairs per chunk. Benchmarks come after.
 
-## Sep. 4th 2026 - Update
+## Measurement audit and headline rebuild — 20260905
 
 Corrections, new tests, and re-measurement on fresh hardware. Most of this
 section is appended rather than rewritten, but **some text above was edited in
@@ -856,7 +856,7 @@ What survives: the skewed band is modestly more efficient per element scanned,
 and warp packing for short rows is a **hypothesis worth testing**, not a
 conclusion this experiment supports.
 
-### Sep. 5th — unified timing, randomised order, and a second headline basis
+### Unified timing contract, randomised run order, and a second headline basis
 
 Steps 1–2 of the corrected plan, plus the nccl-tests baseline. One host
 (EPYC 7742, 2x A100 NV12), 30 rounds, **round-robin with a per-round reshuffle**
