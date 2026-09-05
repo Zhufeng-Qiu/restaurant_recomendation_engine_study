@@ -8,9 +8,13 @@ Every number here comes from `results/bench/*.json` and from Nsight traces
 read with `tools/nsys_overlap.py`. The traces themselves are not in the
 repository — `nsys` captures the profiled process's environment, and these
 were taken on hosts that had credentials in theirs.
-Two hosts: **2x A100-SXM4-80GB (NV12 NVLink)** and **2x A100 80GB PCIe (PHB,
-no P2P)**, both CUDA 12.8 / NCCL 2.25.1, `item_full` (1,171,857 pairs),
-median of 5 trials after 2 warm-ups.
+**Scope of the sections above the audit:** the original trace analysis, on two
+hosts — **2x A100-SXM4-80GB (NV12 NVLink)** and **2x A100 80GB PCIe (PHB, no
+P2P)** — both CUDA 12.8 / NCCL 2.25.1, `item_full` (1,171,857 pairs), median of
+5 trials after 2 warm-ups, and timed before finalize entered the NCCL sync
+total. The *Measurement audit* section below adds a third regime, 30-trial
+randomised runs and a corrected timing basis; where the two disagree, the audit
+is current.
 
 ---
 
