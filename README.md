@@ -547,6 +547,124 @@ launching shell — Runpod injects it into the container's init environment,
 where `nsys` reads it from `/proc`. Unsetting in the shell is not sufficient;
 verify with `strings <trace> | grep rpa_` before sharing any capture.
 
+### Async on PCIe was an implementation bug, not a property of the link
+
+The PCIe traces above showed GPU0 hiding 0.2% of its collective while GPU1 hid
+55%. The only structural difference between them is that GPU0 also runs the
+finalize kernel — on its **communication stream**. `--finalize-stream separate`
+moves it onto its own stream, chained to the collective by an event so the
+ordering is unchanged; bit-exact at every chunk size from 16k to 524k pairs.
+
+| PCIe, async 2 GPU, 30 trials | finalize on `comm` | on `separate` | |
+| --- | --- | --- | --- |
+| `f64` | 6.554 ms | 5.830 ms | **−11.1%** |
+| `packed` | 4.777 ms | 3.992 ms | **−16.4%** |
+
+Against `sync packed` on the same host (4.152 ms), async goes from **losing
+15%** to **winning 3.9%**. The traces confirm the mechanism rather than just
+the outcome — GPU0's share of compute hidden rises 4x, and the two GPUs become
+symmetric, which is what a stream-occupancy explanation predicts:
+
+| PCIe, `async packed` | GPU0 compute hidden | GPU1 compute hidden |
+| --- | --- | --- |
+| finalize on `comm` | **8.9%** | 40.6% |
+| finalize on `separate` | **35.9%** | 37.1% |
+
+**It does not help on NVLink** (30 trials): `sync f64` 4.089 ms against async
+4.782 (`comm`) and 4.819 (`separate`); at `packed`, 3.905 against 4.563 and
+4.470, inside a 0.6–0.75 ms IQR. That is the prediction, not a disappointment —
+NVLink's collective is 0.25 ms, so there is nothing for a freed stream to
+overlap with. The two links really do fail for different reasons: chunking cost
+on NVLink, stream occupancy on PCIe. Only the second was fixable.
+
+### Chunk size, swept for time rather than correctness
+
+The chunk sweep had only ever been run for correctness. Both curves are
+U-shaped, and the fix moves the whole PCIe curve down and its optimum:
+
+| chunks | `comm` f64 | `separate` f64 | `comm` packed | `separate` packed |
+| --- | --- | --- | --- | --- |
+| sync | 6.146 | 6.137 | 4.152 | 4.157 |
+| 72 | 8.927 | — | 6.963 | — |
+| 36 | 7.362 | 7.034 | 5.666 | 5.242 |
+| 18 | 6.636 | 6.309 | 4.902 | 4.540 |
+| 9 | 6.546 | **5.751** | 4.646 | 4.090 |
+| 5 | 6.459 | 5.771 | 4.648 | **3.838** |
+| 3 | 7.615 | 7.073 | 4.519 | 5.131 |
+| 2 | 6.854 | 7.082 | **4.425** | 4.516 |
+
+Over-chunking costs 38% at 72 chunks; under-chunking gives the pipeline nothing
+to overlap. The optimum sits at 5–9 chunks, and the default (262144 pairs, 5
+chunks) was already in the right place.
+
+### Where the GPU starts paying
+
+Every GPU number in this project came from one problem size. Five fixtures on
+one PCIe host, 20 trials:
+
+| fixture | pairs | serial | 1 GPU | 2 GPU | GPU speedup |
+| --- | --- | --- | --- | --- | --- |
+| `item_p1e3` | 726 | 0.470 ms | 0.219 ms | 0.365 ms | **2.1x** |
+| `item_p1e4` | 9,054 | 7.657 ms | 0.250 ms | 0.416 ms | 30.6x |
+| `item_medium` | 74,904 | 64.451 ms | 0.464 ms | 0.627 ms | 138.9x |
+| `item_full` | 1,171,857 | 1017.453 ms | 3.928 ms | 4.145 ms | **259.0x** |
+| `user_full` | 1,411,864 | 489.276 ms | 2.946 ms | 3.960 ms | 166.1x |
+
+The 262x headline holds only at the top. Kernel time is nearly flat from 726 to
+74,904 pairs — 0.219 to 0.464 ms for 103x the work — so everything below ~10⁵
+pairs is launch latency, not throughput. **And two GPUs are slower than one at
+every size measured here**, because the collective's fixed cost exceeds what
+halving the rating dimension saves; the second GPU only paid for itself on
+NVLink.
+
+### The workload matrix, on CPU
+
+Three dimensions the brief specified had no number against them. All are cheap
+and none needed a GPU (M5, 30 trials; `tools/make_overlap_fixtures.py`,
+`bench_20260904_17*.json`).
+
+**Problem size at fixed row length.** `item_tiny` is not a small `item_full` —
+it carries 713 ratings per entity against 48 — so two new subsets hold row
+length constant instead:
+
+| pairs | serial | omp16 speedup |
+| --- | --- | --- |
+| 726 | 0.389 ms | **0.57x** (a net loss) |
+| 9,054 | 6.069 ms | 4.16x |
+| 74,904 | 49.998 ms | 6.56x |
+| 1,171,857 | 760.023 ms | 7.08x |
+
+Per-pair cost stays at 0.54–0.67 µs, confirming the control. Sixteen threads
+are *worse than one* below ~10³ pairs.
+
+**MPI has a sharper cliff.** Local compute scales (5.90 → 2.03 ms at 9,054
+pairs) but the AllReduce jumps from 0.057 ms at 35 KB to 10.3 ms at 435 KB — a
+180x step for 12x the payload, the signature of an eager-to-rendezvous switch.
+Between 10⁴ and 10⁵ pairs the collective is 72–83% of the iteration and MPI is
+net slower than serial.
+
+**Overlap skew is not why dynamic scheduling wins.** Bands cut from
+`item_full` share its CSR byte for byte, so the distribution is the only
+variable. Dynamic vs static at 16 threads:
+
+| band | stdev of n | dynamic vs static |
+| --- | --- | --- |
+| `n == 3` only | 0.00 | **−10.0%** |
+| `n >= 11` | 9.39 | **−16.7%** |
+| natural mix | 4.10 | −4.0% |
+
+Skew helps, in the expected direction. But dynamic still wins by 10% where
+every pair has *identical* work and static should be optimal, and the benefit
+appears exactly at 8 threads — the M5's P-core/E-core boundary. On a
+heterogeneous CPU most of what dynamic scheduling buys is hardware imbalance,
+not workload skew. Parallel efficiency itself is insensitive to the
+distribution (7.08–7.15x across all three).
+
+`user_full` had also never been benchmarked, only validated. It is
+communication-heavier than `item_full`: more pairs, 2.7x cheaper each
+(0.244 vs 0.649 µs), so OpenMP matches (7.03x vs 7.08x) while MPI falls off
+(1.77x vs 2.95x).
+
 ### Still open
 
 - **A `PHB`/no-P2P host at 30 trials.** The 91%-communication column is still

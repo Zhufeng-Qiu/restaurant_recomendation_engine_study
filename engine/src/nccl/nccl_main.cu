@@ -16,9 +16,17 @@
 //               while chunk c's AllReduce (comm stream) is in flight.
 //               Event-based cross-stream dependencies keep it race-free.
 //
+// --finalize-stream is an A/B on where GPU0's finalize kernel runs in async
+// mode. `comm` (default, the original behaviour) puts it on the communication
+// stream; `separate` gives it its own stream chained to the collective by an
+// event. The PCIe traces showed GPU0 achieving almost no overlap while GPU1
+// hid 55% of its compute, and GPU0 is the one also running finalize on `comm`
+// -- this flag is what tests whether that is the cause.
+//
 // Usage:
 //   pearson_engine_nccl <fixture_dir> [--gpus N] [--mode sync|async]
 //                       [--chunk PAIRS] [--payload f64|i32|packed]
+//                       [--finalize-stream comm|separate]
 //                       [--validate] [--out sims.bin]
 
 #include <cuda_runtime.h>
@@ -66,8 +74,12 @@ struct Device {
   void* stats = nullptr;     // elems_per_pair(payload) entries per pair
   double* sims = nullptr;    // n_pairs (device 0 finalizes)
   cudaStream_t compute = nullptr, comm = nullptr;
+  // Device 0 only, and only under --finalize-stream separate: finalize runs
+  // here instead of on `comm`. See the note at the async loop.
+  cudaStream_t fin = nullptr;
   cudaEvent_t chunk_ready[2] = {nullptr, nullptr};   // stats written (per buffer)
   cudaEvent_t chunk_reduced[2] = {nullptr, nullptr}; // AllReduce done (per buffer)
+  cudaEvent_t chunk_allreduced[2] = {nullptr, nullptr}; // collective done (per buffer)
 };
 
 double wall() {
@@ -209,11 +221,13 @@ int run(int argc, char** argv) {
   if (argc < 2) {
     std::fprintf(stderr,
                  "usage: %s <fixture_dir> [--gpus N] [--mode sync|async] "
-                 "[--chunk PAIRS] [--payload f64|i32|packed] [--validate] "
+                 "[--chunk PAIRS] [--payload f64|i32|packed] "
+                 "[--finalize-stream comm|separate] [--validate] "
                  "[--out f]\n", argv[0]);
     return 2;
   }
   std::string dir = argv[1], out_path, mode = "sync", payload_arg = "f64";
+  std::string finalize_stream = "comm";  // async only; "comm" | "separate"
   int n_gpus = 2;
   int64_t chunk = 1 << 18;  // 262144 pairs per chunk (async mode)
   bool validate = false;
@@ -222,10 +236,14 @@ int run(int argc, char** argv) {
     else if (!std::strcmp(argv[a], "--mode") && a + 1 < argc) mode = argv[++a];
     else if (!std::strcmp(argv[a], "--chunk") && a + 1 < argc) chunk = std::atoll(argv[++a]);
     else if (!std::strcmp(argv[a], "--payload") && a + 1 < argc) payload_arg = argv[++a];
+    else if (!std::strcmp(argv[a], "--finalize-stream") && a + 1 < argc) finalize_stream = argv[++a];
     else if (!std::strcmp(argv[a], "--validate")) validate = true;
     else if (!std::strcmp(argv[a], "--out") && a + 1 < argc) out_path = argv[++a];
   }
   const Payload payload = parse_payload(payload_arg);
+  if (finalize_stream != "comm" && finalize_stream != "separate")
+    throw std::runtime_error("--finalize-stream must be comm or separate");
+  const bool finalize_separate = (finalize_stream == "separate");
 
   const double t0 = wall();
   engine::Fixture fx = engine::Fixture::load(dir);
@@ -255,9 +273,11 @@ int run(int argc, char** argv) {
     CUDA_CHECK(cudaSetDevice(g));
     CUDA_CHECK(cudaStreamCreate(&d.compute));
     CUDA_CHECK(cudaStreamCreate(&d.comm));
+    if (g == 0) CUDA_CHECK(cudaStreamCreate(&d.fin));
     for (int b = 0; b < 2; ++b) {
       CUDA_CHECK(cudaEventCreateWithFlags(&d.chunk_ready[b], cudaEventDisableTiming));
       CUDA_CHECK(cudaEventCreateWithFlags(&d.chunk_reduced[b], cudaEventDisableTiming));
+      CUDA_CHECK(cudaEventCreateWithFlags(&d.chunk_allreduced[b], cudaEventDisableTiming));
     }
     CUDA_CHECK(cudaMalloc(&d.offsets, fx.offsets.size() * sizeof(int64_t)));
     CUDA_CHECK(cudaMalloc(&d.dims, fx.dims.size() * sizeof(int32_t)));
@@ -368,24 +388,44 @@ int run(int argc, char** argv) {
                                  ncclSum, comms[g], d.comm));
       }
       NCCL_CHECK(ncclGroupEnd());
-      // GPU 0 finalizes the reduced chunk on its comm stream (in order) and
-      // only THEN records the slot-free event: recording before finalize let
-      // chunk c+2's stats kernel overwrite slot b while finalize still read
-      // it (caught by the async chunk-size sweep at chunk < 262144).
+      // GPU 0 finalizes the reduced chunk, and only THEN is slot b declared
+      // free: recording the slot-free event before finalize let chunk c+2's
+      // stats kernel overwrite slot b while finalize still read it (caught by
+      // the async chunk-size sweep at chunk < 262144).
+      //
+      // Which stream finalize runs on is an A/B (--finalize-stream). Putting
+      // it on `comm` keeps the ordering implicit but leaves GPU0's
+      // communication stream doing compute, which the PCIe traces suggested
+      // was why GPU0 achieved almost no overlap there. `separate` gives it its
+      // own stream, chained to the collective by an explicit event so the
+      // ordering is unchanged; the slot-free event then comes off that stream.
       CUDA_CHECK(cudaSetDevice(0));
-      launch_finalize(payload, len, devs[0].comm,
-                      stats_at(devs[0].stats, payload, chunk * b),
-                      devs[0].sims + base);
+      if (finalize_separate) {
+        CUDA_CHECK(cudaEventRecord(devs[0].chunk_allreduced[b], devs[0].comm));
+        CUDA_CHECK(cudaStreamWaitEvent(devs[0].fin, devs[0].chunk_allreduced[b], 0));
+        launch_finalize(payload, len, devs[0].fin,
+                        stats_at(devs[0].stats, payload, chunk * b),
+                        devs[0].sims + base);
+      } else {
+        launch_finalize(payload, len, devs[0].comm,
+                        stats_at(devs[0].stats, payload, chunk * b),
+                        devs[0].sims + base);
+      }
       for (int g = 0; g < n_gpus; ++g) {
         Device& d = devs[g];
         CUDA_CHECK(cudaSetDevice(g));
-        CUDA_CHECK(cudaEventRecord(d.chunk_reduced[b], d.comm));
+        // Slot b is reusable once everything that reads it has finished. On
+        // GPU0 under `separate` that is the finalize stream, not `comm`.
+        CUDA_CHECK(cudaEventRecord(d.chunk_reduced[b],
+                                   (g == 0 && finalize_separate) ? d.fin : d.comm));
       }
     }
     for (int g = 0; g < n_gpus; ++g) {
       CUDA_CHECK(cudaSetDevice(g));
       CUDA_CHECK(cudaStreamSynchronize(devs[g].compute));
       CUDA_CHECK(cudaStreamSynchronize(devs[g].comm));
+      if (g == 0 && finalize_separate)
+        CUDA_CHECK(cudaStreamSynchronize(devs[0].fin));
     }
     t_pipeline = wall() - p0;
   }
@@ -416,14 +456,15 @@ int run(int argc, char** argv) {
 
   std::printf(
       "{\"fixture\":\"%s\",\"backend\":\"nccl\",\"mode\":\"%s\",\"gpus\":%d,"
-      "\"chunk\":%lld,\"payload\":\"%s\",\"payload_bytes_per_pair\":%lld,"
+      "\"chunk\":%lld,\"finalize_stream\":\"%s\","
+      "\"payload\":\"%s\",\"payload_bytes_per_pair\":%lld,"
       "\"allreduce_bytes\":%lld,\"n_pairs\":%lld,"
       "\"t_load_s\":%.6f,\"t_setup_s\":%.6f,"
       "\"t_kernel_s\":%.6f,\"t_allreduce_s\":%.6f,\"t_pipeline_s\":%.6f,"
       "\"t_d2h_s\":%.6f,\"validated\":%s,\"max_abs_diff\":%.3e,"
       "\"tol_failures\":%d,\"emitted\":%lld}\n",
       dir.c_str(), mode.c_str(), n_gpus, static_cast<long long>(chunk),
-      payload_name(payload),
+      finalize_stream.c_str(), payload_name(payload),
       static_cast<long long>(payload_bytes_per_pair(payload)),
       static_cast<long long>(payload_bytes_per_pair(payload) * n_pairs),
       static_cast<long long>(n_pairs), t_load, t_setup, t_kernel, t_allreduce,

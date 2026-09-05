@@ -352,6 +352,78 @@ Still open: a `PHB`/no-P2P host at 30 trials. The pool on 2026-09-04 offered
 only `SYS`-with-P2P machines, and the A/B above shows that configuration is
 not reachable by disabling P2P alone.
 
+### The PCIe async penalty had a cause, and it was ours
+
+The trace above left an asymmetry unexplained: GPU0 hid 0.2% of its collective
+while GPU1 hid 55%, on identical work. The one structural difference is that
+GPU0 also runs `finalize_kernel` — and it ran it on `comm`, the same stream
+carrying the collective. `--finalize-stream separate` gives it its own stream,
+chained to the collective by an event so the ordering is untouched. It is
+bit-exact at every chunk size from 16k to 524k pairs, which is where the
+earlier double-buffering race surfaced.
+
+| PCIe, `async packed`, GPU0 | collective | compute | overlapped | compute hidden |
+| --- | --- | --- | --- | --- |
+| finalize on `comm` | 1.234 ms | 2.951 ms | 0.263 ms | **8.9%** |
+| finalize on `separate` | 1.568 ms | 3.066 ms | 1.100 ms | **35.9%** |
+
+And GPU1, which never ran finalize, is essentially unchanged (40.6% → 37.1%).
+After the fix the two GPUs are symmetric — 70.2% and 69.8% of their collectives
+overlapped — which is exactly what a stream-occupancy explanation predicts and
+what a link-property explanation does not.
+
+End to end, 30 trials: `f64` 6.554 → 5.830 ms (−11.1%), `packed` 4.777 → 3.992
+ms (−16.4%). Against `sync packed` at 4.152 ms on the same host, async moves
+from losing 15% to winning 3.9%. **The claim that async does not pay on this
+link does not survive; what did not pay was running finalize on the
+communication stream.**
+
+The same flag does nothing on NVLink — `sync f64` 4.089 ms against async 4.782
+(`comm`) and 4.819 (`separate`), and at `packed` 3.905 against 4.563 and 4.470,
+all inside a 0.6–0.75 ms IQR. That is the prediction rather than a null result:
+NVLink's collective is 0.25 ms, so freeing a stream buys nothing to overlap
+with, and the penalty there is the 3.41x chunking cost measured above. The two
+links continue to fail for different reasons; only one of them was ours to fix.
+
+### Chunk size, measured for time
+
+Chunk size had only ever been swept for correctness. Both curves are U-shaped —
+over-chunking pays launch cost (38% at 72 chunks), under-chunking leaves the
+pipeline nothing to overlap — and the fix moves the PCIe curve down and shifts
+its optimum:
+
+| chunks | `comm` f64 | `separate` f64 | `comm` packed | `separate` packed |
+| --- | --- | --- | --- | --- |
+| sync | 6.146 | 6.137 | 4.152 | 4.157 |
+| 36 | 7.362 | 7.034 | 5.666 | 5.242 |
+| 18 | 6.636 | 6.309 | 4.902 | 4.540 |
+| 9 | 6.546 | **5.751** | 4.646 | 4.090 |
+| 5 | 6.459 | 5.771 | 4.648 | **3.838** |
+| 3 | 7.615 | 7.073 | 4.519 | 5.131 |
+| 2 | 6.854 | 7.082 | **4.425** | 4.516 |
+
+The shipped default (262144 pairs, 5 chunks on `item_full`) was already at or
+next to the optimum in every column.
+
+### Where the GPU is worth using
+
+One problem size cannot answer that, and one problem size is all this study had.
+Five fixtures, one PCIe host, 20 trials:
+
+| pairs | serial | 1 GPU | 2 GPU | GPU speedup |
+| --- | --- | --- | --- | --- |
+| 726 | 0.470 ms | 0.219 ms | 0.365 ms | 2.1x |
+| 9,054 | 7.657 ms | 0.250 ms | 0.416 ms | 30.6x |
+| 74,904 | 64.451 ms | 0.464 ms | 0.627 ms | 138.9x |
+| 1,171,857 | 1017.453 ms | 3.928 ms | 4.145 ms | 259.0x |
+
+Kernel time rises 2.1x while the work rises 103x between the first and third
+rows: everything below ~10^5 pairs is launch latency, not throughput, and the
+262x headline is a property of the largest fixture rather than of the kernel.
+Two GPUs are slower than one at every size on this host — the collective's
+fixed cost exceeds what halving the rating dimension saves — so the second GPU
+paid for itself only on NVLink.
+
 ### Credential hazard, restated
 
 `nsys` again captured a live `RUNPOD_API_KEY` even though the launching shell
