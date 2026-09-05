@@ -90,20 +90,34 @@ def cold_data_path_of(trial):
 
 
 def timing_identity(trial):
-    """Check a trial's own cold path against the sum of its own stages.
+    """Re-derive a trial's cold path from its own stages, where that is defined.
 
     The plan-construction stage was added for warp packing and was initially
     left out of both GPU cold paths, so a cold caller looked cheaper than it
-    was. The binaries now sum it; this re-derives the total from the parts the
-    same record carries, so a term that stops being summed is caught in the
-    results rather than in a later reading of the source.
+    was. This catches a term that stops being summed.
 
-    Returns None when the record predates the schema or does not carry enough
-    stages to re-derive anything -- absence of the fields is not a failure.
+    It is NOT a universal formula. Each backend publishes a different
+    decomposition, and mpi's in particular is not re-derivable from what it
+    prints: its cold_data_path_s is (entry -> data-ready, MPI_MAX over ranks)
+    plus device_total, and that first term already contains the fixture load,
+    so adding t_load_s again would double-count it and flag every MPI run.
+    Backends whose contract is not known here are skipped explicitly, with a
+    reason, rather than silently or wrongly.
+
+    Returns None when nothing can be checked.
     """
     cold = trial.get("cold_data_path_s")
     if cold is None:
         return None
+    backend = trial.get("backend")
+    if backend == "mpi":
+        return {"checked": False, "ok": True, "backend": backend,
+                "reason": "mpi publishes entry-to-ready, which already "
+                          "contains t_load_s; not re-derivable from its fields"}
+    if backend not in ("serial", "openmp", "cuda", "nccl"):
+        return {"checked": False, "ok": True, "backend": backend,
+                "reason": f"no cold-path contract known for backend {backend!r}"}
+
     parts = {k: trial[k] for k in
              ("t_load_s", "t_plan_s", "t_comm_init_s", "t_setup_s", "t_h2d_s",
               "t_d2h_s") if k in trial}
@@ -122,8 +136,53 @@ def timing_identity(trial):
     # steady_clock for transfers) and the binary adds a little unmeasured glue
     # between them. A dropped stage is orders of magnitude bigger than that.
     tol = max(1e-4, 0.02 * cold)
-    return {"ok": abs(cold - want) <= tol, "recorded_s": cold,
-            "resummed_s": want, "tolerance_s": tol}
+    return {"checked": True, "ok": abs(cold - want) <= tol, "backend": backend,
+            "recorded_s": cold, "resummed_s": want, "tolerance_s": tol}
+
+
+def timing_identity_warning(config_name, bad):
+    """The message for a failed check. A function so it can be tested.
+
+    It exists because the first version of this line referred to an undefined
+    variable, which raised only on the failure path -- after a 30-round matrix
+    had finished measuring and before anything was written. A diagnostic must
+    not be able to destroy the measurement it is describing.
+    """
+    return (f"  WARNING {config_name}: cold_data_path_s "
+            f"{bad['recorded_s']:.6f} != resummed {bad['resummed_s']:.6f} "
+            f"(tolerance {bad['tolerance_s']:.6f})")
+
+
+def selftest():
+    """Exercise both branches of the timing check, including the message."""
+    fails = 0
+
+    def check(cond, what):
+        nonlocal fails
+        if not cond:
+            fails += 1
+            print(f"  FAIL {what}")
+
+    base = {"backend": "cuda", "timing_basis": "device_total",
+            "t_load_s": 0.30, "t_plan_s": 0.10, "t_h2d_s": 0.05,
+            "t_setup_s": 0.05, "t_d2h_s": 0.01, "device_total_s": 0.005}
+    ok = dict(base, cold_data_path_s=0.30 + 0.10 + 0.05 + 0.005 + 0.01)
+    check(timing_identity(ok)["ok"], "consistent cuda record passes")
+    bad = dict(base, cold_data_path_s=0.30 + 0.05 + 0.005 + 0.01)  # plan dropped
+    r = timing_identity(bad)
+    check(not r["ok"], "a dropped plan stage is caught")
+    # The failure path must produce a message, not an exception.
+    msg = timing_identity_warning("cuda_1gpu", r)
+    check("cuda_1gpu" in msg and "resummed" in msg, "warning renders")
+    # mpi is skipped rather than wrongly flagged: its cold path already
+    # contains t_load, so the generic formula would double-count it.
+    mpi = {"backend": "mpi", "timing_basis": "device_total", "t_load_s": 0.4,
+           "device_total_s": 0.2, "cold_data_path_s": 0.9}
+    m = timing_identity(mpi)
+    check(m is not None and not m["checked"] and m["ok"], "mpi is skipped, not failed")
+    check(timing_identity({"backend": "cuda"}) is None, "no cold path -> None")
+    print(f"run_bench selftest: {'PASS' if fails == 0 else 'FAIL'}")
+    return fails
 
 
 def sysctl(key):
@@ -274,6 +333,8 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "results/bench"))
     ap.add_argument("--gpu", action="store_true",
                     help="add cuda + nccl configurations (GPU host only)")
+    ap.add_argument("--selftest", action="store_true",
+                    help="run the timing-check self-test and exit")
     ap.add_argument("--seed", type=int, default=None,
                     help="seed for the round-robin shuffle; recorded in the "
                          "output so a session can be replayed in the same order")
@@ -284,6 +345,8 @@ def main():
                     help="comma-separated AllReduce payload representations to "
                          "sweep for the nccl backend (contract §9)")
     args = ap.parse_args()
+    if args.selftest:
+        raise SystemExit(selftest())
     os.makedirs(args.out, exist_ok=True)
 
     configs = [{"name": "serial", "cmd": [ENGINE, args.fixture, "--backend", "serial",
@@ -371,14 +434,25 @@ def main():
         colds = [v for v in (cold_data_path_of(t) for t in trials) if v is not None]
         if colds:
             rec["cold_data_path_median_s"] = statistics.median(colds)
-        ident = [x for x in (timing_identity(t) for t in trials) if x is not None]
-        if ident:
-            rec["timing_identity_ok"] = all(x["ok"] for x in ident)
-            if not rec["timing_identity_ok"]:
-                bad = next(x for x in ident if not x["ok"])
-                rec["timing_identity_detail"] = bad
-                print(f"  WARNING {name}: cold_data_path_s {bad['recorded_s']:.6f}"
-                      f" != resummed {bad['resummed_s']:.6f}", flush=True)
+        # Wrapped: this is reporting, and reporting must never be able to
+        # destroy the measurement. It already did once.
+        try:
+            ident = [x for x in (timing_identity(t) for t in trials)
+                     if x is not None]
+            if ident:
+                checked = [x for x in ident if x.get("checked")]
+                rec["timing_identity_checked"] = bool(checked)
+                rec["timing_identity_ok"] = all(x["ok"] for x in ident)
+                if not checked and ident:
+                    rec["timing_identity_skipped"] = ident[0].get("reason")
+                if not rec["timing_identity_ok"]:
+                    bad = next(x for x in ident if not x["ok"])
+                    rec["timing_identity_detail"] = bad
+                    print(timing_identity_warning(cfg["name"], bad), flush=True)
+        except Exception as exc:                       # noqa: BLE001
+            rec["timing_identity_error"] = repr(exc)
+            print(f"  WARNING {cfg['name']}: timing check failed: {exc!r}",
+                  flush=True)
         for field in ("payload", "payload_bytes_per_pair", "allreduce_bytes"):
             if field in trials[0]:
                 rec[field] = trials[0][field]

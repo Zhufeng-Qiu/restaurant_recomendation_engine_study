@@ -83,6 +83,15 @@ add_executable(pair_plan_test tests/pair_plan_test.cpp)
 target_link_libraries(pair_plan_test PRIVATE engine_common)
 add_test(NAME pair_plan COMMAND pair_plan_test)
 
+# The bench harness's own timing check, both branches including the failure
+# message -- which once raised NameError only on the failure path, after a
+# 30-round matrix had finished measuring and before anything was written.
+find_program(PYTHON3 python3)
+if(PYTHON3)
+  add_test(NAME bench_timing_selftest
+           COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/bench/run_bench.py --selftest)
+endif()
+
 # Compressed-payload domain gate (contract 9.4). The shipped fixtures are all
 # inside the domain, so the gate's rejection branches only fire on the
 # synthetic fixtures in data/fixtures/domain/ (tools/make_domain_fixtures.py).
