@@ -70,6 +70,19 @@ add_test(NAME cuda_emulation
          COMMAND cuda_emulation_test
                  ${CMAKE_CURRENT_SOURCE_DIR}/../data/fixtures/item_tiny)
 
+# The two timing bases, checked by perturbation rather than by inspection.
+# Header-only: no GPU and no CUDA toolkit needed.
+add_executable(timing_contract_test tests/timing_contract_test.cpp)
+target_link_libraries(timing_contract_test PRIVATE engine_common)
+add_test(NAME timing_contract COMMAND timing_contract_test)
+
+# Warp-packing pair planning: boundary cases the shipped fixtures do not
+# contain (empty restricted slices, trailing partial warps at every group size,
+# tie structure), on synthetic in-memory fixtures. No arguments, no data files.
+add_executable(pair_plan_test tests/pair_plan_test.cpp)
+target_link_libraries(pair_plan_test PRIVATE engine_common)
+add_test(NAME pair_plan COMMAND pair_plan_test)
+
 # Compressed-payload domain gate (contract 9.4). The shipped fixtures are all
 # inside the domain, so the gate's rejection branches only fire on the
 # synthetic fixtures in data/fixtures/domain/ (tools/make_domain_fixtures.py).
