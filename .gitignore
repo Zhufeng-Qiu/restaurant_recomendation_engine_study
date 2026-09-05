@@ -53,3 +53,5 @@ original_code/scala/target/
 data/sources/
 original_code/scala/project/target/
 original_code/scala/out/
+data/fixtures/*_lane_full/
+data/fixtures/*_lane_tail/
