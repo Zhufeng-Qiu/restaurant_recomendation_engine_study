@@ -13,6 +13,15 @@ __pycache__/
 # original_code/ via spark_pipeline/export_fixture.py and engine/bench/run_bench.py;
 # the evidence that matters (bench JSON/CSV, figures, env capture) stays tracked.
 original_code/python/data/
+
+# Overlap-band fixtures are DERIVED from a tracked fixture by a tracked tool
+# (tools/make_overlap_fixtures.py, ~26 s), so they are regenerable from what
+# this repository already ships and would otherwise duplicate item_full's CSR
+# arrays twice over (~22 MB). The pair-count subsets are not ignored: those
+# need the 457 MB raw corpus, which is not shipped.
+data/fixtures/*_ovl_flat/
+data/fixtures/*_ovl_skew/
+
 results/*.model
 results/*.sims.bin
 results/*_predict.json
