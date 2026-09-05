@@ -263,7 +263,13 @@ int run(int argc, char** argv) {
   std::vector<ncclComm_t> comms(n_gpus);
   std::vector<int> ids(n_gpus);
   for (int g = 0; g < n_gpus; ++g) ids[g] = g;
+  // Timed: ncclCommInitAll is a real cold-start cost (bootstrap, topology
+  // detection, buffer allocation) and sat outside the timed region until
+  // 2026-09-05, so the reported cold path understated itself. Process launch
+  // is still excluded -- hence cold_data_path_s rather than a CLI one-shot.
+  const double c0 = wall();
   NCCL_CHECK(ncclCommInitAll(comms.data(), n_gpus, ids.data()));
+  const double t_comm_init = wall() - c0;
 
   const int64_t epp = elems_per_pair(payload);
   const int64_t stats_pairs = (mode == "sync") ? n_pairs : 2 * chunk;
@@ -515,7 +521,8 @@ int run(int argc, char** argv) {
   const bool is_async = (mode != "sync");
   const double device_total = is_async ? t_pipeline
                                        : (t_kernel + t_allreduce + t_finalize);
-  const double one_shot_total = t_load + t_setup + device_total + t_d2h;
+  const double cold_data_path =
+      t_load + t_comm_init + t_setup + device_total + t_d2h;
   // Held in a named string: taking .c_str() off a temporary inside the printf
   // argument list would dangle before printf reads it.
   const std::string fs_field =
@@ -531,7 +538,8 @@ int run(int argc, char** argv) {
       "\"t_kernel_s\":%.6f,\"t_pipeline_s\":%.6f,"
       "\"t_stats_sum_s\":%.6f,\"t_allreduce_sum_s\":%.6f,"
       "\"t_finalize_sum_s\":%.6f,"
-      "\"device_total_s\":%.6f,\"one_shot_total_s\":%.6f,"
+      "\"device_total_s\":%.6f,\"t_comm_init_s\":%.6f,"
+      "\"cold_data_path_s\":%.6f,"
       "\"t_d2h_s\":%.6f,\"validated\":%s,\"max_abs_diff\":%.3e,"
       "\"tol_failures\":%d,\"emitted\":%lld}\n",
       dir.c_str(), mode.c_str(), n_gpus, static_cast<long long>(chunk),
@@ -546,7 +554,7 @@ int run(int argc, char** argv) {
       is_async ? t_finalize_sum : t_finalize,
       t_kernel, t_pipeline,
       t_stats_sum, t_allreduce_sum, t_finalize_sum,
-      device_total, one_shot_total,
+      device_total, t_comm_init, cold_data_path,
       t_d2h, validate ? "true" : "false", max_diff, failures,
       static_cast<long long>(emitted));
 

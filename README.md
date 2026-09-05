@@ -889,6 +889,13 @@ the same host and GPUs, at this project's actual message sizes:
 | `i32` | 28.12 MB | 305.0 µs | 233.3 µs | 1.31x |
 | `f64` | 56.25 MB | 459.5 µs | 392.3 µs | 1.17x |
 
+⚠ **Indicative, not calibrated.** `all_reduce_perf -b 16M -e 64M -f 2` measures
+16/32/64 **MiB**, not this engine's 18,749,712 / 28,124,568 / 56,249,136 bytes,
+so the nccl-tests column is interpolated across the wrong sizes; and it reads
+the **out-of-place** column while `ncclAllReduce(slot, slot, ...)` is in-place.
+Both are corrected in the next GPU session — exact byte counts, matching
+dtypes, in-place column, and the raw command and stdout committed.
+
 The collective runs within **1.2–1.5x** of what the library achieves on the
 same link with nothing else in flight, and the gap widens as the payload
 shrinks — consistent with the smaller message being more latency-bound, which
@@ -902,29 +909,37 @@ stored.
 
 ### Still open
 
+Cleaned 2026-09-05: three entries here had been overtaken by measurements
+elsewhere in this section and were contradicting them.
+
 - **A `PHB`/no-P2P host at 30 trials.** The 91%-communication column is still
-  5-trial. Not a CUDA problem, as first assumed: the A100 PCIe hosts offered
-  on 2026-09-04 advertise a driver capped at CUDA 12.5, but
-  `NVIDIA_DISABLE_REQUIRE=1` starts the CUDA 12.8 image on them anyway and
-  every correctness gate passes bit-exact — 12.x minor-version compatibility
-  covers the gap, so toolkit and NCCL still match the archived runs. The real
-  obstacle is that the pool only yielded `SYS`-topology machines with P2P
-  available; `PHB` with P2P unavailable was never offered. The within-host
-  A/B above is the closest substitute and shows that configuration is not
-  reachable by disabling P2P alone.
-- **The headline table predates the finalize fix.** Every async row in
-  *Results* above, and in the three-regime table, was measured with finalize
-  on the communication stream. On PCIe those rows now understate async by
-  11–16%; on NVLink they are unaffected. Re-running the full matrix under
-  `--finalize-stream separate` — and deciding whether it should become the
-  default — is the obvious next pass.
-- **Warp packing for short overlaps.** Now that the bands are measured on the
-  GPU, the finding points somewhere specific: `n = 3` pairs waste 29 of a
-  warp's 32 lanes, and 43% of `item_full` sits there. Packing several small
-  pairs per warp is the obvious follow-up and is not implemented.
-- **`--finalize-stream` is a silent no-op in sync mode** yet still reported in
-  the JSON, so a sync run can be mislabelled as a distinct configuration.
-  One-line fix, deferred because it lives in a `.cu` file that cannot be
-  compiled without a GPU host.
-- **nccl-tests baseline.** Never run, so how far this AllReduce sits from the
-  hardware's own ceiling is unknown.
+  5-trial. Not a CUDA problem, as first assumed: `NVIDIA_DISABLE_REQUIRE=1`
+  starts the CUDA 12.8 image on hosts whose driver advertises 12.5, and every
+  gate passes bit-exact, so toolkit and NCCL still match. The obstacle is that
+  the pool only yields `SYS` machines with P2P available. Disabling P2P is not
+  a substitute — it costs 26% on the collective while the archived `PHB` pod
+  was ~4x slower again.
+- **The headline table predates the timing fix.** Every row in *Results* above
+  was measured before finalize entered the NCCL sync total and before the run
+  order was randomised. It is re-measured under *Sep. 5th* for one host; the
+  three-regime table has not been.
+- **Warp packing.** Superseded in specifics: the lane-slot model puts the
+  ceiling at **14.42%** of scan time on `item_full` at one GPU (85.58%
+  utilisation) and **25.32%** at two (74.68%, because splitting the dimension
+  shortens each slice and worsens every tail). Not implemented, and gated on
+  an unprofiled paired A/B clearing 3% on `device_total` with a CI that does
+  not cross zero — otherwise the added complexity is not worth it.
+- **The nccl-tests baseline needs redoing.** It was run with `-b 16M -e 64M`,
+  which measures 16/32/64 MiB rather than this engine's actual 18,749,712 /
+  28,124,568 / 56,249,136 bytes, and the ratios quoted above read the
+  out-of-place column while `ncclAllReduce(slot, slot, ...)` is in-place. The
+  1.17–1.45x figures are therefore indicative, not a calibrated baseline. The
+  16–64 MiB sweep is kept as a bandwidth background curve.
+- **`cold_data_path_s` is not a CLI one-shot.** It now covers entry to
+  data-ready including `MPI_Init` and `ncclCommInitAll`, but `mpirun`'s spawn
+  and the CUDA driver's first touch happen before any code that could time
+  them. A true one-shot needs an outer process timer.
+- **Async 2-GPU noise persists under randomised interleaving** (13–16% IQR
+  against 0.22–1.12% for sync). One randomisation rules out simple order
+  drift; it does not establish that the variance is intrinsic. The
+  cross-session replication will settle it.

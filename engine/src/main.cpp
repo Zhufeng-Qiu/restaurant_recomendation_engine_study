@@ -142,7 +142,7 @@ int run(int argc, char** argv) {
         "\"t_load_s\":%.6f,\"t_setup_s\":0.000000,"
         "\"t_stats_s\":%.6f,\"t_allreduce_s\":0.000000,\"t_finalize_s\":0.000000,"
         "\"t_d2h_s\":0.000000,"
-        "\"device_total_s\":%.6f,\"one_shot_total_s\":%.6f,"
+        "\"device_total_s\":%.6f,\"cold_data_path_s\":%.6f,"
         "\"t_compute_s\":%.6f,"
         "\"pairs_per_s\":%.0f,\"validated\":%s,\"max_abs_diff\":%.3e,"
         "\"tol_failures\":%d,\"emitted\":%lld}\n",
