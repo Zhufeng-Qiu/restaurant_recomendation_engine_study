@@ -107,6 +107,31 @@ def time_of(rec):
     return rec["device_total_s"]
 
 
+# Every per-trial number worth a median. Keeping only the first record made the
+# cold-path figures single samples with no spread, which is how a 50 ms
+# diagnostic pass sat in the cold path unnoticed.
+TRIAL_FIELDS = ("device_total_s", "t_plan_s", "t_plan_metrics_s", "t_h2d_s",
+                "t_setup_s", "t_d2h_s", "cold_data_path_s", "t_stats_s",
+                "t_allreduce_s", "t_finalize_s", "max_abs_diff")
+
+
+def trial_of(rec):
+    t = {k: rec[k] for k in TRIAL_FIELDS if k in rec}
+    t["time_s"] = time_of(rec)
+    return t
+
+
+def summarise(trials, key):
+    vals = [t[key] for t in trials if t.get(key) is not None]
+    if not vals:
+        return None
+    med = st.median(vals)
+    q = st.quantiles(vals, n=4) if len(vals) >= 4 else [min(vals), med, max(vals)]
+    return {"median": med, "min": min(vals), "max": max(vals),
+            "iqr_pct": (q[2] - q[0]) / med * 100 if med else 0.0,
+            "n": len(vals), "values": vals}
+
+
 def sh(cmd):
     p = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     return p.stdout.strip() if p.returncode == 0 else None
@@ -146,7 +171,7 @@ def screen(args):
         order_log.append([label for label, _ in shuffled])
         for label, build in shuffled:
             rec = run_once(build(args.fixture))
-            trials[label].append(time_of(rec))
+            trials[label].append(trial_of(rec))
             records.setdefault(label, rec)
     out = {
         "phase": "screen", "fixture": args.fixture, "seed": args.seed,
@@ -156,17 +181,25 @@ def screen(args):
     }
     for label, _ in arms:
         ts = trials[label]
-        q = st.quantiles(ts, n=4) if len(ts) >= 4 else [min(ts), st.median(ts), max(ts)]
+        times = [t["time_s"] for t in ts]
+        q = st.quantiles(times, n=4) if len(times) >= 4 else [min(times), st.median(times), max(times)]
         rec = records[label]
         out["arms"][label] = {
-            "trials_s": ts,
-            "median_s": st.median(ts), "min_s": min(ts), "max_s": max(ts),
-            "iqr_pct": (q[2] - q[0]) / st.median(ts) * 100,
-            "t_stats_s": rec.get("t_stats_s"),
-            "t_finalize_s": rec.get("t_finalize_s"),
-            "t_allreduce_s": rec.get("t_allreduce_s"),
-            "t_plan_s": rec.get("t_plan_s"),
-            "cold_data_path_s": rec.get("cold_data_path_s"),
+            "trials": ts,                       # every field, every trial
+            "trials_s": times,
+            "median_s": st.median(times), "min_s": min(times), "max_s": max(times),
+            "iqr_pct": (q[2] - q[0]) / st.median(times) * 100,
+            # Distributions, not the first sample. Cold path especially: it is
+            # dominated by host work whose variance is nothing like the
+            # kernel's.
+            "summary": {k: summarise(ts, k) for k in TRIAL_FIELDS},
+            "t_stats_s": (summarise(ts, "t_stats_s") or {}).get("median"),
+            "t_finalize_s": (summarise(ts, "t_finalize_s") or {}).get("median"),
+            "t_allreduce_s": (summarise(ts, "t_allreduce_s") or {}).get("median"),
+            "t_plan_s": (summarise(ts, "t_plan_s") or {}).get("median"),
+            "t_plan_metrics_s": (summarise(ts, "t_plan_metrics_s") or {}).get("median"),
+            "cold_data_path_s": (summarise(ts, "cold_data_path_s") or {}).get("median"),
+            "occupancy": rec.get("occupancy"),
             "max_abs_diff": rec.get("max_abs_diff"),
             "plan_lane_slots": rec.get("plan_lane_slots"),
             "plan_lane_utilisation": rec.get("plan_lane_utilisation"),
@@ -177,13 +210,24 @@ def screen(args):
         }
     write(out, args.tag or "screen")
     base = min(out["arms"], key=lambda k: out["arms"][k]["median_s"])
-    print(f"\n{'arm':<24s} {'median ms':>10s} {'IQR%':>6s} {'stats ms':>9s} "
-          f"{'vs best':>8s}")
+    hdr = (f"\n{'arm':<24s}{'median ms':>11s}{'IQR%':>7s}{'stats ms':>10s}"
+           f"{'plan ms':>10s}{'metrics ms':>12s}{'cold ms':>10s}{'coldIQR%':>10s}"
+           f"{'vs best':>9s}")
+    print(hdr)
+
+    def ms(v, w=10, p=4):
+        return f"{v * 1e3:{w}.{p}f}" if v is not None else " " * w
+
     for label in sorted(out["arms"], key=lambda k: out["arms"][k]["median_s"]):
         a = out["arms"][label]
-        stats_ms = f"{a['t_stats_s'] * 1e3:9.4f}" if a["t_stats_s"] else " " * 9
-        print(f"{label:<24s} {a['median_s'] * 1e3:10.4f} {a['iqr_pct']:6.2f} "
-              f"{stats_ms} {a['median_s'] / out['arms'][base]['median_s'] - 1:+7.2%}")
+        cold = a["summary"].get("cold_data_path_s")
+        cold_med = cold["median"] if cold else None
+        cold_iqr = f"{cold['iqr_pct']:10.2f}" if cold else " " * 10
+        rel = a["median_s"] / out["arms"][base]["median_s"] - 1
+        print(f"{label:<24s}{a['median_s'] * 1e3:11.4f}{a['iqr_pct']:7.2f}"
+              f"{ms(a['t_stats_s'])}{ms(a['t_plan_s'], 10, 2)}"
+              f"{ms(a['t_plan_metrics_s'], 12, 2)}{ms(cold_med)}{cold_iqr}"
+              f"{rel:+9.2%}")
 
 
 def paired(args):
@@ -197,15 +241,31 @@ def paired(args):
     half = args.blocks // 2
     order = ["bc"] * half + ["cb"] * (args.blocks - half)
     rng.shuffle(order)
-    rows, diffs = [], []
+    rows = []
     for first in order:
         if first == "bc":
-            tb = time_of(run_once(bbuild(args.fixture)))
-            tc = time_of(run_once(cbuild(args.fixture)))
+            rb, rc = run_once(bbuild(args.fixture)), run_once(cbuild(args.fixture))
         else:
-            tc = time_of(run_once(cbuild(args.fixture)))
-            tb = time_of(run_once(bbuild(args.fixture)))
-        rows.append({"first": first, "baseline_s": tb, "candidate_s": tc})
+            rc, rb = run_once(cbuild(args.fixture)), run_once(bbuild(args.fixture))
+        rows.append({"first": first,
+                     "baseline_s": time_of(rb), "candidate_s": time_of(rc),
+                     "baseline": trial_of(rb), "candidate": trial_of(rc)})
+
+    def effect(getter):
+        """Paired log-ratio effect over blocks, or None if a side lacks data."""
+        pairs = [(getter(r["baseline"]), getter(r["candidate"])) for r in rows]
+        pairs = [(b, c) for b, c in pairs if b and c]
+        if len(pairs) < 2:
+            return None
+        lr = [math.log(c / b) for b, c in pairs]
+        m, se = st.mean(lr), st.stdev(lr) / math.sqrt(len(lr))
+        return {"blocks": len(lr),
+                "effect_pct": (math.exp(m) - 1) * 100,
+                "ci_lo_pct": (math.exp(m - 1.96 * se) - 1) * 100,
+                "ci_hi_pct": (math.exp(m + 1.96 * se) - 1) * 100,
+                "baseline_median_s": st.median(b for b, _ in pairs),
+                "candidate_median_s": st.median(c for _, c in pairs)}
+
     lr = [math.log(r["candidate_s"] / r["baseline_s"]) for r in rows]
     m = st.mean(lr)
     se = st.stdev(lr) / math.sqrt(len(lr)) if len(lr) > 1 else 0.0
@@ -222,6 +282,12 @@ def paired(args):
         "ci_hi_pct": (math.exp(m + ci) - 1) * 100,
         "baseline_median_s": st.median(r["baseline_s"] for r in rows),
         "candidate_median_s": st.median(r["candidate_s"] for r in rows),
+        # A steady-state win and a cold-path loss are both real and they point
+        # opposite ways for this change, so both get an interval.
+        "effect_by_stage": {k: effect(lambda t, k=k: t.get(k))
+                            for k in ("cold_data_path_s", "t_plan_s",
+                                      "t_stats_s", "t_finalize_s",
+                                      "t_allreduce_s")},
         "environment": environment(),
     }
     write(out, args.tag or "paired")
@@ -231,6 +297,11 @@ def paired(args):
     print(f"  effect {out['effect_pct']:+.2f}%  "
           f"95% CI [{out['ci_lo_pct']:+.2f}%, {out['ci_hi_pct']:+.2f}%]  "
           f"({'excludes' if out['ci_lo_pct'] * out['ci_hi_pct'] > 0 else 'INCLUDES'} zero)")
+    for k, e in out["effect_by_stage"].items():
+        if e:
+            print(f"    {k:<20s} {e['baseline_median_s']*1e3:9.3f} -> "
+                  f"{e['candidate_median_s']*1e3:9.3f} ms  {e['effect_pct']:+8.2f}%  "
+                  f"[{e['ci_lo_pct']:+.2f}, {e['ci_hi_pct']:+.2f}]")
 
 
 def write(out, tag):
