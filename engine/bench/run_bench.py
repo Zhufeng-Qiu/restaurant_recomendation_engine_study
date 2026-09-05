@@ -8,12 +8,15 @@ Usage:
     python3 engine/bench/run_bench.py [--fixture data/fixtures/item_full]
                                       [--repeats 5] [--warmups 2]
                                       [--out results/bench]
-                                      [--gpu] [--payloads f64,i32,packed]
+                                      [--gpu] [--ranks 1,2,4,8]
+                                      [--payloads f64,i32,packed]
 
 Configurations run (all on the chosen fixture):
     serial
     openmp  threads in {1,2,4,8,16} x schedule in {static, dynamic,1024}
-    mpi     ranks in {1,2,4,8}            (skipped if pearson_engine_mpi absent)
+    mpi     ranks from --ranks (default 1,2,4,8; skipped if pearson_engine_mpi
+            absent, and note Open MPI refuses to run as root without
+            OMPI_ALLOW_RUN_AS_ROOT=1 OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1)
     --gpu adds:
     cuda    single GPU (pearson_engine --backend cuda)
     nccl    gpus in {1,2} x mode in {sync, async} x payload in --payloads,
@@ -53,7 +56,13 @@ def time_of(trial):
     if trial.get("mode") == "async":                 # nccl async pipeline
         return trial["t_pipeline_s"]
     if "t_kernel_s" in trial:                        # nccl sync
-        return trial["t_kernel_s"] + trial["t_allreduce_s"]
+        # Older binaries did not time the sync finalize kernel at all, which
+        # made NCCL sync the only backend whose total excluded it (cuda and
+        # mpi both include theirs). Add it when present; runs recorded before
+        # that fix understate NCCL sync by ~0.5-1% and are marked by the
+        # absence of the key.
+        return (trial["t_kernel_s"] + trial["t_allreduce_s"]
+                + trial.get("t_finalize_s", 0.0))
     # mpi
     return trial["t_local_s"] + trial["t_allreduce_s"] + trial["t_finalize_s"]
 
