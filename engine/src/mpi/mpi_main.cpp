@@ -147,13 +147,17 @@ int main(int argc, char** argv) {
     const double t_total = t_local + t_allreduce + t_finalize;
     std::printf(
         "{\"fixture\":\"%s\",\"backend\":\"mpi\",\"ranks\":%d,"
-        "\"n_pairs\":%lld,\"t_load_s\":%.6f,\"t_local_s\":%.6f,"
-        "\"t_allreduce_s\":%.6f,\"t_finalize_s\":%.6f,"
+        "\"n_pairs\":%lld,\"timing_basis\":\"device_total\","
+        "\"t_load_s\":%.6f,\"t_setup_s\":0.000000,\"t_local_s\":%.6f,"
+        "\"t_stats_s\":%.6f,"
+        "\"t_allreduce_s\":%.6f,\"t_finalize_s\":%.6f,\"t_d2h_s\":0.000000,"
+        "\"device_total_s\":%.6f,\"one_shot_total_s\":%.6f,"
         "\"comm_fraction\":%.4f,\"allreduce_bytes\":%.0f,"
         "\"validated\":%s,\"max_abs_diff\":%.3e,\"tol_failures\":%d,"
         "\"emitted\":%lld}\n",
         dir.c_str(), world, static_cast<long long>(fx.n_pairs()), t_load,
-        t_local, t_allreduce, t_finalize,
+        t_local, t_local, t_allreduce, t_finalize,
+        t_total, t_load + t_total,
         t_total > 0 ? t_allreduce / t_total : 0.0, bytes,
         validate ? "true" : "false", max_diff, failures,
         static_cast<long long>(emitted));

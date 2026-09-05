@@ -117,17 +117,43 @@ int run(int argc, char** argv) {
             static_cast<std::streamsize>(sims.size() * sizeof(double)));
   }
 
-  std::printf(
-      "{\"fixture\":\"%s\",\"backend\":\"%s\",\"n_entities\":%lld,\"nnz\":%lld,"
-      "\"n_pairs\":%lld,\"t_load_s\":%.6f,\"t_compute_s\":%.6f,"
-      "\"pairs_per_s\":%.0f,\"validated\":%s,\"max_abs_diff\":%.3e,"
-      "\"tol_failures\":%d,\"emitted\":%lld}\n",
-      dir.c_str(), backend_name.c_str(),
-      static_cast<long long>(fx.n_entities()), static_cast<long long>(fx.nnz()),
-      static_cast<long long>(fx.n_pairs()), t_load, t_compute,
-      fx.n_pairs() / (t_compute > 0 ? t_compute : 1e-9),
-      validate ? "true" : "false", max_diff, failures,
-      static_cast<long long>(emitted));
+  // Unified timing schema (README, 2026-09-05). For serial/openmp the whole
+  // kernel is one fused pass -- finalization happens inside evaluate_pair --
+  // so stats carries it and finalize is 0 rather than unmeasured. The cuda
+  // backend prints its own stage breakdown and its own device/one-shot totals
+  // on the cuda_detail line, so they are omitted here to avoid overwriting it.
+  const bool cuda_owns_totals = (backend_name == "cuda");
+  if (cuda_owns_totals) {
+    std::printf(
+        "{\"fixture\":\"%s\",\"backend\":\"%s\",\"n_entities\":%lld,\"nnz\":%lld,"
+        "\"n_pairs\":%lld,\"t_load_s\":%.6f,\"t_compute_s\":%.6f,"
+        "\"pairs_per_s\":%.0f,\"validated\":%s,\"max_abs_diff\":%.3e,"
+        "\"tol_failures\":%d,\"emitted\":%lld}\n",
+        dir.c_str(), backend_name.c_str(),
+        static_cast<long long>(fx.n_entities()), static_cast<long long>(fx.nnz()),
+        static_cast<long long>(fx.n_pairs()), t_load, t_compute,
+        fx.n_pairs() / (t_compute > 0 ? t_compute : 1e-9),
+        validate ? "true" : "false", max_diff, failures,
+        static_cast<long long>(emitted));
+  } else {
+    std::printf(
+        "{\"fixture\":\"%s\",\"backend\":\"%s\",\"n_entities\":%lld,\"nnz\":%lld,"
+        "\"n_pairs\":%lld,\"timing_basis\":\"device_total\","
+        "\"t_load_s\":%.6f,\"t_setup_s\":0.000000,"
+        "\"t_stats_s\":%.6f,\"t_allreduce_s\":0.000000,\"t_finalize_s\":0.000000,"
+        "\"t_d2h_s\":0.000000,"
+        "\"device_total_s\":%.6f,\"one_shot_total_s\":%.6f,"
+        "\"t_compute_s\":%.6f,"
+        "\"pairs_per_s\":%.0f,\"validated\":%s,\"max_abs_diff\":%.3e,"
+        "\"tol_failures\":%d,\"emitted\":%lld}\n",
+        dir.c_str(), backend_name.c_str(),
+        static_cast<long long>(fx.n_entities()), static_cast<long long>(fx.nnz()),
+        static_cast<long long>(fx.n_pairs()), t_load, t_compute,
+        t_compute, t_load + t_compute, t_compute,
+        fx.n_pairs() / (t_compute > 0 ? t_compute : 1e-9),
+        validate ? "true" : "false", max_diff, failures,
+        static_cast<long long>(emitted));
+  }
 
   return (validate && failures > 0) ? 1 : 0;
 }

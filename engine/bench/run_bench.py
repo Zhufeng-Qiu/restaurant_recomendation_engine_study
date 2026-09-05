@@ -32,6 +32,7 @@ import datetime
 import json
 import os
 import platform
+import random
 import statistics
 import subprocess
 import sys
@@ -43,28 +44,44 @@ ENGINE_NCCL = os.path.join(ROOT, "engine", "build", "pearson_engine_nccl")
 
 
 def time_of(trial):
-    """Comparable compute time for a trial, whatever backend produced it.
+    """Comparable steady-state time, whatever backend produced it.
 
-    GPU trials count device-side work (kernels + collectives), excluding
-    one-time context creation and H2D/D2H staging, mirroring what the CPU
-    numbers measure (compute only, not fixture load).
+    Every backend now emits device_total_s = stats + allreduce + finalize, and
+    async emits pipeline_total (its stages overlap, so they cannot be summed).
+    `timing_basis` says which one is comparable. Everything excludes fixture
+    load, device setup and H2D/D2H -- see one_shot_of for the cold-start view.
+
+    The fallbacks reconstruct the same quantity from pre-2026-09-05 runs, which
+    predate the schema. NCCL sync is the one that changes: those runs never
+    timed their finalize kernel, so they understate it by ~0.5-1%.
     """
-    if "t_kernel_stats_s" in trial:                  # cuda (single GPU)
-        return trial["t_kernel_stats_s"] + trial["t_kernel_finalize_s"]
-    if "t_compute_s" in trial:                       # serial / openmp
-        return trial["t_compute_s"]
-    if trial.get("mode") == "async":                 # nccl async pipeline
+    if "device_total_s" in trial and trial.get("timing_basis") == "device_total":
+        return trial["device_total_s"]
+    if trial.get("mode") == "async":
         return trial["t_pipeline_s"]
-    if "t_kernel_s" in trial:                        # nccl sync
-        # Older binaries did not time the sync finalize kernel at all, which
-        # made NCCL sync the only backend whose total excluded it (cuda and
-        # mpi both include theirs). Add it when present; runs recorded before
-        # that fix understate NCCL sync by ~0.5-1% and are marked by the
-        # absence of the key.
+    if "t_kernel_stats_s" in trial:                  # legacy cuda
+        return trial["t_kernel_stats_s"] + trial["t_kernel_finalize_s"]
+    if "t_compute_s" in trial:                       # legacy serial / openmp
+        return trial["t_compute_s"]
+    if "t_kernel_s" in trial:                        # legacy nccl sync
         return (trial["t_kernel_s"] + trial["t_allreduce_s"]
                 + trial.get("t_finalize_s", 0.0))
-    # mpi
     return trial["t_local_s"] + trial["t_allreduce_s"] + trial["t_finalize_s"]
+
+
+def one_shot_of(trial):
+    """Cold-invocation total: load + setup/H2D + compute + D2H.
+
+    The headline speedups are steady-state; a one-shot caller pays staging too,
+    and on the GPU that is the larger term at small sizes. Returns None for
+    runs that predate the schema rather than guessing.
+    """
+    if "one_shot_total_s" in trial:
+        return trial["one_shot_total_s"]
+    if "t_h2d_s" in trial and "t_load_s" in trial:   # legacy cuda
+        return (trial["t_load_s"] + trial["t_h2d_s"] + time_of(trial)
+                + trial.get("t_d2h_s", 0.0))
+    return None
 
 
 def sysctl(key):
@@ -73,6 +90,61 @@ def sysctl(key):
                               text=True).stdout.strip()
     except Exception:
         return None
+
+
+def _read(path):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except Exception:
+        return None
+
+
+def _cmd(args):
+    try:
+        p = subprocess.run(args, capture_output=True, text=True, timeout=30)
+        return p.stdout.strip() if p.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def environment():
+    """Everything needed to know what machine a number came from.
+
+    A cgroup CPU quota is the difference between a 128-core host and 27 cores
+    of actual CPU time, and a rank sweep is uninterpretable without it. The
+    earlier schema recorded `ncpu` via sysctl, which is empty on Linux, so
+    every pod run was stored with no core count at all.
+    """
+    env = {
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "python": sys.version.split()[0],
+        "logical_cpus": os.cpu_count(),
+        "cpu": sysctl("machdep.cpu.brand_string") or platform.processor(),
+        "ncpu": sysctl("hw.ncpu") or str(os.cpu_count() or ""),
+    }
+    model = _cmd(["sh", "-c", "lscpu | sed -n 's/^Model name: *//p'"])
+    if model:
+        env["cpu"] = model.splitlines()[0]
+    try:
+        env["affinity_cpus"] = len(os.sched_getaffinity(0))
+    except AttributeError:
+        env["affinity_cpus"] = None
+    env["cpuset"] = _read("/sys/fs/cgroup/cpuset.cpus.effective")
+    quota = _read("/sys/fs/cgroup/cpu.max")
+    env["cpu_max"] = quota
+    if quota and quota.split()[0] != "max":
+        q, period = quota.split()[:2]
+        env["cpu_quota_equivalents"] = round(int(q) / int(period), 2)
+    gpus = _cmd(["nvidia-smi", "--query-gpu=name,uuid,driver_version",
+                 "--format=csv,noheader"])
+    if gpus:
+        env["gpus"] = gpus.splitlines()
+    topo = _cmd(["sh", "-c", "nvidia-smi topo -m 2>/dev/null | head -4"])
+    if topo:
+        env["gpu_topology"] = topo
+    return env
 
 
 def run_once(cmd, env_extra):
@@ -92,11 +164,48 @@ def run_once(cmd, env_extra):
     return rec
 
 
-def bench(cmd, env_extra, warmups, repeats):
-    for _ in range(warmups):
-        run_once(cmd, env_extra)
-    trials = [run_once(cmd, env_extra) for _ in range(repeats)]
-    return trials
+def bench_round_robin(configs, warmups, repeats, seed, log=print):
+    """Interleave configurations instead of draining each one in turn.
+
+    Running 30 consecutive trials of `f64` and then 30 of `packed` confounds
+    the payload with whatever drifts over those two minutes -- clock/thermal
+    state, a noisy neighbour, page cache. The compression effect being measured
+    is 4-7%, comfortably inside that. Round-robin with a per-round reshuffle
+    spreads every configuration across the whole session, so drift hits all of
+    them alike and cancels in the medians.
+
+    Returns {name: [trial, ...]} plus {name: error} for configs that failed.
+    A failure disables that config for the remaining rounds but never aborts
+    the session -- the GPU half of a run should survive a broken MPI.
+    """
+    rng = random.Random(seed)
+    trials = {c["name"]: [] for c in configs}
+    errors = {}
+    live = list(configs)
+
+    for c in list(live):                       # warm-ups, in declaration order
+        try:
+            for _ in range(warmups):
+                run_once(c["cmd"], c["env"])
+        except Exception as exc:
+            errors[c["name"]] = f"{type(exc).__name__}: {exc}"
+            log(f"{c['name']:26s} FAILED (warm-up): {type(exc).__name__}: {exc}")
+            live.remove(c)
+
+    for r in range(repeats):
+        order = list(live)
+        rng.shuffle(order)
+        for c in order:
+            try:
+                trials[c["name"]].append(run_once(c["cmd"], c["env"]))
+            except Exception as exc:
+                errors[c["name"]] = f"{type(exc).__name__}: {exc}"
+                log(f"{c['name']:26s} FAILED (round {r + 1}): "
+                    f"{type(exc).__name__}: {exc}")
+                live.remove(c)
+        if (r + 1) % 5 == 0 or r == repeats - 1:
+            log(f"  ... round {r + 1}/{repeats} done ({len(live)} live configs)")
+    return trials, errors
 
 
 def main():
@@ -107,6 +216,9 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "results/bench"))
     ap.add_argument("--gpu", action="store_true",
                     help="add cuda + nccl configurations (GPU host only)")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="seed for the round-robin shuffle; recorded in the "
+                         "output so a session can be replayed in the same order")
     ap.add_argument("--ranks", default="1,2,4,8",
                     help="comma-separated MPI rank counts; the default suits a "
                          "10-core laptop, a many-core host wants 1,2,4,8,16,32,64")
@@ -160,20 +272,21 @@ def main():
                             "env": {}, "threads": g,
                         })
 
+    seed = args.seed if args.seed is not None else random.randrange(1 << 30)
+    print(f"round-robin order, seed={seed}, {args.repeats} rounds x "
+          f"{len(configs)} configs after {args.warmups} warm-ups", flush=True)
+    all_trials, errors = bench_round_robin(configs, args.warmups, args.repeats,
+                                           seed)
+
     results = []
     for cfg in configs:
-        # A config that fails must not cost the whole session: the GPU
-        # configurations run last, and an exception there would discard the CPU
-        # results measured before it. Record the failure and carry on.
-        try:
-            trials = bench(cfg["cmd"], cfg["env"], args.warmups, args.repeats)
-            times = [time_of(t) for t in trials]
-        except Exception as exc:
+        trials = all_trials[cfg["name"]]
+        if cfg["name"] in errors or not trials:
             results.append({"config": cfg["name"],
                             "threads_or_ranks": cfg["threads"],
-                            "error": f"{type(exc).__name__}: {exc}"})
-            print(f"{cfg['name']:26s} FAILED: {type(exc).__name__}: {exc}")
+                            "error": errors.get(cfg["name"], "no trials")})
             continue
+        times = [time_of(t) for t in trials]
         # Quartiles need enough samples to mean anything; below 4 trials
         # report them as None rather than a number computed from 2 points.
         if len(times) >= 4:
@@ -194,8 +307,12 @@ def main():
             "n_trials": len(times),
             "max_abs_diff": max(t["max_abs_diff"] for t in trials),
             "tol_failures": max(t["tol_failures"] for t in trials),
+            "timing_basis": trials[0].get("timing_basis", "legacy"),
             "trials": trials,
         }
+        one_shots = [v for v in (one_shot_of(t) for t in trials) if v is not None]
+        if one_shots:
+            rec["one_shot_median_s"] = statistics.median(one_shots)
         for field in ("payload", "payload_bytes_per_pair", "allreduce_bytes"):
             if field in trials[0]:
                 rec[field] = trials[0][field]
@@ -218,13 +335,9 @@ def main():
         "fixture": args.fixture,
         "repeats": args.repeats,
         "warmups": args.warmups,
-        "environment": {
-            "platform": platform.platform(),
-            "machine": platform.machine(),
-            "cpu": sysctl("machdep.cpu.brand_string") or platform.processor(),
-            "ncpu": sysctl("hw.ncpu"),
-            "python": sys.version.split()[0],
-        },
+        "order": "round-robin, reshuffled each round",
+        "seed": seed,
+        "environment": environment(),
         "results": results,
     }
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
