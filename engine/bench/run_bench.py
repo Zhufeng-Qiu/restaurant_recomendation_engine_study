@@ -98,6 +98,9 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "results/bench"))
     ap.add_argument("--gpu", action="store_true",
                     help="add cuda + nccl configurations (GPU host only)")
+    ap.add_argument("--ranks", default="1,2,4,8",
+                    help="comma-separated MPI rank counts; the default suits a "
+                         "10-core laptop, a many-core host wants 1,2,4,8,16,32,64")
     ap.add_argument("--payloads", default="f64,i32,packed",
                     help="comma-separated AllReduce payload representations to "
                          "sweep for the nccl backend (contract §9)")
@@ -115,7 +118,7 @@ def main():
                 "threads": t,
             })
     if os.path.exists(ENGINE_MPI):
-        for r in (1, 2, 4, 8):
+        for r in [int(x) for x in args.ranks.split(",")]:
             configs.append({
                 "name": f"mpi_r{r}",
                 "cmd": ["mpirun", "-np", str(r), ENGINE_MPI, args.fixture, "--validate"],

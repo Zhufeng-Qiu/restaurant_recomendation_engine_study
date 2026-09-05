@@ -378,6 +378,7 @@ only annotated:
 | *Three regimes* | blamed async's shortfall on chunking cost | superseded note: chunking is 1.23x here; the cause was stream occupancy |
 | this section's finalize result | quoted −11.1% / −16.4% as settled | ten A/B measurements, sign reproducible, magnitude not |
 | all six figures | drawn from 5-trial runs (Aug 28–29), no error bars on the GPU charts | redrawn from the 30-trial runs; `gpu_comparison` and `payload_comparison` now carry IQR whiskers, and `gpu_comparison` moved to a log axis |
+| *Backend comparison* | speedups measured against two different serial baselines (M5 for MPI, pods for GPU) | left as measured, with a same-machine table added under *Four gaps the audit found* |
 
 The same two corrections were applied to [docs/analysis.md](docs/analysis.md).
 Nothing in the *Results* tables was restated: those numbers stand as measured,
@@ -743,6 +744,81 @@ communication-heavier than `item_full`: more pairs, 2.7x cheaper each
 (0.244 vs 0.649 µs), so OpenMP matches (7.03x vs 7.08x) while MPI falls off
 (1.77x vs 2.95x).
 
+### Four gaps the audit found, now measured
+
+An audit of what had never been run turned up two methodological gaps that
+matter more than the ones already listed. Both are closed here, on one host —
+the first in this project to run **MPI and NCCL together** (EPYC 7742, 2x
+A100 NV12, 30 trials).
+
+**Every backend on one machine.** MPI had only ever run on the Apple M5 and
+NCCL only on pods, so the headline table compared speedups against two
+different serial baselines. Measured together:
+
+| backend | median | vs same-machine serial |
+| --- | --- | --- |
+| serial | 1257.13 ms | 1.0x |
+| MPI, 16 ranks | 270.04 ms | 4.7x |
+| OpenMP, 16 threads | 94.12 ms | **13.4x** |
+| CUDA, 1 GPU | 4.727 ms | 266x |
+| NCCL sync `packed`, 2 GPU | 3.917 ms | **321x** |
+
+At equal core count **shared memory beats message passing by 2.9x** here
+(94 ms against 270 ms) — a comparison the cross-machine table could not make.
+The MPI backend earns its place as the distributed-correctness rehearsal for
+NCCL, not as a performance option.
+
+**MPI strong scaling, past 8 ranks for the first time.** The M5 has 10 cores,
+so the curve stopped at 8. This host reports 128 but is cgroup-limited to
+~27.2 CPUs (`cpu.max` = 2720000/100000), and the curve finds that ceiling on
+its own:
+
+| ranks | median | speedup | efficiency |
+| --- | --- | --- | --- |
+| 1 | 1359.92 ms | 1.00x | 100% |
+| 2 | 777.13 ms | 1.75x | 87.5% |
+| 4 | 491.46 ms | 2.77x | 69.2% |
+| 8 | 345.82 ms | 3.93x | 49.2% |
+| **16** | **270.04 ms** | **5.04x** | 31.5% |
+| 24 | 288.74 ms | 4.71x | 19.6% |
+| 32 | 287.93 ms | 4.72x | 14.8% |
+| 48 | 578.55 ms | 2.35x | 4.9% |
+
+Peak at 16, flat through 32, collapse at 48. Reporting a rank count without
+the host's CPU quota would have been meaningless — a 128-core box that is
+really 27.
+
+**Compression is not an `item_full` artefact.** Every compression number in
+this study came from one workload. `user_full` is structurally different —
+LSH-derived user pairs, 1.41M of them, rows a third as long — and the same
+host gives:
+
+| `sync` 2 GPU | `item_full` | `user_full` |
+| --- | --- | --- |
+| `f64` | 4.111 ms | 3.737 ms |
+| `i32` | 3.947 ms | 3.555 ms |
+| `packed` | 3.917 ms | 3.488 ms |
+| **`f64` → `packed`** | **−4.7%** | **−6.7%** |
+
+It reproduces, and is slightly larger on the second workload. The central
+claim no longer rests on a single fixture.
+
+**Overlap skew helps the GPU — the opposite of the expected answer.** The
+brief flagged bucketing "when pair costs are skewed", and the CPU study found
+skew mattered less than core heterogeneity. On the GPU the sign reverses:
+
+| band | pairs | intersection work | CUDA | ns per element |
+| --- | --- | --- | --- | --- |
+| `n == 3` (stdev 0) | 504,958 | 1.51 M | 1.819 ms | **1.20** |
+| `n >= 11` (stdev 9.4) | 69,771 | 1.18 M | 0.675 ms | **0.57** |
+
+At comparable total work the *skewed* band is **2.1x more efficient per
+element**. The warp-per-pair mapping assigns 32 lanes to one pair, so an
+`n = 3` pair leaves 29 of them idle; the pathology is not long tails but short
+overlaps, and 43% of `item_full` sits at exactly the `n = 3` minimum. Bucketing
+would help — but by packing several tiny pairs into a warp, not by isolating
+the big ones.
+
 ### Still open
 
 - **A `PHB`/no-P2P host at 30 trials.** The 91%-communication column is still
@@ -761,7 +837,13 @@ communication-heavier than `item_full`: more pairs, 2.7x cheaper each
   11–16%; on NVLink they are unaffected. Re-running the full matrix under
   `--finalize-stream separate` — and deciding whether it should become the
   default — is the obvious next pass.
-- **Overlap skew on the GPU.** The band fixtures showed dynamic scheduling
-  matters more for CPU core heterogeneity than for workload skew. The GPU
-  equivalent — whether warp-per-pair suffers on `_ovl_skew`, where overlaps
-  run to 264 — was not measured.
+- **Warp packing for short overlaps.** Now that the bands are measured on the
+  GPU, the finding points somewhere specific: `n = 3` pairs waste 29 of a
+  warp's 32 lanes, and 43% of `item_full` sits there. Packing several small
+  pairs per warp is the obvious follow-up and is not implemented.
+- **`--finalize-stream` is a silent no-op in sync mode** yet still reported in
+  the JSON, so a sync run can be mislabelled as a distinct configuration.
+  One-line fix, deferred because it lives in a `.cu` file that cannot be
+  compiled without a GPU host.
+- **nccl-tests baseline.** Never run, so how far this AllReduce sits from the
+  hardware's own ceiling is unknown.

@@ -1,0 +1,67 @@
+config,threads_or_ranks,n_trials,median_s,min_s,max_s,stdev_s,iqr_s,p25_s,p75_s,payload,allreduce_bytes,median_allreduce_s,comm_fraction,max_abs_diff,tol_failures,error
+serial,1,30,0.163019,0.161279,0.165202,0.001017,0.001021,0.162543,0.163564,,,,,0.000e+00,0,
+openmp_t1_static,1,30,0.179265,0.177138,0.180501,0.000808,0.001225,0.178501,0.179726,,,,,0.000e+00,0,
+openmp_t1_dynamic,1,30,0.178622,0.177343,0.181745,0.000867,0.001074,0.178309,0.179383,,,,,0.000e+00,0,
+openmp_t2_static,2,30,0.091181,0.090065,0.094522,0.000825,0.000782,0.090773,0.091555,,,,,0.000e+00,0,
+openmp_t2_dynamic,2,30,0.091382,0.090435,0.092063,0.000394,0.000459,0.091106,0.091565,,,,,0.000e+00,0,
+openmp_t4_static,4,30,0.047837,0.046777,0.049572,0.000685,0.000944,0.047492,0.048436,,,,,0.000e+00,0,
+openmp_t4_dynamic,4,30,0.047411,0.047101,0.048770,0.000432,0.000588,0.047280,0.047868,,,,,0.000e+00,0,
+openmp_t8_static,8,30,0.025774,0.025219,0.027064,0.000530,0.000871,0.025445,0.026316,,,,,0.000e+00,0,
+openmp_t8_dynamic,8,30,0.025402,0.024993,0.026028,0.000291,0.000455,0.025205,0.025660,,,,,0.000e+00,0,
+openmp_t16_static,16,30,0.015303,0.014185,0.016308,0.000580,0.000911,0.014820,0.015731,,,,,0.000e+00,0,
+openmp_t16_dynamic,16,30,0.015265,0.014421,0.016032,0.000357,0.000369,0.015048,0.015417,,,,,0.000e+00,0,
+mpi_r1,1,,,,,,,,,,,,,,,"RuntimeError: mpirun -np 1 /workspace/rre/engine/build/pearson_engine_mpi data/fixtures/item_full_ovl_skew --validate failed:
+--------------------------------------------------------------------------
+mpirun has detected an attempt to run as root.
+
+Running as root is *strongly* discouraged as any mistake (e.g., in
+defining TMPDIR) or bug can result in catastrophic damage to the OS
+file system, leaving your system in an unusable state.
+
+We strongly suggest that you run mpirun as a non-root user.
+
+You can override this protection by adding the --allow-run-as-root option
+to the cmd line or by setting two environment variables in the following way:
+the variable OMPI_ALLOW_RUN_AS_ROOT=1 to indicate the desire to override this
+protection, and OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 to confirm the choice and
+add one more layer of certainty that you want to do so.
+We reiterate our advice against doing so - please proceed at your own risk.
+--------------------------------------------------------------------------
+"
+mpi_r8,8,,,,,,,,,,,,,,,"RuntimeError: mpirun -np 8 /workspace/rre/engine/build/pearson_engine_mpi data/fixtures/item_full_ovl_skew --validate failed:
+--------------------------------------------------------------------------
+mpirun has detected an attempt to run as root.
+
+Running as root is *strongly* discouraged as any mistake (e.g., in
+defining TMPDIR) or bug can result in catastrophic damage to the OS
+file system, leaving your system in an unusable state.
+
+We strongly suggest that you run mpirun as a non-root user.
+
+You can override this protection by adding the --allow-run-as-root option
+to the cmd line or by setting two environment variables in the following way:
+the variable OMPI_ALLOW_RUN_AS_ROOT=1 to indicate the desire to override this
+protection, and OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 to confirm the choice and
+add one more layer of certainty that you want to do so.
+We reiterate our advice against doing so - please proceed at your own risk.
+--------------------------------------------------------------------------
+"
+cuda_1gpu,1,30,0.000675,0.000649,0.000905,0.000044,0.000012,0.000668,0.000680,,,,,0.000e+00,0,
+nccl_sync_g1_f64,1,30,0.000713,0.000663,0.001224,0.000103,0.000050,0.000688,0.000738,f64,3349008,0.000003,0.004210526315789474,0.000e+00,0,
+nccl_sync_g2_f64,2,30,0.000745,0.000706,0.000936,0.000040,0.000028,0.000731,0.000760,f64,3349008,0.000132,0.17706237424547286,0.000e+00,0,
+nccl_async_g1_f64,1,30,0.000712,0.000675,0.000904,0.000044,0.000037,0.000699,0.000736,f64,3349008,,,0.000e+00,0,
+nccl_async_g1_f64_sep,1,30,0.000702,0.000684,0.000743,0.000015,0.000022,0.000697,0.000719,f64,3349008,,,0.000e+00,0,
+nccl_async_g2_f64,2,30,0.000723,0.000684,0.000983,0.000056,0.000030,0.000711,0.000741,f64,3349008,,,0.000e+00,0,
+nccl_async_g2_f64_sep,2,30,0.000726,0.000695,0.000948,0.000066,0.000027,0.000718,0.000745,f64,3349008,,,0.000e+00,0,
+nccl_sync_g1_i32,1,30,0.000691,0.000662,0.000920,0.000061,0.000026,0.000680,0.000706,i32,1674504,0.000003,0.004341534008683068,0.000e+00,0,
+nccl_sync_g2_i32,2,30,0.000751,0.000706,0.001046,0.000081,0.000068,0.000730,0.000798,i32,1674504,0.000134,0.17831004657351962,0.000e+00,0,
+nccl_async_g1_i32,1,30,0.000709,0.000623,0.000781,0.000031,0.000048,0.000693,0.000741,i32,1674504,,,0.000e+00,0,
+nccl_async_g1_i32_sep,1,30,0.000708,0.000673,0.000921,0.000065,0.000040,0.000691,0.000730,i32,1674504,,,0.000e+00,0,
+nccl_async_g2_i32,2,30,0.000723,0.000686,0.000755,0.000019,0.000023,0.000707,0.000730,i32,1674504,,,0.000e+00,0,
+nccl_async_g2_i32_sep,2,30,0.000727,0.000681,0.008471,0.001412,0.000073,0.000708,0.000781,i32,1674504,,,0.000e+00,0,
+nccl_sync_g1_packed,1,30,0.000692,0.000675,0.000742,0.000018,0.000022,0.000681,0.000703,packed,1116336,0.000003,0.004335260115606937,0.000e+00,0,
+nccl_sync_g2_packed,2,30,0.000767,0.000719,0.000906,0.000046,0.000043,0.000746,0.000789,packed,1116336,0.000132,0.1722113502935421,0.000e+00,0,
+nccl_async_g1_packed,1,30,0.000707,0.000678,0.000743,0.000015,0.000020,0.000695,0.000715,packed,1116336,,,0.000e+00,0,
+nccl_async_g1_packed_sep,1,30,0.000700,0.000681,0.000903,0.000039,0.000023,0.000692,0.000715,packed,1116336,,,0.000e+00,0,
+nccl_async_g2_packed,2,30,0.000733,0.000678,0.000920,0.000065,0.000073,0.000696,0.000770,packed,1116336,,,0.000e+00,0,
+nccl_async_g2_packed_sep,2,30,0.000733,0.000687,0.000853,0.000038,0.000042,0.000713,0.000755,packed,1116336,,,0.000e+00,0,

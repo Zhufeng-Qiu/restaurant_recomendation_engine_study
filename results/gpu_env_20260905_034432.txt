@@ -1,0 +1,80 @@
+# GPU host record, 2026-09-05T03:44:32Z
+# pod: ayl68m3pryxndx (RRE-gaps), SECURE US-MD-1
+# NOTE cgroup CPU quota: 2720000 100000 -> ~27.2 CPUs despite nproc=128.
+#      MPI ranks above ~27 are oversubscribed; the sweep goes to 32 to show that ceiling.
+# First host in this project to run MPI and NCCL together.
+
+Sat Sep  5 03:44:32 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.16             Driver Version: 580.126.16     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  |   00000000:07:00.0 Off |                    0 |
+| N/A   31C    P0             64W /  400W |       0MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA A100-SXM4-80GB          On  |   00000000:4E:00.0 Off |                    0 |
+| N/A   32C    P0             64W /  400W |       0MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+	[4mGPU0	GPU1	NIC0	NIC1	NIC2	NIC3	NIC4	NIC5	NIC6	NIC7	NIC8	NIC9	CPU Affinity	NUMA Affinity	GPU NUMA ID[0m
+GPU0	 X 	NV12	PXB	PXB	NODE	NODE	SYS	SYS	SYS	SYS	SYS	SYS	0-63	0		N/A
+GPU1	NV12	 X 	NODE	NODE	PXB	PXB	SYS	SYS	SYS	SYS	SYS	SYS	0-63	0		N/A
+NIC0	PXB	NODE	 X 	PXB	NODE	NODE	SYS	SYS	SYS	SYS	SYS	SYS				
+NIC1	PXB	NODE	PXB	 X 	NODE	NODE	SYS	SYS	SYS	SYS	SYS	SYS				
+NIC2	NODE	PXB	NODE	NODE	 X 	PXB	SYS	SYS	SYS	SYS	SYS	SYS				
+NIC3	NODE	PXB	NODE	NODE	PXB	 X 	SYS	SYS	SYS	SYS	SYS	SYS				
+NIC4	SYS	SYS	SYS	SYS	SYS	SYS	 X 	PXB	NODE	NODE	NODE	NODE				
+NIC5	SYS	SYS	SYS	SYS	SYS	SYS	PXB	 X 	NODE	NODE	NODE	NODE				
+NIC6	SYS	SYS	SYS	SYS	SYS	SYS	NODE	NODE	 X 	PXB	NODE	NODE				
+NIC7	SYS	SYS	SYS	SYS	SYS	SYS	NODE	NODE	PXB	 X 	NODE	NODE				
+NIC8	SYS	SYS	SYS	SYS	SYS	SYS	NODE	NODE	NODE	NODE	 X 	PIX				
+NIC9	SYS	SYS	SYS	SYS	SYS	SYS	NODE	NODE	NODE	NODE	PIX	 X 				
+
+Legend:
+
+  X    = Self
+  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)
+  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node
+  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)
+  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)
+  PIX  = Connection traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks
+
+NIC Legend:
+
+  NIC0: mlx5_0
+  NIC1: mlx5_1
+  NIC2: mlx5_2
+  NIC3: mlx5_3
+  NIC4: mlx5_4
+  NIC5: mlx5_5
+  NIC6: mlx5_6
+  NIC7: mlx5_7
+  NIC8: mlx5_8
+  NIC9: mlx5_9
+
+
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2025 NVIDIA Corporation
+Built on Fri_Feb_21_20:23:50_PST_2025
+Cuda compilation tools, release 12.8, V12.8.93
+Build cuda_12.8.r12.8/compiler.35583870_0
+
+mpirun (Open MPI) 4.1.6
+
+CPU(s):                                  128
+Model name:                              AMD EPYC 7742 64-Core Processor
+CPU(s) scaling MHz:                      135%
