@@ -712,10 +712,19 @@ different reason: the 13–16% IQR reproduced across three independent pods
 (16.3% / 16.4% / 15.6%), so it is a property of the pipeline, recorded in the
 audit document, not an open question.
 
-- **Warp packing is the only unimplemented optimisation.** Mechanism gate
-  passed; implementation gate untested because no packing kernel exists.
-  Ceiling 14.42% of scan time at one GPU, 25.32% at two — measured in
-  *Steps 3 and 7* above.
+- **Warp packing is implemented and measured** (2026-09-05, after this audit
+  was written). It works, and the mechanism above is not why: see
+  [docs/warp_packing_experiment_20260905.md](warp_packing_experiment_20260905.md).
+  The lane-slot prize quoted in this document -- 14.42% at one GPU, 25.32% at
+  two, 19.22% after the shared-order constraint -- was directionally right and
+  quantitatively short. Measured critical lane slots did fall 18.3% at two
+  GPUs, close to the model; measured stats time fell 51.2%. Most of the gain is
+  a per-thread cost this document never counted: `pair_lane_stats` runs four
+  `lower_bound` searches per THREAD to locate each row's restricted slice, and
+  every lane of a group repeats them, so that cost scales with the group size.
+  The `lane_full` fixture settles it -- its lane slots vary by 0.02% across
+  group sizes and its stats time still drops 13.5%. The numbers in this
+  section remain what the model predicted, not what the hardware did.
 - **The AllReduce is 1.2–2.5x off the library's own ceiling**, and the gap
   widens as the link slows and the payload shrinks — 2.48x at `packed` on the
   host-staged link, where `all_reduce_perf` moves the same 18.75 MB in 7.47 ms

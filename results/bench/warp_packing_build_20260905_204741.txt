@@ -1,0 +1,348 @@
+
+=== environment ===
+Sat Sep  5 20:47:41 UTC 2026
+Linux 1d532d191a3e 6.8.0-100-generic #100-Ubuntu SMP PREEMPT_DYNAMIC Tue Jan 13 16:40:06 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+Sat Sep  5 20:47:41 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.16             Driver Version: 580.126.16     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  |   00000000:90:00.0 Off |                    0 |
+| N/A   36C    P0             66W /  400W |       0MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA A100-SXM4-80GB          On  |   00000000:BD:00.0 Off |                    0 |
+| N/A   35C    P0             67W /  400W |       0MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+	[4mGPU0	GPU1	NIC0	NIC1	NIC2	NIC3	NIC4	NIC5	NIC6	NIC7	NIC8	NIC9	CPU Affinity	NUMA Affinity	GPU NUMA ID[0m
+GPU0	 X 	NV12	SYS	SYS	SYS	SYS	PXB	PXB	NODE	NODE	NODE	NODE	64-127	1		N/A
+GPU1	NV12	 X 	SYS	SYS	SYS	SYS	NODE	NODE	PXB	PXB	NODE	NODE	64-127	1		N/A
+NIC0	SYS	SYS	 X 	PXB	NODE	NODE	SYS	SYS	SYS	SYS	SYS	SYS				
+NIC1	SYS	SYS	PXB	 X 	NODE	NODE	SYS	SYS	SYS	SYS	SYS	SYS				
+NIC2	SYS	SYS	NODE	NODE	 X 	PXB	SYS	SYS	SYS	SYS	SYS	SYS				
+NIC3	SYS	SYS	NODE	NODE	PXB	 X 	SYS	SYS	SYS	SYS	SYS	SYS				
+NIC4	PXB	NODE	SYS	SYS	SYS	SYS	 X 	PXB	NODE	NODE	NODE	NODE				
+NIC5	PXB	NODE	SYS	SYS	SYS	SYS	PXB	 X 	NODE	NODE	NODE	NODE				
+NIC6	NODE	PXB	SYS	SYS	SYS	SYS	NODE	NODE	 X 	PXB	NODE	NODE				
+NIC7	NODE	PXB	SYS	SYS	SYS	SYS	NODE	NODE	PXB	 X 	NODE	NODE				
+NIC8	NODE	NODE	SYS	SYS	SYS	SYS	NODE	NODE	NODE	NODE	 X 	PIX				
+NIC9	NODE	NODE	SYS	SYS	SYS	SYS	NODE	NODE	NODE	NODE	PIX	 X 				
+
+Legend:
+
+  X    = Self
+  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)
+  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node
+  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)
+  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)
+  PIX  = Connection traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks
+
+NIC Legend:
+
+  NIC0: mlx5_0
+  NIC1: mlx5_1
+  NIC2: mlx5_2
+  NIC3: mlx5_3
+  NIC4: mlx5_4
+  NIC5: mlx5_5
+  NIC6: mlx5_6
+  NIC7: mlx5_7
+  NIC8: mlx5_8
+  NIC9: mlx5_9
+
+ 	[4mGPU0	GPU1	[0m
+ GPU0	X	OK	
+ GPU1	OK	X	
+
+Legend:
+
+  X    = Self
+  OK   = Status Ok
+  CNS  = Chipset not supported
+  GNS  = GPU not supported
+  TNS  = Topology not supported
+  NS   = Not supported
+  U    = Unknown
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2025 NVIDIA Corporation
+Built on Fri_Feb_21_20:23:50_PST_2025
+Cuda compilation tools, release 12.8, V12.8.93
+Build cuda_12.8.r12.8/compiler.35583870_0
+git_sha=ccbfe4e016455f6b00eef73ae0e946d5764dac12 dirty=1
+image_digest=unset
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found OpenMP_CXX: -fopenmp (found version "4.5") 
+-- Found OpenMP: TRUE (found version "4.5")  
+-- The CUDA compiler identification is NVIDIA 12.8.93
+-- Detecting CUDA compiler ABI info
+-- Detecting CUDA compiler ABI info - done
+-- Check for working CUDA compiler: /usr/local/cuda/bin/nvcc - skipped
+-- Detecting CUDA compile features
+-- Detecting CUDA compile features - done
+-- Configuring done (3.4s)
+-- Generating done (0.0s)
+-- Build files have been written to: /workspace/rre/engine/build-legacy
+[  7%] Building CUDA object CMakeFiles/engine_cuda.dir/src/cuda/cuda_backend.cu.o
+[ 14%] Building CXX object CMakeFiles/engine_serial.dir/src/serial/serial.cpp.o
+[ 21%] Building CXX object CMakeFiles/engine_openmp.dir/src/openmp/openmp.cpp.o
+[ 28%] Building CXX object CMakeFiles/cuda_emulation_test.dir/tests/cuda_emulation_test.cpp.o
+[ 35%] Building CXX object CMakeFiles/payload_domain_test.dir/tests/payload_domain_test.cpp.o
+[ 42%] Linking CXX static library libengine_serial.a
+[ 50%] Linking CXX static library libengine_openmp.a
+[ 50%] Built target engine_serial
+[ 50%] Built target engine_openmp
+[ 57%] Building CXX object CMakeFiles/microcases_test.dir/tests/microcases_test.cpp.o
+[ 64%] Linking CXX executable cuda_emulation_test
+[ 64%] Built target cuda_emulation_test
+[ 71%] Linking CXX executable payload_domain_test
+[ 71%] Built target payload_domain_test
+[ 78%] Linking CXX executable microcases_test
+[ 78%] Built target microcases_test
+[ 85%] Linking CUDA static library libengine_cuda.a
+[ 85%] Built target engine_cuda
+[ 92%] Building CXX object CMakeFiles/pearson_engine.dir/src/main.cpp.o
+[100%] Linking CXX executable pearson_engine
+[100%] Built target pearson_engine
+legacy_sha=df29ca1eb5823b70e5e55a33c8a8169a3f45cb69
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found OpenMP_CXX: -fopenmp (found version "4.5") 
+-- Found OpenMP: TRUE (found version "4.5")  
+-- The CUDA compiler identification is NVIDIA 12.8.93
+-- Detecting CUDA compiler ABI info
+-- Detecting CUDA compiler ABI info - done
+-- Check for working CUDA compiler: /usr/local/cuda/bin/nvcc - skipped
+-- Detecting CUDA compile features
+-- Detecting CUDA compile features - done
+-- Configuring done (3.8s)
+-- Generating done (0.0s)
+-- Build files have been written to: /workspace/rre/engine/build
+[  5%] Building CXX object CMakeFiles/payload_domain_test.dir/tests/payload_domain_test.cpp.o
+[ 20%] Building CUDA object CMakeFiles/engine_cuda.dir/src/cuda/cuda_backend.cu.o
+[ 20%] Building CXX object CMakeFiles/engine_serial.dir/src/serial/serial.cpp.o
+[ 20%] Building CXX object CMakeFiles/engine_openmp.dir/src/openmp/openmp.cpp.o
+[ 30%] Building CXX object CMakeFiles/cuda_emulation_test.dir/tests/cuda_emulation_test.cpp.o
+[ 30%] Building CUDA object CMakeFiles/pearson_engine_nccl.dir/src/nccl/nccl_main.cu.o
+[ 35%] Building CXX object CMakeFiles/pair_plan_test.dir/tests/pair_plan_test.cpp.o
+[ 40%] Building CXX object CMakeFiles/timing_contract_test.dir/tests/timing_contract_test.cpp.o
+[ 45%] Linking CXX static library libengine_serial.a
+[ 50%] Linking CXX static library libengine_openmp.a
+[ 50%] Built target engine_serial
+[ 50%] Built target engine_openmp
+[ 55%] Building CXX object CMakeFiles/microcases_test.dir/tests/microcases_test.cpp.o
+[ 60%] Linking CXX executable timing_contract_test
+[ 60%] Built target timing_contract_test
+[ 65%] Linking CXX executable payload_domain_test
+[ 65%] Built target payload_domain_test
+[ 70%] Linking CXX executable microcases_test
+[ 70%] Built target microcases_test
+[ 75%] Linking CXX executable cuda_emulation_test
+[ 75%] Built target cuda_emulation_test
+[ 80%] Linking CXX executable pair_plan_test
+[ 80%] Built target pair_plan_test
+[ 85%] Linking CUDA static library libengine_cuda.a
+[ 85%] Built target engine_cuda
+[ 90%] Building CXX object CMakeFiles/pearson_engine.dir/src/main.cpp.o
+[ 95%] Linking CXX executable pearson_engine
+[ 95%] Built target pearson_engine
+[100%] Linking CUDA executable pearson_engine_nccl
+[100%] Built target pearson_engine_nccl
+    Start 4: pair_plan
+4/5 Test #4: pair_plan ........................   Passed    0.01 sec
+    Start 5: payload_domain
+5/5 Test #5: payload_domain ...................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =   3.84 sec
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found OpenMP_CXX: -fopenmp (found version "4.5") 
+-- Found OpenMP: TRUE (found version "4.5")  
+-- The CUDA compiler identification is NVIDIA 12.8.93
+-- Detecting CUDA compiler ABI info
+-- Detecting CUDA compiler ABI info - done
+-- Check for working CUDA compiler: /usr/local/cuda/bin/nvcc - skipped
+-- Detecting CUDA compile features
+-- Detecting CUDA compile features - done
+-- Configuring done (3.6s)
+-- Generating done (0.0s)
+-- Build files have been written to: /workspace/rre/engine/build-ptxas
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi32EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi32EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 23.594 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi16EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi16EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 18.153 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi8EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi8EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 15.181 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi4EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi4EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 12.854 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi2EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi2EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 10.612 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi1EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi1EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 8.063 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda22finalize_kernel_packedEPKmPKilPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda22finalize_kernel_packedEPKmPKilPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 26 registers, used 0 barriers, 384 bytes cmem[0]
+ptxas info    : Compile time = 8.950 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda19finalize_kernel_i32EPKiS1_lPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda19finalize_kernel_i32EPKiS1_lPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 25 registers, used 0 barriers, 384 bytes cmem[0]
+ptxas info    : Compile time = 8.695 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda15finalize_kernelEPKdPKilPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda15finalize_kernelEPKdPKilPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 25 registers, used 0 barriers, 384 bytes cmem[0]
+ptxas info    : Compile time = 8.560 ms
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi32EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi32EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 22.846 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi16EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi16EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 17.745 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi8EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi8EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 14.932 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi4EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi4EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 12.522 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi2EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi2EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 10.393 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda17pair_stats_kernelILi1EEEvPKlPKiPKdS4_S4_liiPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda17pair_stats_kernelILi1EEEvPKlPKiPKdS4_S4_liiPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 7.922 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda24pair_stats_kernel_packedILi32EEEvPKlPKiPKdS4_S4_liiPm' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda24pair_stats_kernel_packedILi32EEEvPKlPKiPKdS4_S4_liiPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 20.729 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda24pair_stats_kernel_packedILi16EEEvPKlPKiPKdS4_S4_liiPm' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda24pair_stats_kernel_packedILi16EEEvPKlPKiPKdS4_S4_liiPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 17.681 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda24pair_stats_kernel_packedILi8EEEvPKlPKiPKdS4_S4_liiPm' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda24pair_stats_kernel_packedILi8EEEvPKlPKiPKdS4_S4_liiPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 15.160 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda24pair_stats_kernel_packedILi4EEEvPKlPKiPKdS4_S4_liiPm' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda24pair_stats_kernel_packedILi4EEEvPKlPKiPKdS4_S4_liiPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 12.788 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda24pair_stats_kernel_packedILi2EEEvPKlPKiPKdS4_S4_liiPm' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda24pair_stats_kernel_packedILi2EEEvPKlPKiPKdS4_S4_liiPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 10.743 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda24pair_stats_kernel_packedILi1EEEvPKlPKiPKdS4_S4_liiPm' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda24pair_stats_kernel_packedILi1EEEvPKlPKiPKdS4_S4_liiPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 8.166 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda21pair_stats_kernel_i32ILi32EEEvPKlPKiPKdS4_S4_liiPi' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda21pair_stats_kernel_i32ILi32EEEvPKlPKiPKdS4_S4_liiPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 20.561 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda21pair_stats_kernel_i32ILi16EEEvPKlPKiPKdS4_S4_liiPi' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda21pair_stats_kernel_i32ILi16EEEvPKlPKiPKdS4_S4_liiPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 17.600 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda21pair_stats_kernel_i32ILi8EEEvPKlPKiPKdS4_S4_liiPi' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda21pair_stats_kernel_i32ILi8EEEvPKlPKiPKdS4_S4_liiPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 15.128 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda21pair_stats_kernel_i32ILi4EEEvPKlPKiPKdS4_S4_liiPi' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda21pair_stats_kernel_i32ILi4EEEvPKlPKiPKdS4_S4_liiPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 12.643 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda21pair_stats_kernel_i32ILi2EEEvPKlPKiPKdS4_S4_liiPi' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda21pair_stats_kernel_i32ILi2EEEvPKlPKiPKdS4_S4_liiPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 10.547 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda21pair_stats_kernel_i32ILi1EEEvPKlPKiPKdS4_S4_liiPi' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda21pair_stats_kernel_i32ILi1EEEvPKlPKiPKdS4_S4_liiPi
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compile time = 8.031 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda22finalize_kernel_packedEPKmPKilPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda22finalize_kernel_packedEPKmPKilPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 26 registers, used 0 barriers, 384 bytes cmem[0]
+ptxas info    : Compile time = 8.814 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda19finalize_kernel_i32EPKiS1_lPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda19finalize_kernel_i32EPKiS1_lPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 25 registers, used 0 barriers, 384 bytes cmem[0]
+ptxas info    : Compile time = 8.564 ms
+ptxas info    : Compiling entry function '_ZN11engine_cuda15finalize_kernelEPKdPKilPd' for 'sm_80'
+ptxas info    : Function properties for _ZN11engine_cuda15finalize_kernelEPKdPKilPd
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 25 registers, used 0 barriers, 384 bytes cmem[0]
+ptxas info    : Compile time = 8.446 ms

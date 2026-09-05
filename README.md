@@ -391,3 +391,39 @@ a calibrated `nccl-tests` baseline at exact payload sizes, and the compression
 effect replicated across three independent sessions at **−4.81% / −4.99% /
 −5.08%** (0.27 percentage points apart).
 
+
+## Update: implement warp packing -- 20260905
+
+The optimisation the September audit left unimplemented. It works — and not for
+the reason the audit predicted. Full record, with the correctness ladder, the
+paired intervals and the mechanism analysis:
+**[docs/warp_packing_experiment_20260905.md](docs/warp_packing_experiment_20260905.md)**.
+
+A pair now gets a sub-warp of `G` lanes instead of all 32, with pairs sorted by
+shorter-slice length so the groups sharing a warp need the same round count
+(`--group`, `--pair-order`, on both GPU binaries).
+
+| | vs the pre-packing binary | 95% CI |
+| --- | --- | --- |
+| CUDA 1 GPU, `item_full` | **−34.68%** | [−34.98, −34.37] |
+| NCCL 2 GPU sync `packed` | **−47.62%** | [−47.99, −47.24] |
+
+30 balanced crossover blocks each, seeds recorded. 172 correctness checks pass
+bit-exact first — every payload, 1/2/3 ranks, every group size and ordering —
+with output byte-identical to the baseline's and no memory errors under
+`compute-sanitizer`.
+
+**The lane-slot model was quantitatively wrong.** It predicted 19.2% at two
+GPUs from recovering the partly-filled last warp round. Critical lane slots did
+fall 18.3%, but stats time fell 51.2%. Most of the gain is a cost the model
+never counted: `pair_lane_stats` runs four `lower_bound` searches *per thread*
+to locate each row's slice, and every lane of a group repeats them, so that
+cost scales with `G`. The `lane_full` fixture settles it — its lane slots vary
+by 0.02% across group sizes and its time still drops 13.5%. `G=1`, which the
+model says is optimal at 99.96% lane utilisation, is the *worst* arm measured.
+
+**The default is unchanged.** `--group 4 --pair-order bylen` is the
+recommendation, but switching it obliges re-running the headline matrix and the
+compression A/B on a frozen SHA, and this session stopped at its spending cap
+first. The table above and the headline table earlier both describe the
+mapping the binaries actually default to today.

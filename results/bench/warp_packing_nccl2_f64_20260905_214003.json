@@ -1,0 +1,213 @@
+{
+  "phase": "screen",
+  "fixture": "data/fixtures/item_full",
+  "seed": 53,
+  "repeats": 8,
+  "warmups": 3,
+  "round_order": [
+    [
+      "nccl2:8:bylen:f64",
+      "nccl2:32:source:f64",
+      "nccl2:4:bylen:f64"
+    ],
+    [
+      "nccl2:32:source:f64",
+      "nccl2:4:bylen:f64",
+      "nccl2:8:bylen:f64"
+    ],
+    [
+      "nccl2:32:source:f64",
+      "nccl2:8:bylen:f64",
+      "nccl2:4:bylen:f64"
+    ],
+    [
+      "nccl2:32:source:f64",
+      "nccl2:8:bylen:f64",
+      "nccl2:4:bylen:f64"
+    ],
+    [
+      "nccl2:8:bylen:f64",
+      "nccl2:32:source:f64",
+      "nccl2:4:bylen:f64"
+    ],
+    [
+      "nccl2:8:bylen:f64",
+      "nccl2:4:bylen:f64",
+      "nccl2:32:source:f64"
+    ],
+    [
+      "nccl2:4:bylen:f64",
+      "nccl2:32:source:f64",
+      "nccl2:8:bylen:f64"
+    ],
+    [
+      "nccl2:4:bylen:f64",
+      "nccl2:32:source:f64",
+      "nccl2:8:bylen:f64"
+    ]
+  ],
+  "environment": {
+    "utc": "2026-09-05T21:40:03Z",
+    "host": "1d532d191a3e",
+    "git_sha": "ccbfe4e016455f6b00eef73ae0e946d5764dac12",
+    "git_dirty": true,
+    "legacy_sha": "df29ca1eb5823b70e5e55a33c8a8169a3f45cb69",
+    "image_digest": null,
+    "gpus": "NVIDIA A100-SXM4-80GB, GPU-c3aab2f9-3de8-2561-370e-b364095ad57d\nNVIDIA A100-SXM4-80GB, GPU-7ef491a4-26cd-0be2-0a28-30d2a4f84055",
+    "driver": "580.126.16",
+    "nvcc": "Build cuda_12.8.r12.8/compiler.35583870_0",
+    "nccl_version": "22501",
+    "topo": "\u001b[4mGPU0\tGPU1\tNIC0\tNIC1\tNIC2\tNIC3\tNIC4\tNIC5\tNIC6\tNIC7\tNIC8\tNIC9\tCPU Affinity\tNUMA Affinity\tGPU NUMA ID\u001b[0m\nGPU0\t X \tNV12\tSYS\tSYS\tSYS\tSYS\tPXB\tPXB\tNODE\tNODE\tNODE\tNODE\t64-127\t1\t\tN/A\nGPU1\tNV12\t X \tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tPXB\tPXB\tNODE\tNODE\t64-127\t1\t\tN/A\nNIC0\tSYS\tSYS\t X \tPXB\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC1\tSYS\tSYS\tPXB\t X \tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC2\tSYS\tSYS\tNODE\tNODE\t X \tPXB\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC3\tSYS\tSYS\tNODE\tNODE\tPXB\t X \tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC4\tPXB\tNODE\tSYS\tSYS\tSYS\tSYS\t X \tPXB\tNODE\tNODE\tNODE\tNODE\t\t\t\t\nNIC5\tPXB\tNODE\tSYS\tSYS\tSYS\tSYS\tPXB\t X \tNODE\tNODE\tNODE\tNODE\t\t\t\t\nNIC6\tNODE\tPXB\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\t X \tPXB\tNODE\tNODE\t\t\t\t\nNIC7\tNODE\tPXB\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tPXB\t X \tNODE\tNODE\t\t\t\t\nNIC8\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tNODE\tNODE\t X \tPIX\t\t\t\t\nNIC9\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tNODE\tNODE\tPIX\t X \t\t\t\t\n\nLegend:\n\n  X    = Self\n  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)\n  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node\n  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)\n  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)\n  PIX  = Connection traversing at most a single PCIe bridge\n  NV#  = Connection traversing a bonded set of # NVLinks\n\nNIC Legend:\n\n  NIC0: mlx5_0\n  NIC1: mlx5_1\n  NIC2: mlx5_2\n  NIC3: mlx5_3\n  NIC4: mlx5_4\n  NIC5: mlx5_5\n  NIC6: mlx5_6\n  NIC7: mlx5_7\n  NIC8: mlx5_8\n  NIC9: mlx5_9",
+    "p2p_r": "\u001b[4mGPU0\tGPU1\t\u001b[0m\n GPU0\tX\tOK\t\n GPU1\tOK\tX\t\n\nLegend:\n\n  X    = Self\n  OK   = Status Ok\n  CNS  = Chipset not supported\n  GNS  = GPU not supported\n  TNS  = Topology not supported\n  NS   = Not supported\n  U    = Unknown",
+    "p2p_w": "\u001b[4mGPU0\tGPU1\t\u001b[0m\n GPU0\tX\tOK\t\n GPU1\tOK\tX\t\n\nLegend:\n\n  X    = Self\n  OK   = Status Ok\n  CNS  = Chipset not supported\n  GNS  = GPU not supported\n  TNS  = Topology not supported\n  NS   = Not supported\n  U    = Unknown"
+  },
+  "arms": {
+    "nccl2:32:source:f64": {
+      "trials_s": [
+        0.004327,
+        0.004249,
+        0.004235,
+        0.004254,
+        0.004331,
+        0.004229,
+        0.004319,
+        0.004318
+      ],
+      "median_s": 0.004286,
+      "min_s": 0.004229,
+      "max_s": 0.004331,
+      "iqr_pct": 2.018198786747545,
+      "t_stats_s": 0.003776,
+      "t_finalize_s": 7.7e-05,
+      "t_allreduce_s": 0.000474,
+      "t_plan_s": 0.050249,
+      "cold_data_path_s": 1.409945,
+      "max_abs_diff": 0.0,
+      "plan_lane_slots": null,
+      "plan_lane_utilisation": null,
+      "plan_aggregate_lane_slots": 144048000,
+      "plan_aggregate_lane_utilisation": 0.74683,
+      "plan_critical_lane_slots": 72771808,
+      "plan_per_device": [
+        {
+          "device": 0,
+          "dim_lo": 0,
+          "dim_hi": 13092,
+          "effective_elements": 53026536,
+          "lane_slots": 71276192,
+          "lane_utilisation": 0.74396,
+          "counterfactual_per_device_sorted_lane_slots": 71276192,
+          "counterfactual_per_device_sorted_utilisation": 0.74396
+        },
+        {
+          "device": 1,
+          "dim_lo": 13092,
+          "dim_hi": 26184,
+          "effective_elements": 54552667,
+          "lane_slots": 72771808,
+          "lane_utilisation": 0.74964,
+          "counterfactual_per_device_sorted_lane_slots": 72771808,
+          "counterfactual_per_device_sorted_utilisation": 0.74964
+        }
+      ]
+    },
+    "nccl2:8:bylen:f64": {
+      "trials_s": [
+        0.002548,
+        0.002524,
+        0.002539,
+        0.002561,
+        0.002591,
+        0.002623,
+        0.002647,
+        0.00254
+      ],
+      "median_s": 0.0025545,
+      "min_s": 0.002524,
+      "max_s": 0.002647,
+      "iqr_pct": 2.965355255431569,
+      "t_stats_s": 0.002001,
+      "t_finalize_s": 9e-05,
+      "t_allreduce_s": 0.000457,
+      "t_plan_s": 0.102534,
+      "cold_data_path_s": 1.438042,
+      "max_abs_diff": 0.0,
+      "plan_lane_slots": null,
+      "plan_lane_utilisation": null,
+      "plan_aggregate_lane_slots": 120460128,
+      "plan_aggregate_lane_utilisation": 0.89307,
+      "plan_critical_lane_slots": 60994240,
+      "plan_per_device": [
+        {
+          "device": 0,
+          "dim_lo": 0,
+          "dim_hi": 13092,
+          "effective_elements": 53026536,
+          "lane_slots": 59465888,
+          "lane_utilisation": 0.89171,
+          "counterfactual_per_device_sorted_lane_slots": 57123424,
+          "counterfactual_per_device_sorted_utilisation": 0.92828
+        },
+        {
+          "device": 1,
+          "dim_lo": 13092,
+          "dim_hi": 26184,
+          "effective_elements": 54552667,
+          "lane_slots": 60994240,
+          "lane_utilisation": 0.89439,
+          "counterfactual_per_device_sorted_lane_slots": 58618720,
+          "counterfactual_per_device_sorted_utilisation": 0.93064
+        }
+      ]
+    },
+    "nccl2:4:bylen:f64": {
+      "trials_s": [
+        0.002457,
+        0.002449,
+        0.002338,
+        0.002431,
+        0.002452,
+        0.002391,
+        0.002336,
+        0.002438
+      ],
+      "median_s": 0.0024345,
+      "min_s": 0.002336,
+      "max_s": 0.002457,
+      "iqr_pct": 4.107619634421863,
+      "t_stats_s": 0.001889,
+      "t_finalize_s": 9.5e-05,
+      "t_allreduce_s": 0.000474,
+      "t_plan_s": 0.103158,
+      "cold_data_path_s": 1.375091,
+      "max_abs_diff": 0.0,
+      "plan_lane_slots": null,
+      "plan_lane_utilisation": null,
+      "plan_aggregate_lane_slots": 117419040,
+      "plan_aggregate_lane_utilisation": 0.9162,
+      "plan_critical_lane_slots": 59488032,
+      "plan_per_device": [
+        {
+          "device": 0,
+          "dim_lo": 0,
+          "dim_hi": 13092,
+          "effective_elements": 53026536,
+          "lane_slots": 57931008,
+          "lane_utilisation": 0.91534,
+          "counterfactual_per_device_sorted_lane_slots": 54812096,
+          "counterfactual_per_device_sorted_utilisation": 0.96742
+        },
+        {
+          "device": 1,
+          "dim_lo": 13092,
+          "dim_hi": 26184,
+          "effective_elements": 54552667,
+          "lane_slots": 59488032,
+          "lane_utilisation": 0.91704,
+          "counterfactual_per_device_sorted_lane_slots": 56312032,
+          "counterfactual_per_device_sorted_utilisation": 0.96876
+        }
+      ]
+    }
+  }
+}
