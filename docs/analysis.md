@@ -209,7 +209,7 @@ for identical code), so absolute totals are not comparable across machines.
 Every ratio in this document and in the README is therefore computed *within*
 a single machine, against a baseline measured in the same session.
 
-## Sep. 4th 2026 - Update
+## Measurement audit — 20260905
 
 Re-measured on fresh pods at 30 trials, with configuration-matched traces.
 Two things above are corrected by measurement; the mechanism findings hold.

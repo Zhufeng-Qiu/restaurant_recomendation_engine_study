@@ -214,7 +214,7 @@ rank's partial and sums the *packed words*, exercising §9.3 directly rather
 than the claim about it. Both full fixtures pass at `max_abs_diff = 0.0`:
 1,171,857 pairs (`item_full`) and 1,411,864 (`user_full`).
 
-## 10. Sep. 4th 2026 - Update
+## 10. Measurement audit — 20260905
 
 Non-normative. §§1–9 are unamended, no policy or tolerance moves, no fixture
 or golden result needs regenerating. Version stays 1.0.
