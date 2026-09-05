@@ -29,10 +29,12 @@ Whether that 3x is worth anything depends entirely on the link:
 | Communication is... | 11% of the iteration | 91% of the iteration |
 | ...so compressing 3x buys | **4%** | **55%** |
 
-Same binary, same data, same GPU model. Only the interconnect changed. That
-is the point: **compressing a collective pays when the collective is the
-bottleneck, and not otherwise** — and the second half of that sentence is the
-part usually left out.
+Same binary, same data, same GPU model — but **two different hosts**, so read
+this as two communication regimes rather than one variable swapped. Toggling
+P2P on a *single* machine reproduces the same trend with everything else held
+fixed (see the measurement audit below). The point survives the narrowing: **compressing a
+collective pays when the collective is the bottleneck, and not otherwise** —
+and the second half of that sentence is the part usually left out.
 
 Three terms used throughout, if the vocabulary is unfamiliar:
 
@@ -54,8 +56,8 @@ Three terms used throughout, if the vocabulary is unfamiliar:
 | `spark_pipeline/` | Maintained PySpark baseline: `cf_train.py`, `cf_predict.py`, fixture exporter, pinned env |
 | `docs/pearson_contract.md` | The frozen numerical contract every backend implements |
 | `docs/analysis.md` | Mechanism: roofline of the overlap, Nsight evidence, per-link regimes |
-| `tools/` | Spark-free validator, reference impl, archived-model cross-check, RMSE loop |
-| `data/fixtures/` | 4 exported workloads (CSR ratings + candidate pairs + golden sims) |
+| `tools/` | Spark-free validator, reference impl, archived-model cross-check, RMSE loop, fixture generators, bit-width audit |
+| `data/fixtures/` | 6 exported workloads (CSR ratings + candidate pairs + golden sims), 5 synthetic domain-gate fixtures; overlap bands are generated, not tracked |
 | `engine/` | Native engine: CMake, serial/OpenMP/MPI/CUDA/NCCL backends, tests, bench |
 | `results/` | Benchmark JSON/CSV, figures, prediction outputs |
 
@@ -79,60 +81,84 @@ throughout (environments recorded in `results/gpu_env*.txt`).
 
 ### Backend comparison
 
-Median of 5 trials after 2 warm-ups; GPU times are device-side (kernels +
-collectives), speedup vs same-machine serial.
+**One machine, one timing basis.** EPYC 7742 + 2x A100-SXM4-80GB (NV12),
+30 trials after 3 warm-ups, round-robin with a per-round reshuffle
+(seed 20260905). Times are **steady-state**: `device_total = stats +
+allreduce + finalize` for everything except async, which reports
+`pipeline_total` because its stages overlap. Fixture load, device setup and
+H2D/D2H are excluded; `cold_data_path_s` in every result file carries the
+cold-start view (see the audit document below).
 
-| Backend | Hardware | Median | Speedup |
-| --- | --- | --- | --- |
-| Serial C++ (oracle) | EPYC (pod) | 1312.0 ms | 1.0x |
-| OpenMP 16t dynamic | EPYC (pod) | 85.8 ms | 15.3x |
-| MPI 8 ranks | Apple M5 | 256.3 ms | 3.1x |
-| CUDA warp-per-pair | 1x A100 | 5.00 ms | 262x |
-| NCCL sync (`packed`) | 2x A100 | 4.21 ms | 312x |
-| NCCL async double-buffered | 2x A100 | 4.80 ms | 273x |
+| Backend | Median | Speedup vs same-machine serial |
+| --- | --- | --- |
+| Serial C++ (oracle) | 1318.88 ms | 1.00x |
+| OpenMP 16t dynamic | 86.665 ms | 15.22x |
+| MPI 16 ranks | 275.699 ms | 4.78x |
+| CUDA warp-per-pair, 1 GPU | 4.753 ms | 277.48x |
+| **NCCL sync `packed`, 2 GPU** | **3.977 ms** | **331.63x** |
+| NCCL async `packed`, 2 GPU | 4.409 ms | 299.17x |
+
+Every earlier version of this table mixed hardware — MPI from a laptop, GPU
+rows from pods — so its speedups were computed against two different serial
+baselines. This one is not.
+
+Later commits changed documentation, the MPI load field and the replication
+tooling, none of which touch the steady-state kernels, so these numbers stand
+for the current tree — but they were not re-measured on it.
 
 ![CPU vs GPU backend latency on item_full](results/figures/gpu_comparison.png)
 
+Log scale, because the span is 1318.9 ms to 4.0 ms. Whiskers are the
+interquartile range over 30 trials: note that `NCCL async 2 GPU` has a
+visibly wider one than every other bar. That 13-16% spread survives
+randomisation and reproduces across pods -- see the measurement audit -- so
+the picture is the finding, not an artefact of one session.
+
 Key takeaways:
 
-- **262-312x over one CPU core**, ~17-20x over the best 16-thread OpenMP
-  configuration.
+- **277-332x over one CPU core** on the same machine, ~15-20x over the best
+  16-thread OpenMP configuration on that machine.
 - **A second GPU adds only 1.14-1.20x.** Only the rating dimension is split;
   every GPU still touches every pair, so the per-pair work does not halve.
 - **On NVLink, neither optimisation is worth it.** Compressing the collective
   3x buys 4.3%; async overlap *costs* 9.3%. Communication is 11% of the
   iteration, so there is very little there to win.
-- **On PCIe, both reverse.** Compression buys 55%, async turns positive, and
-  together they cut the iteration 60% — same binary, same data.
+- **On PCIe, compression reverses** and buys 55%. Async also turned positive
+  there, but see the measurement audit below: every async 2-GPU row in this study
+  carries a 12–44% IQR, so async differences of this size are at the edge of
+  what these hosts resolve. The compression rows reproduce to under 0.3%.
 - **End-to-end RMSE 0.8652** (archived Spark model 0.8657; target 0.9).
 
 <details>
-<summary>Why the GPU numbers differ slightly from the earlier session</summary>
+<summary>Provenance of these numbers</summary>
 
-The GPU rows come from the 2026-08-29 run, which re-measured everything after
-`pair_stats_kernel` and `finalize_kernel` were refactored to share
-`warp_pair_stats`. Two effects separate cleanly, and both are measured rather
-than assumed: a same-GPU A/B against the pre-refactor header puts the
-refactor's cost at **+2.4%** (4.854 → 4.972 ms), and the identical
-pre-refactor code runs **4.2%** slower on this pod than on the one used in the
-earlier session (4.854 vs 4.660 ms) — host-to-host variation, not code.
-Serial and OpenMP, which do not include the CUDA header, reproduced their
-archived numbers to within 0.8%, confirming the drift is specific to the GPU
-path.
+`results/bench/bench_20260905_064736.json`, measured at commit `12e9917`. That
+run predates the provenance fields, so its `environment` block carries no
+`git_sha`; no result file in this repository records an `image_digest`.
+Reproducing it exactly means checking out `12e9917` and rerunning
+`engine/bench/run_bench.py --repeats 30 --warmups 3 --gpu --seed 20260905` on
+an EPYC 7742 with 2x A100-SXM4-80GB (NV12).
 
 </details>
 
-OpenMP scaling (M5; the 4→8t knee is the P-core/E-core boundary):
+OpenMP scaling (M5, 30 trials; the 4→8t knee is the P-core/E-core boundary —
+and the measurement audit below shows that knee, not workload skew, is most of what
+dynamic scheduling buys):
 
 ![OpenMP speedup and efficiency](results/figures/openmp_scaling.png)
 
-MPI scaling (M5; the AllReduce share grows to ~13% at 8 ranks — the same
-tensor NVLink moves in 0.47 ms):
+MPI scaling (EPYC 7742 pod, 30 trials, ranks to 48; peak 5.04x at 16, and the
+AllReduce share climbs to 51% by 48 ranks — the CPU-time quota and the growing
+collective are confounded there, see the measurement audit below. On the smaller
+fixtures the collective dominates far earlier: at 9,054 pairs it is 83% and MPI
+turns net slower than serial):
 
 ![MPI strong scaling and communication fraction](results/figures/mpi_scaling.png)
 
-Collective payload compression (A100 pod; right panel is the one that matters
-— the collective shrinks 1.9x, but it was only 10.7% of the iteration):
+Collective payload compression (A100 NVLink pod, 30 trials; right panel is the
+one that matters — the collective shrinks 1.9x, but it was only ~11% of the
+iteration. In the left panel the `async 2 GPU` group is the only one whose
+IQR whiskers are wide enough to see):
 
 ![AllReduce payload comparison](results/figures/payload_comparison.png)
 
@@ -341,3 +367,27 @@ done
 Every run must report `max_abs_diff = 0` and `tol_failures = 0`. The async
 chunk sweep is not optional: the double-buffering race below only surfaced
 below 262144 pairs per chunk. Benchmarks come after.
+
+## Update: Measurement audit and headline rebuild -- 20260905
+
+A one-day audit found that several published numbers did not mean what they
+said. Full record, with the arithmetic and the wrong turns:
+**[docs/measurement_audit_20260905.md](docs/measurement_audit_20260905.md)**.
+
+What changed, in one table:
+
+| | Was | Is |
+| --- | --- | --- |
+| headline table | laptop MPI + pod GPU rows, two serial baselines | one machine, one timing basis (above) |
+| timing definition | NCCL sync excluded its finalize kernel | `device_total = stats + allreduce + finalize` everywhere |
+| run order | 30 consecutive trials per config | round-robin, reshuffled each round, seed recorded |
+| payload content | "sixteen bits" | 85 bits — that was the widest field, not the total |
+| async on PCIe | a property of the link | finalize occupying the communication stream |
+| interconnect claim | "only the interconnect changed" | two hosts, two regimes — plus a within-host P2P A/B |
+
+Measurements added: a third interconnect regime on a real `PHB`/no-P2P host,
+the problem-size and overlap sweeps the project brief specified and never ran,
+a calibrated `nccl-tests` baseline at exact payload sizes, and the compression
+effect replicated across three independent sessions at **−4.81% / −4.99% /
+−5.08%** (0.27 percentage points apart).
+

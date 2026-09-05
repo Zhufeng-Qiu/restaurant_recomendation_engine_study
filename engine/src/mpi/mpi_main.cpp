@@ -14,6 +14,7 @@
 #include <mpi.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -72,6 +73,12 @@ void partial_stats(const engine::Fixture& fx, int32_t dim_lo, int32_t dim_hi,
 }  // namespace
 
 int main(int argc, char** argv) {
+  // Process entry, before MPI_Init: MPI_Wtime is not callable until the
+  // runtime is up, so the cold path has to start on a plain clock. What this
+  // measures is `cold_data_path_s` -- entry to data-ready, including MPI_Init
+  // -- NOT a CLI one-shot, which would also have to include mpirun's own
+  // process launch and is only measurable from outside this binary.
+  const auto proc_entry = std::chrono::steady_clock::now();
   MPI_Init(&argc, &argv);
   int rank = 0, world = 1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -93,6 +100,23 @@ int main(int argc, char** argv) {
   const double t0 = MPI_Wtime();
   engine::Fixture fx = engine::Fixture::load(dir);
   const double t_load = MPI_Wtime() - t0;
+
+  // Slowest rank's entry->ready, reduced as ONE quantity. Taking
+  // max(init) + max(load) separately would invent a critical path that no
+  // single rank walked, since the slowest init and the slowest load need not
+  // be the same rank.
+  MPI_Barrier(MPI_COMM_WORLD);
+  double ready = std::chrono::duration<double>(
+      std::chrono::steady_clock::now() - proc_entry).count();
+  double cold_data_path = 0.0;
+  MPI_Reduce(&ready, &cold_data_path, 1, MPI_DOUBLE, MPI_MAX, 0,
+             MPI_COMM_WORLD);
+  // t_load_s is rank 0's own load and is kept for continuity; the quantity
+  // that bounds the collective is the SLOWEST rank's, since every rank waits
+  // for it. Reported separately rather than folded into cold_data_path, which
+  // is already a single reduced entry->ready measurement.
+  double t_load_max = 0.0;
+  MPI_Reduce(&t_load, &t_load_max, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
   // Dimension range owned by this rank. n_dims = max dim index + 1 is not
   // stored in the bins; derive it from the data (dims are dense 0..n_dims-1).
@@ -147,13 +171,18 @@ int main(int argc, char** argv) {
     const double t_total = t_local + t_allreduce + t_finalize;
     std::printf(
         "{\"fixture\":\"%s\",\"backend\":\"mpi\",\"ranks\":%d,"
-        "\"n_pairs\":%lld,\"t_load_s\":%.6f,\"t_local_s\":%.6f,"
-        "\"t_allreduce_s\":%.6f,\"t_finalize_s\":%.6f,"
+        "\"n_pairs\":%lld,\"timing_basis\":\"device_total\","
+        "\"t_load_s\":%.6f,\"t_load_max_s\":%.6f,"
+        "\"t_setup_s\":0.000000,\"t_local_s\":%.6f,"
+        "\"t_stats_s\":%.6f,"
+        "\"t_allreduce_s\":%.6f,\"t_finalize_s\":%.6f,\"t_d2h_s\":0.000000,"
+        "\"device_total_s\":%.6f,\"cold_data_path_s\":%.6f,"
         "\"comm_fraction\":%.4f,\"allreduce_bytes\":%.0f,"
         "\"validated\":%s,\"max_abs_diff\":%.3e,\"tol_failures\":%d,"
         "\"emitted\":%lld}\n",
         dir.c_str(), world, static_cast<long long>(fx.n_pairs()), t_load,
-        t_local, t_allreduce, t_finalize,
+        t_load_max, t_local, t_local, t_allreduce, t_finalize,
+        t_total, cold_data_path + t_total,
         t_total > 0 ? t_allreduce / t_total : 0.0, bytes,
         validate ? "true" : "false", max_diff, failures,
         static_cast<long long>(emitted));

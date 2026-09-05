@@ -1,0 +1,95 @@
+# GPU host record, captured 2026-09-04T20:32:50Z
+# pod: bja9lxscugyr8q (RRE-PCIe-30trial), RunPod COMMUNITY
+# interconnect: PCIe, SYS topology (cross-NUMA), P2P READ = OK
+# NOTE: this is NOT the same configuration as the archived PCIe pod,
+#       which was PHB with P2P NS (host-staged). This host supports P2P.
+# 30 trials + 3 warmups
+
+== nvidia-smi ==
+Fri Sep  4 20:32:50 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.54.15              Driver Version: 550.54.15      CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100 80GB PCIe          On  |   00000000:45:00.0 Off |                    0 |
+| N/A   33C    P0             43W /  300W |       0MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA A100 80GB PCIe          On  |   00000000:86:00.0 Off |                    0 |
+| N/A   30C    P0             42W /  300W |       0MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+== topo ==
+	[4mGPU0	GPU1	CPU Affinity	NUMA Affinity	GPU NUMA ID[0m
+GPU0	 X 	SYS	0-15,32-47	0		N/A
+GPU1	SYS	 X 	16-31,48-63	1		N/A
+
+Legend:
+
+  X    = Self
+  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)
+  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node
+  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)
+  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)
+  PIX  = Connection traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks
+
+== p2p read ==
+ 	[4mGPU0	GPU1	[0m
+ GPU0	X	OK	
+ GPU1	OK	X	
+
+Legend:
+
+  X    = Self
+  OK   = Status Ok
+  CNS  = Chipset not supported
+  GNS  = GPU not supported
+  TNS  = Topology not supported
+  NS   = Not supported
+  U    = Unknown
+
+== p2p write ==
+ 	[4mGPU0	GPU1	[0m
+ GPU0	X	OK	
+ GPU1	OK	X	
+
+Legend:
+
+  X    = Self
+  OK   = Status Ok
+  CNS  = Chipset not supported
+  GNS  = GPU not supported
+  TNS  = Topology not supported
+  NS   = Not supported
+  U    = Unknown
+
+== nvcc ==
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2025 NVIDIA Corporation
+Built on Fri_Feb_21_20:23:50_PST_2025
+Cuda compilation tools, release 12.8, V12.8.93
+Build cuda_12.8.r12.8/compiler.35583870_0
+
+== nccl ==
+lrwxrwxrwx 1 root root        17 Jan 14  2025 /usr/lib/x86_64-linux-gnu/libnccl.so.2 -> libnccl.so.2.25.1
+-rw-r--r-- 1 root root 383583952 Jan 14  2025 /usr/lib/x86_64-linux-gnu/libnccl.so.2.25.1
+
+== cpu ==
+CPU(s):                             64
+Model name:                         AMD EPYC 7343 16-Core Processor
+CPU(s) scaling MHz:                 88%
+CPU max MHz:                        3940.6250
+CPU min MHz:                        1500.0000

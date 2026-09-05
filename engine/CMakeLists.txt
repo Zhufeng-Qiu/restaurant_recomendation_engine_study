@@ -69,3 +69,12 @@ target_link_libraries(cuda_emulation_test PRIVATE engine_common)
 add_test(NAME cuda_emulation
          COMMAND cuda_emulation_test
                  ${CMAKE_CURRENT_SOURCE_DIR}/../data/fixtures/item_tiny)
+
+# Compressed-payload domain gate (contract 9.4). The shipped fixtures are all
+# inside the domain, so the gate's rejection branches only fire on the
+# synthetic fixtures in data/fixtures/domain/ (tools/make_domain_fixtures.py).
+add_executable(payload_domain_test tests/payload_domain_test.cpp)
+target_link_libraries(payload_domain_test PRIVATE engine_common)
+add_test(NAME payload_domain
+         COMMAND payload_domain_test
+                 ${CMAKE_CURRENT_SOURCE_DIR}/../data/fixtures/domain)
