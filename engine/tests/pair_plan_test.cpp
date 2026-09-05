@@ -146,10 +146,11 @@ void test_empty_and_single() {
   for (int g : kGroups) {
     for (auto how : {engine::PairOrder::kSource, engine::PairOrder::kByShortLen}) {
       const engine::PairPlan p = engine::plan_pairs(empty, 0, 4, how, g);
+      const engine::PlanMetrics m = engine::measure_plan(empty, p, 0, 4);
       expect(p.order.empty(), "zero pairs -> empty order");
-      expect_eq<int64_t>(p.on_basis.lane_slots, 0, "zero pairs -> zero slots");
-      expect_eq<int64_t>(p.on_basis.effective_elements, 0, "zero pairs -> zero elements");
-      expect(p.on_basis.utilisation() == 0.0, "zero pairs -> utilisation 0, not NaN");
+      expect_eq<int64_t>(m.lane_slots, 0, "zero pairs -> zero slots");
+      expect_eq<int64_t>(m.effective_elements, 0, "zero pairs -> zero elements");
+      expect(m.utilisation() == 0.0, "zero pairs -> utilisation 0, not NaN");
     }
   }
 
@@ -159,8 +160,9 @@ void test_empty_and_single() {
   for (int g : kGroups) {
     const engine::PairPlan p =
         engine::plan_pairs(one, 0, 64, engine::PairOrder::kByShortLen, g);
-    expect_eq<int64_t>(p.on_basis.effective_elements, 5, "single pair elements");
-    expect_eq<int64_t>(p.on_basis.lane_slots, 32 * ((5 + g - 1) / g),
+    const engine::PlanMetrics m = engine::measure_plan(one, p, 0, 64);
+    expect_eq<int64_t>(m.effective_elements, 5, "single pair elements");
+    expect_eq<int64_t>(m.lane_slots, 32 * ((5 + g - 1) / g),
                        "single pair slots at g=" + std::to_string(g));
   }
 }
@@ -200,8 +202,11 @@ void test_short_len_edges() {
   expect_eq<int64_t>(engine::pair_short_len(out, 0, 100, 200), 0,
                      "restricted slice can be empty");
   expect_eq<int64_t>(
-      engine::plan_pairs(out, 100, 200, engine::PairOrder::kByShortLen, 8)
-          .on_basis.lane_slots,
+      [&] {
+        const engine::PairPlan q =
+            engine::plan_pairs(out, 100, 200, engine::PairOrder::kByShortLen, 8);
+        return engine::measure_plan(out, q, 100, 200).lane_slots;
+      }(),
       0, "a warp with nothing to scan costs no rounds");
 }
 
@@ -242,7 +247,7 @@ void test_bijection_and_reference_model() {
           for (int64_t t = s0; t < std::min(s0 + per_warp, n); ++t)
             if (len[p.order[t]] > 0) { ++busy_warps; break; }
         }
-        expect(p.on_basis.lane_slots >= 32 * busy_warps,
+        expect(engine::measure_plan(fx, p, 0, hi).lane_slots >= 32 * busy_warps,
                "each warp with work costs at least one full round");
       }
     }
@@ -322,14 +327,15 @@ void test_per_device_metrics() {
     // Elements survive a contiguous split -- each pair's work is divided, not
     // duplicated -- so the aggregate matching the full range is expected here
     // and is NOT what makes the full-dimension figure misleading.
-    expect_eq<int64_t>(agg_eff, plan.on_basis.effective_elements,
+    const engine::PlanMetrics full = engine::measure_plan(fx, plan, 0, n_dims);
+    expect_eq<int64_t>(agg_eff, full.effective_elements,
                        "a contiguous split conserves elements");
     // Lane slots do not survive it: every device pays its own tail, so the
     // executed cost is strictly worse than the full-range plan suggests. This
     // is the reason the two must be reported under different names.
-    expect(agg_slots >= plan.on_basis.lane_slots,
+    expect(agg_slots >= full.lane_slots,
            "splitting the dimensions can only add tail waste");
-    expect(agg.utilisation() <= plan.on_basis.utilisation() + 1e-12,
+    expect(agg.utilisation() <= full.utilisation() + 1e-12,
            "executed utilisation is never better than the full-range figure");
   }
 }
@@ -403,6 +409,47 @@ void test_scatter_and_payloads() {
   }
 }
 
+// The split that the cold-path fix depends on: building the order is required
+// to run, describing it is not. A regression here would put a ~50 ms length
+// pass back inside cold_data_path_s for callers that do no packing at all.
+void test_required_vs_diagnostic() {
+  std::printf("required planning vs diagnostic metrics\n");
+  std::vector<Row> rows{dense_row(0, 4096)};
+  std::vector<std::pair<int32_t, int32_t>> prs;
+  for (int k = 0; k < 60; ++k) {
+    rows.push_back(dense_row(0, (k * 11) % 50));
+    prs.push_back({static_cast<int32_t>(rows.size() - 1), 0});
+  }
+  const engine::Fixture fx = make_fixture(rows, prs);
+  const std::vector<int32_t> len = engine::short_lens(fx, 0, 4096);
+
+  for (int g : kGroups) {
+    for (auto how : {engine::PairOrder::kSource, engine::PairOrder::kByShortLen}) {
+      const engine::PairPlan p = engine::plan_pairs(fx, 0, 4096, how, g);
+      // measure_plan must be a pure description of the plan, agreeing with a
+      // direct evaluation and repeatable.
+      const engine::PlanMetrics a = engine::measure_plan(fx, p, 0, 4096);
+      const engine::PlanMetrics b = engine::measure_plan(fx, p, 0, 4096);
+      const engine::PlanMetrics direct = engine::evaluate_order(p.order, len, g);
+      expect_eq<int64_t>(a.lane_slots, direct.lane_slots, "measure == evaluate");
+      expect_eq<int64_t>(a.effective_elements, direct.effective_elements,
+                         "measure == evaluate (elements)");
+      expect_eq<int64_t>(a.lane_slots, b.lane_slots, "measure is repeatable");
+      // ...and must not change the plan it describes.
+      const engine::PairPlan q = engine::plan_pairs(fx, 0, 4096, how, g);
+      expect(p.order == q.order, "describing a plan does not alter it");
+    }
+  }
+  // kSource is the identity regardless of group, so it needs no lengths at all.
+  for (int g : kGroups) {
+    const engine::PairPlan p =
+        engine::plan_pairs(fx, 0, 4096, engine::PairOrder::kSource, g);
+    std::vector<int32_t> identity(p.order.size());
+    std::iota(identity.begin(), identity.end(), 0);
+    expect(p.order == identity, "source order needs no length pass");
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -412,6 +459,7 @@ int main() {
   test_bijection_and_reference_model();
   test_tie_determinism();
   test_per_device_metrics();
+  test_required_vs_diagnostic();
   test_scatter_and_payloads();
   std::printf("pair planning: %d checks, %d failures\n", checks, failures);
   return failures == 0 ? 0 : 1;

@@ -44,6 +44,7 @@
 
 #include "common/fixture.hpp"
 #include "common/pair_order.hpp"
+#include "cuda/occupancy.cuh"
 #include "common/payload_domain.hpp"
 #include "common/pearson.hpp"
 #include "cuda/pair_kernel.cuh"
@@ -369,7 +370,12 @@ int run(int argc, char** argv) {
   // This is diagnostics, not execution, so it is timed separately and kept out
   // of cold_data_path_s. Building the order is required to run; measuring it
   // is not.
+  //
+  // The full-dimension figure is diagnostic too, and used to hide inside
+  // t_plan_s: plan_pairs computed it unconditionally, so even --pair-order
+  // source paid a ~50 ms length pass it never needed. Both live here now.
   const double pm0 = wall();
+  const engine::PlanMetrics on_basis = engine::measure_plan(fx, plan, 0, n_dims);
   std::vector<engine::PlanMetrics> per_dev(n_gpus), per_dev_ideal(n_gpus);
   engine::PlanMetrics agg;
   int64_t critical_slots = 0;
@@ -633,6 +639,23 @@ int run(int argc, char** argv) {
   // confused with the full-dimension plan below it: these are the slices the
   // GPUs ran, that one is the range the order was sorted on and nobody
   // executed.
+  engine_cuda::OccupancyInfo occ{};
+  switch (payload) {
+    case Payload::I32:
+      ENGINE_OCCUPANCY_FOR_GROUP(group, engine_cuda::pair_stats_kernel_i32,
+                                 engine_cuda::kBlock, occ);
+      break;
+    case Payload::Packed:
+      ENGINE_OCCUPANCY_FOR_GROUP(group, engine_cuda::pair_stats_kernel_packed,
+                                 engine_cuda::kBlock, occ);
+      break;
+    default:
+      ENGINE_OCCUPANCY_FOR_GROUP(group, engine_cuda::pair_stats_kernel,
+                                 engine_cuda::kBlock, occ);
+  }
+  char occ_json[512];
+  engine_cuda::occupancy_json(occ_json, sizeof occ_json, occ);
+
   std::string per_device = "[";
   for (int g = 0; g < n_gpus; ++g) {
     char buf[512];
@@ -675,6 +698,7 @@ int run(int argc, char** argv) {
       "\"global_full_dimension_effective_elements\":%lld,"
       "\"global_full_dimension_lane_slots\":%lld,"
       "\"global_full_dimension_lane_utilisation\":%.5f,"
+      "\"occupancy\":%s,"
       "\"t_d2h_s\":%.6f,\"validated\":%s,\"max_abs_diff\":%.3e,"
       "\"tol_failures\":%d,\"emitted\":%lld}\n",
       dir.c_str(), mode.c_str(), n_gpus, static_cast<long long>(chunk),
@@ -695,9 +719,9 @@ int run(int argc, char** argv) {
       static_cast<long long>(critical_slots),
       static_cast<long long>(agg.effective_elements),
       static_cast<long long>(agg.lane_slots), agg.utilisation(),
-      static_cast<long long>(plan.on_basis.effective_elements),
-      static_cast<long long>(plan.on_basis.lane_slots),
-      plan.on_basis.utilisation(),
+      static_cast<long long>(on_basis.effective_elements),
+      static_cast<long long>(on_basis.lane_slots), on_basis.utilisation(),
+      occ_json,
       t_d2h, validate ? "true" : "false", max_diff, failures,
       static_cast<long long>(emitted));
 

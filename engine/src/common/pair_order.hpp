@@ -125,13 +125,20 @@ inline PlanMetrics evaluate_order(const Fixture& fx,
   return evaluate_order(order, short_lens(fx, lo, hi), group);
 }
 
+// REQUIRED vs DIAGNOSTIC. `build_seconds` covers only what the kernel cannot
+// run without: the order array itself. Everything descriptive -- shorter-slice
+// lengths, lane slots, utilisation -- is measured separately by measure_plan
+// and belongs in t_plan_metrics_s, never in the cold path.
+//
+// This distinction is not pedantic. On item_full the descriptive half costs
+// ~50 ms against a ~3 ms kernel, and folding it into the cold path made a
+// caller that does no packing at all look 50 ms more expensive than it is.
 struct PairPlan {
   std::vector<int32_t> order;   // slot -> pair index
   int group = 32;               // lanes per pair
   PairOrder basis = PairOrder::kSource;
   int32_t basis_dim_lo = 0, basis_dim_hi = 0;  // slice the order was sorted on
-  PlanMetrics on_basis;         // cost on that same slice
-  double build_seconds = 0;
+  double build_seconds = 0;     // REQUIRED work only
 };
 
 // Builds the slot -> pair permutation over dims [lo, hi).
@@ -153,18 +160,27 @@ inline PairPlan plan_pairs(const Fixture& fx, int32_t lo, int32_t hi,
   p.order.resize(static_cast<size_t>(n));
   std::iota(p.order.begin(), p.order.end(), 0);
 
-  const std::vector<int32_t> len = short_lens(fx, lo, hi);
+  // kSource still materialises the identity vector, because the kernel indexes
+  // through `order` unconditionally -- so it is required work, not diagnostic,
+  // even though it is cheap. What kSource does NOT need is the length pass.
   if (how == PairOrder::kByShortLen) {
+    const std::vector<int32_t> len = short_lens(fx, lo, hi);
     // Ascending, ties by pair index, so the plan is a deterministic function
     // of (fixture, dim range, group) and two runs are comparable.
     std::stable_sort(p.order.begin(), p.order.end(),
                      [&](int32_t a, int32_t b) { return len[a] < len[b]; });
   }
-  p.on_basis = evaluate_order(p.order, len, group);
   p.build_seconds =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - t0)
           .count();
   return p;
+}
+
+// Diagnostic only: describes a plan, never needed to execute one. Callers time
+// this separately and keep it out of cold_data_path_s.
+inline PlanMetrics measure_plan(const Fixture& fx, const PairPlan& p,
+                                int32_t lo, int32_t hi) {
+  return evaluate_order(p.order, short_lens(fx, lo, hi), p.group);
 }
 
 // COUNTERFACTUAL ONLY. What this slice would cost if it could sort its own

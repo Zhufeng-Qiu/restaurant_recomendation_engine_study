@@ -14,6 +14,7 @@
 #include "common/fixture.hpp"
 #include "common/pair_order.hpp"
 #include "cuda/cuda_backend.hpp"
+#include "cuda/occupancy.cuh"
 #include "cuda/pair_kernel.cuh"
 
 #define CUDA_CHECK(x)                                                    \
@@ -50,6 +51,11 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
   // cold_data_path_s, which a caller running the binary once pays in full.
   const CudaMapOptions map = cuda_map_options();
   const PairPlan plan = plan_pairs(fx, 0, n_dims, map.order, map.group);
+  // Diagnostics, timed apart and excluded from every total.
+  const auto pm0 = std::chrono::steady_clock::now();
+  const PlanMetrics plan_metrics = measure_plan(fx, plan, 0, n_dims);
+  const double t_plan_metrics =
+      std::chrono::duration<double>(std::chrono::steady_clock::now() - pm0).count();
 
   int64_t *d_offsets;
   int32_t *d_dims, *d_pairs, *d_order;
@@ -114,8 +120,14 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
   // one GPU). t_load lives on main's line, so main assembles cold_data_path_s
   // from these stage timings -- see CudaTimings.
   const double t_stats = ms_stats / 1e3, t_final = ms_final / 1e3;
+  OccupancyInfo occ{};
+  ENGINE_OCCUPANCY_FOR_GROUP(map.group, pair_stats_kernel, kBlock, occ);
+  char occ_json[512];
+  occupancy_json(occ_json, sizeof occ_json, occ);
+
   CudaTimings& tm = cuda_last_timings();
   tm.plan = plan.build_seconds;
+  tm.plan_metrics = t_plan_metrics;
   tm.h2d = t_h2d;
   tm.stats = t_stats;
   tm.finalize = t_final;
@@ -127,16 +139,17 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
       "\"t_stats_s\":%.6f,\"t_allreduce_s\":0.000000,\"t_finalize_s\":%.6f,"
       "\"t_kernel_stats_s\":%.6f,\"t_kernel_finalize_s\":%.6f,"
       "\"device_total_s\":%.6f,\"t_d2h_s\":%.6f,"
-      "\"group\":%d,\"pair_order\":\"%s\",\"t_plan_s\":%.6f,"
+      "\"group\":%d,\"pair_order\":\"%s\","
+      "\"t_plan_s\":%.6f,\"t_plan_metrics_s\":%.6f,"
       "\"plan_order_basis\":\"global_full_dims\","
       "\"plan_effective_elements\":%lld,\"plan_lane_slots\":%lld,"
-      "\"plan_lane_utilisation\":%.5f}}\n",
+      "\"plan_lane_utilisation\":%.5f,\"occupancy\":%s}}\n",
       prop.name, t_h2d, t_h2d, t_stats, t_final, t_stats, t_final,
       device_total, t_d2h, map.group, pair_order_name(map.order),
-      plan.build_seconds,
-      static_cast<long long>(plan.on_basis.effective_elements),
-      static_cast<long long>(plan.on_basis.lane_slots),
-      plan.on_basis.utilisation());
+      plan.build_seconds, t_plan_metrics,
+      static_cast<long long>(plan_metrics.effective_elements),
+      static_cast<long long>(plan_metrics.lane_slots),
+      plan_metrics.utilisation(), occ_json);
 
   cudaFree(d_offsets); cudaFree(d_dims); cudaFree(d_vals);
   cudaFree(d_pairs); cudaFree(d_order); cudaFree(d_stats); cudaFree(d_sims);

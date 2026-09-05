@@ -35,6 +35,12 @@ CudaMapOptions& cuda_map_options();
 // happen before any code here could time them.
 struct CudaTimings {
   double plan = 0, h2d = 0, stats = 0, finalize = 0, d2h = 0;
+  // Describing the plan (lengths, lane slots, utilisation) is reporting, not
+  // execution. It is timed so it can be shown, and excluded from both totals
+  // so it cannot inflate either. On item_full it is ~50 ms against a ~3 ms
+  // kernel, so counting it would have dominated the cold path it was added to
+  // make honest.
+  double plan_metrics = 0;
 
   double device_total() const { return stats + finalize; }
   double cold_data_path(double t_load) const {
