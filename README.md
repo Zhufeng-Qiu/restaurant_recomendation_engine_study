@@ -408,19 +408,32 @@ shorter-slice length so the groups sharing a warp need the same round count
 | CUDA 1 GPU, `item_full` | **−34.68%** | [−34.98, −34.37] |
 | NCCL 2 GPU sync `packed` | **−47.62%** | [−47.99, −47.24] |
 
-30 balanced crossover blocks each, seeds recorded. 172 correctness checks pass
-bit-exact first — every payload, 1/2/3 ranks, every group size and ordering —
-with output byte-identical to the baseline's and no memory errors under
-`compute-sanitizer`.
+30 balanced crossover blocks each, seeds recorded, **steady state only**. 172
+correctness checks pass bit-exact first — every payload, 1/2/3 ranks, every
+group size and ordering — with output byte-identical to the baseline's and no
+memory errors under `compute-sanitizer`.
+
+**On the cold path packing loses**, because building the sorted plan costs
+roughly thirty times the kernel it accelerates. No break-even figure is quoted
+yet: the plan timer itself was wrong when those runs happened (it charged a
+descriptive pass that execution never needs, to both backends), and the
+cold-path fields were single samples rather than distributions. Both are fixed;
+the numbers are being re-measured.
 
 **The lane-slot model was quantitatively wrong.** It predicted 19.2% at two
 GPUs from recovering the partly-filled last warp round. Critical lane slots did
-fall 18.3%, but stats time fell 51.2%. Most of the gain is a cost the model
-never counted: `pair_lane_stats` runs four `lower_bound` searches *per thread*
-to locate each row's slice, and every lane of a group repeats them, so that
-cost scales with `G`. The `lane_full` fixture settles it — its lane slots vary
-by 0.02% across group sizes and its time still drops 13.5%. `G=1`, which the
-model says is optimal at 99.96% lane utilisation, is the *worst* arm measured.
+fall 18.3%, but stats time fell 51.2%. The `lane_full` fixture settles that
+much: its lane slots vary by 0.02% across group sizes and its time still drops
+13.5%, so the gain is not tail recovery. What replaces the model is a
+*hypothesis* — a cost proportional to the thread count, of which the largest
+identifiable candidate is the four `lower_bound` searches `pair_lane_stats`
+repeats in every lane of a group. Hoisting them is the A/B that would settle
+it, and it is not yet run. `G=1`, which the model calls optimal at 99.96% lane
+utilisation, is the *worst* arm measured — consistent with losing coalescing,
+also not demonstrated.
+
+This is therefore **warp packing v1**: `G=4` is optimal for a kernel that still
+repeats that search per lane, and would likely move if it were hoisted.
 
 **The default is unchanged.** `--group 4 --pair-order bylen` is the
 recommendation, but switching it obliges re-running the headline matrix and the

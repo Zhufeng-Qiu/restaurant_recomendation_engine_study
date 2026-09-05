@@ -8,8 +8,14 @@ did not predict, which is the more useful half of this document.
 sorted by shorter-slice length, cuts single-GPU `device_total` by
 **−34.68% [−34.98, −34.37]** against the pre-packing binary and two-GPU NCCL
 `packed` by **−47.62% [−47.99, −47.24]**. The lane-tail waste the audit
-predicted recovering accounts for well under half of that; most of it is a
-per-thread cost nobody had counted.
+predicted recovering accounts for well under half of that; the rest tracks the
+*thread count*, a cost neither model counted.
+
+Two limits on that sentence, both load-bearing. It is **steady state only** —
+on the cold path packing loses, because building the sorted plan costs about
+thirty times the kernel it accelerates (§7). And this is **warp packing v1**:
+`G=4` is optimal for a kernel that still repeats its slice-bound search in
+every lane, and would very likely move if that search were hoisted (§6).
 
 Everything below is from one session on an EPYC 7742 with 2x A100-SXM4-80GB
 (NV12): nvcc 12.8.93, NCCL 2.25.1, driver 580.126.16, `sm_80`,
@@ -78,15 +84,22 @@ than hidden.
 previous pod in this project. No NCU number appears anywhere below, and none of
 the timings come from a profiled run.
 
-## 3. Register pressure: not the story
+## 3. Register pressure and occupancy
 
 Every `pair_stats_kernel<G>` instantiation, all three payload variants and all
 six group sizes — twelve kernels — compiles to **37 registers, 0 bytes stack
 frame, 0 spill stores, 0 spill loads** (`-Xptxas=-v`, `sm_80`, separate build;
-`results/bench/warp_packing_build_20260905_210121.txt`). The six double
-accumulators per thread were the obvious thing to worry about at small `G` and
-they cost nothing: the count does not vary with `G` at all. Whatever separates
-the group sizes, it is not spill.
+`results/bench/warp_packing_build_20260905_210121.txt`).
+
+What that supports, exactly: **register allocation and spilling do not explain
+the differences between group sizes.** The count is identical across all of
+them and nothing spills. It does *not* support "the accumulators cost nothing"
+— 37 registers per thread can still cap occupancy below 100%, and **absolute
+occupancy was not measured**: `ncu` is unavailable here. The binaries now emit
+a theoretical figure from `cudaFuncGetAttributes` and
+`cudaOccupancyMaxActiveBlocksPerMultiprocessor` (active blocks and warps per
+SM, the limiting resource), which is an upper bound on the achieved value, not
+a measurement of it. That field postdates the runs below.
 
 ## 4. Screening
 
@@ -113,9 +126,10 @@ tree's unpacked mapping.
 Three things fall out immediately, and two of them contradict the model.
 
 **`G=1` is the worst arm, not the best.** The lane-slot model says `G=1` reaches
-99.96% utilisation and should win by 14.39%. It loses by 40.6%. Each lane
-handling a whole pair alone destroys the coalesced reads that 32 lanes striding
-one row were getting.
+99.96% utilisation and should win by 14.39%. It loses by 40.6%. The likely
+reason is that a lane handling a whole pair alone no longer shares a row with
+its neighbours, so the coalesced reads that 32 lanes striding one row were
+getting are lost — likely, not shown; see §6.
 
 **Sorting alone buys almost nothing.** `cuda:32:bylen` vs `cuda:32:source` is
 −0.8%. At `G=32` there is one pair per warp, so ordering cannot affect lockstep;
@@ -171,11 +185,12 @@ above the 1% threshold set before the run. Section 8 says what follows from it.
 
 **The collective is untouched, as it should be.** Across every arm of the
 two-GPU screen, AllReduce sits at 0.229–0.251 ms with no trend in `G`; packing
-changes lane assignment, not payload bytes. Finalize rises 0.049 → 0.073 ms —
-that is the scatter, visible and small. The entire two-GPU gain is in stats:
-3.784 → 1.847 ms.
+changes lane assignment, not payload bytes. **Finalize regresses**, 0.049 →
+0.073 ms — the scatter — and that is a real stage regression, not a rounding
+artefact; it is simply small against the stats collapse of 3.784 → 1.847 ms,
+which is where the entire two-GPU gain lives.
 
-## 6. Why it works, which is not why it was supposed to work
+## 6. The model that predicted it does not explain it
 
 The audit's model says time tracks **lane slots**: `32 * ceil(L/G)` per pair,
 with the partly-filled last round as the waste. On that model the two-GPU prize
@@ -199,7 +214,7 @@ move across group sizes:
 The slot count varies by 0.02% — there is no tail to recover — and stats time
 still drops 13.5%. Whatever is being saved, it is not lane-tail waste.
 
-**What is being saved.** `pair_lane_stats` opens with **four `lower_bound`
+**Leading mechanism hypothesis.** `pair_lane_stats` opens with **four `lower_bound`
 searches per thread**, to locate each row's slice within `[dim_lo, dim_hi)`.
 Every lane of a group repeats them for the same pair. That cost is proportional
 to the number of *threads*, i.e. to `n_pairs * G` — and it is invisible to a
@@ -221,10 +236,21 @@ Fitted over the sorted arms with `G >= 2`:
 constant — and where H1 still recovers a third of the variance from the `G`
 term alone.
 
-This also explains the two screening surprises. Unsorted packing helps because
-the setup saving does not depend on the sort. And `G=1` is a separate regime
-entirely: it sits 28–56% *above* H1's prediction on every fixture, which is the
-coalescing loss the slot model cannot see either.
+**What the fit does and does not establish.** It establishes that a cost
+proportional to the *thread count* exists and is large. It does **not**
+establish that the four `lower_bound` searches are that cost: any other
+per-thread setup — the launch itself, the slot and lane arithmetic, the
+zeroing of six accumulators, the `order[slot]` load — lands in the same `a*G`
+term. The searches are the largest identifiable candidate, not a demonstrated
+cause. The A/B that would settle it is hoisting them (below); until that runs,
+this is a hypothesis with supporting evidence, not a finding.
+
+This is also consistent with the two screening surprises. Unsorted packing
+helps because a per-thread saving does not depend on the sort. And `G=1` is a
+separate regime: it sits 28–56% *above* H1's prediction on every fixture, which
+is **consistent with a loss of coalescing** when each lane walks its own row —
+consistent with, not demonstrated; that too would need a memory-transaction
+count, and `ncu` is unavailable.
 
 So the mechanism ledger is: a large term proportional to `G` (redundant slice
 searches), a smaller genuine lane-tail term (visible as `lane_tail` gaining
@@ -239,7 +265,50 @@ broadcast them with a shuffle. That is a contained change to
 found it. It is not implemented here: it is a different optimisation, and
 folding it in would have meant re-running the whole ladder and every A/B above.
 
-## 7. What the per-device reporting changed
+## 7. Cold path — provisional, and currently mismeasured
+
+Packing is a **steady-state** optimisation, and this document originally
+reported only steady state. The cold path points the other way, and the
+numbers below are provisional for two independent reasons.
+
+Under the timing in force during these runs, on `item_full`:
+
+| arm | `device_total` | `t_plan` | `cold_data_path` |
+| --- | --- | --- | --- |
+| `cuda:32:source` | 4.891 ms | 50.28 ms | 77.72 ms |
+| `cuda:4:bylen` | 3.099 ms | 102.89 ms | 128.44 ms |
+
+Building the plan costs roughly thirty times the kernel it accelerates, so a
+caller that runs the binary once is worse off, not better.
+
+**Why these are not publishable numbers yet.**
+
+1. **The `t_plan_s` they were measured under was wrong.** `plan_pairs`
+   unconditionally computed shorter-slice lengths and lane-slot metrics, even
+   for `--pair-order source`, which needs neither. That descriptive pass is
+   most of the 50.28 ms on the baseline arm, and it sat inside
+   `cold_data_path_s` in **both** backends — NCCL's separately-timed
+   `t_plan_metrics_s` covered only the per-device diagnostics added later, not
+   the full-dimension metrics. Required planning and diagnostics are now split
+   in the common planner, so the baseline's cold path should fall sharply and
+   the candidate's relative disadvantage should get **worse**, not better.
+2. **They are single samples.** The harness kept only the first record per
+   arm, so every `t_plan` and `cold_data_path` figure above is one observation
+   with no median, IQR or interval, while the `device_total` columns elsewhere
+   are medians of ten. The harness now stores all cold-path fields per trial
+   and the paired runner reports a per-stage effect with a CI.
+
+**No break-even figure is stated here.** The arithmetic on the numbers above
+gives about 28 queries, and that is the correct arithmetic on the wrong
+baseline: it compares against the instrumented arm, which itself carries both
+the 3.28% plumbing regression and ~50 ms of diagnostics. The product
+comparison is against the pre-packing binary, whose cold path this schema never
+recorded. A rough re-estimate lands nearer 56 queries against a corrected
+instrumented baseline and higher still against legacy, but every input to that
+is being re-measured, so the honest statement is: **packing loses on the cold
+path, by a margin yet to be measured.**
+
+## 8. What the per-device reporting changed
 
 The full-dimension plan's utilisation is not what a GPU executes, and on
 `item_tiny` at 2 GPUs the gap is plain: `global_full_dimension_lane_utilisation`
@@ -250,7 +319,7 @@ confused, along with each device's `counterfactual_per_device_sorted_*` —
 what that slice would cost if it could sort its own pairs, which it cannot
 while the collective is elementwise.
 
-## 8. Decision
+## 9. Decision
 
 Against the gates fixed before the numbers were seen:
 
@@ -267,7 +336,12 @@ Against the gates fixed before the numbers were seen:
   a fixture with no tail to recover and short rows, the 3.28% plumbing cost
   eats nearly all of the gain. That is consistent with §6 rather than
   unexplained, but it is the case where packing nearly fails to pay.
-* **Two-GPU gate — passed.** −47.62%, no regression in any stage.
+* **Two-GPU gate — passed on `device_total` (−47.62%), with one stage
+  regressing.** AllReduce stayed stable (0.229–0.251 ms, no trend in `G`), but
+  finalize rose 0.049 → 0.073 ms, about +49%, because it now scatters through
+  `order`. The stats collapse from 3.784 to 1.847 ms covers it many times over,
+  which is why `device_total` improves — but "no regression in any stage" would
+  have been false, and this document said it.
 * **Default-path gate — NOT passed as written.** The instrumented default is
   3.28% slower than legacy, above the 1% threshold.
 
@@ -285,9 +359,13 @@ the spending cap before that could be done. Flipping the default while the
 README still quotes numbers from the old mapping would reintroduce exactly the
 inconsistency the September audit spent its time removing.
 
-## 9. Still open
+## 10. Still open
 
-* **The headline re-run.** Required before the default changes. Same-machine
+* **Cold-path re-measurement.** Required, and blocking any break-even claim:
+  the planner split changes `t_plan_s` for every arm.
+* **The headline re-run.** Required before a new default is merged or
+  published — the experiment branch sets the proposed default first, then a
+  clean SHA is frozen and the headline re-run with the real default command. Same-machine
   matrix plus the compression paired experiment, on a frozen SHA.
 * **Hoisting the slice-bound search** (§6). Larger prize than the packing that
   revealed it.
