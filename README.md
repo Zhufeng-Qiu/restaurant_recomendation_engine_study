@@ -907,6 +907,73 @@ This host: 128 logical CPUs, **27.2 CPU-equivalents of quota** — the number
 that makes the earlier rank sweep interpretable, and which no previous run
 stored.
 
+### Steps 3 and 7: the lane model, and three-session replication
+
+**Lane utilisation drives the kernel, and the earlier explanation of it did
+not.** Two fixtures were built to differ in the warp tail and nothing else:
+rows paired to need the same number of warp rounds (64/33, 96/65, 128/97),
+matched on pair count, binary-search depth, hit-rate decile and emission order,
+sharing the source CSR (`tools/make_lane_bands.py`).
+
+| band | pairs | lane-slots | effective elements | utilisation |
+| --- | --- | --- | --- | --- |
+| `lane_full` | 55,002 | 4,987,168 | 4,940,039 | **99.05%** |
+| `lane_tail` | 55,002 | 4,987,168 | 3,334,396 | **66.86%** |
+
+Identical lane-slots, 32% less real work in the tail band. A balanced
+crossover (15 blocks each direction, 30 total, unprofiled):
+
+| | predicted | measured |
+| --- | --- | --- |
+| if time tracks **lane-slots** | 0% | |
+| if time tracks **useful elements** | −32.5% | |
+| **observed, tail vs full** | | **−2.08%**, 95% CI [−3.25%, −0.90%] |
+
+Doing a third less useful work at the same lane-slot count buys 2%. **Kernel
+time tracks lane-slots**, so the tail is real cost and warp packing targets a
+real mechanism — with a ceiling of **14.42%** of scan time at one GPU (85.58%
+utilisation on `item_full`) and 25.32% at two (74.68%; splitting the dimension
+shortens every slice and raises total lane-slots from 126M to 144M). Packing is
+**not implemented**: that ceiling is the prize, and the kernel rewrite is
+scoped as separate work rather than folded in here.
+
+Nsight Compute could not corroborate it. `ERR_NVGPUCTRPERM` — performance
+counters are disabled at the driver level on these pods and `cap_sys_admin`
+inside the container is not enough. The crossover is the stronger evidence
+anyway: it is a behavioural test of the model rather than a proxy metric.
+
+**The compression effect replicates across independent sessions.** Three
+separate pods, three pre-recorded seeds, balanced crossover with the estimator
+`log(T_packed / T_f64)` per block:
+
+| session | seed | `f64` | `packed` | compression | 95% CI |
+| --- | --- | --- | --- | --- | --- |
+| s1 | 101 | 4.2120 ms | 4.0125 ms | **−4.81%** | [−5.03%, −4.59%] |
+| s2 | 202 | 4.1760 ms | 3.9670 ms | **−4.99%** | [−5.15%, −4.83%] |
+| s3 | 303 | 4.1810 ms | 3.9700 ms | **−5.08%** | [−5.23%, −4.93%] |
+
+Three replication units, not 90 samples. They span **0.27 percentage points**,
+and the randomised headline matrix's −5.11% sits in the same range. The
+compression number is reproducible.
+
+The async noise reproduces too: 16.3%, 16.4%, 15.6% IQR on `async packed`
+across the three sessions. Persisting under randomised interleaving *and*
+across independent pods is enough to call it a property of the pipeline rather
+than of any one session.
+
+**The nccl-tests baseline, redone properly** — exact byte counts, matching
+dtypes, in-place column (the engine's collective is `ncclAllReduce(slot, slot,
+...)`), raw command and stdout in `results/nccl_tests/`:
+
+| payload | bytes | dtype | engine | nccl-tests (in-place) | ratio |
+| --- | --- | --- | --- | --- | --- |
+| `packed` | 18,749,712 | `uint64` | 250.0 µs | 157.13 µs | **1.59x** |
+| `i32` | 28,124,568 | `int32` | 305.0 µs | 218.10 µs | **1.40x** |
+| `f64` | 56,249,136 | `double` | 459.5 µs | 378.28 µs | **1.21x** |
+
+Worse than the 1.45/1.31/1.17 first published, which had swept 16/32/64 MiB
+and read the out-of-place column. The gap still widens as the payload shrinks.
+
 ### Still open
 
 Cleaned 2026-09-05: three entries here had been overtaken by measurements
