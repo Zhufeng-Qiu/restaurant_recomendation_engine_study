@@ -93,7 +93,7 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
   const int64_t threads = n_pairs * map.group;
   const int64_t blocks = (threads + kBlock - 1) / kBlock;
   CUDA_CHECK(cudaEventRecord(ev0));
-  ENGINE_DISPATCH_GROUP(map.group, pair_stats_kernel,
+  ENGINE_DISPATCH_GROUP(map.group, map.hoist, pair_stats_kernel,
                         static_cast<unsigned>(blocks), kBlock, 0, d_offsets,
                         d_dims, d_vals, d_pairs, d_order, n_pairs, 0, n_dims,
                         d_stats);
@@ -121,7 +121,7 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
   // from these stage timings -- see CudaTimings.
   const double t_stats = ms_stats / 1e3, t_final = ms_final / 1e3;
   OccupancyInfo occ{};
-  ENGINE_OCCUPANCY_FOR_GROUP(map.group, pair_stats_kernel, kBlock, occ);
+  ENGINE_OCCUPANCY_FOR_GROUP(map.group, map.hoist, pair_stats_kernel, kBlock, occ);
   char occ_json[512];
   occupancy_json(occ_json, sizeof occ_json, occ);
 
@@ -139,14 +139,14 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
       "\"t_stats_s\":%.6f,\"t_allreduce_s\":0.000000,\"t_finalize_s\":%.6f,"
       "\"t_kernel_stats_s\":%.6f,\"t_kernel_finalize_s\":%.6f,"
       "\"device_total_s\":%.6f,\"t_d2h_s\":%.6f,"
-      "\"group\":%d,\"pair_order\":\"%s\","
+      "\"group\":%d,\"pair_order\":\"%s\",\"hoist\":%s,"
       "\"t_plan_s\":%.6f,\"t_plan_metrics_s\":%.6f,"
       "\"plan_order_basis\":\"global_full_dims\","
       "\"plan_effective_elements\":%lld,\"plan_lane_slots\":%lld,"
       "\"plan_lane_utilisation\":%.5f,\"occupancy\":%s}}\n",
       prop.name, t_h2d, t_h2d, t_stats, t_final, t_stats, t_final,
       device_total, t_d2h, map.group, pair_order_name(map.order),
-      plan.build_seconds, t_plan_metrics,
+      map.hoist ? "true" : "false", plan.build_seconds, t_plan_metrics,
       static_cast<long long>(plan_metrics.effective_elements),
       static_cast<long long>(plan_metrics.lane_slots),
       plan_metrics.utilisation(), occ_json);

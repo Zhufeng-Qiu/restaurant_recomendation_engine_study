@@ -78,16 +78,20 @@ inline int occupancy_json(char* buf, size_t n, const OccupancyInfo& o) {
       o.limiter);
 }
 
-#define ENGINE_OCCUPANCY_FOR_GROUP(group, KERNEL, BLOCK, OUT)          \
+#define ENGINE_OCC_G(group, H, KERNEL, BLOCK, OUT)                     \
+  switch (group) {                                                     \
+    case 1:  OUT = occupancy_of(KERNEL<1, H>, BLOCK); break;           \
+    case 2:  OUT = occupancy_of(KERNEL<2, H>, BLOCK); break;           \
+    case 4:  OUT = occupancy_of(KERNEL<4, H>, BLOCK); break;           \
+    case 8:  OUT = occupancy_of(KERNEL<8, H>, BLOCK); break;           \
+    case 16: OUT = occupancy_of(KERNEL<16, H>, BLOCK); break;          \
+    default: OUT = occupancy_of(KERNEL<32, H>, BLOCK); break;          \
+  }
+
+#define ENGINE_OCCUPANCY_FOR_GROUP(group, hoist, KERNEL, BLOCK, OUT)   \
   do {                                                                 \
-    switch (group) {                                                   \
-      case 1:  OUT = occupancy_of(KERNEL<1>, BLOCK); break;            \
-      case 2:  OUT = occupancy_of(KERNEL<2>, BLOCK); break;            \
-      case 4:  OUT = occupancy_of(KERNEL<4>, BLOCK); break;            \
-      case 8:  OUT = occupancy_of(KERNEL<8>, BLOCK); break;            \
-      case 16: OUT = occupancy_of(KERNEL<16>, BLOCK); break;           \
-      default: OUT = occupancy_of(KERNEL<32>, BLOCK); break;           \
-    }                                                                  \
+    if (hoist) { ENGINE_OCC_G(group, true, KERNEL, BLOCK, OUT) }       \
+    else       { ENGINE_OCC_G(group, false, KERNEL, BLOCK, OUT) }      \
   } while (0)
 
 }  // namespace engine_cuda

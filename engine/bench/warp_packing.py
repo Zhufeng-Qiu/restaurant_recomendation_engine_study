@@ -35,8 +35,13 @@ Usage:
 
 SPEC is one of
   legacy                      the pre-packing binary (see --legacy-bin)
-  cuda:<group>:<order>        single GPU
-  nccl<gpus>:<group>:<order>:<payload>[:<mode>]
+  cuda:<group>:<order>[:hoist]        single GPU
+  nccl<gpus>:<group>:<order>:<payload>[:<mode>][:hoist]
+
+Appending `hoist` to any arm computes each pair's slice bounds once per lane
+group and broadcasts them, instead of repeating the four searches in every
+lane. It is orthogonal to the group size on purpose: the leading hypothesis for
+why small groups win is a per-thread cost, and this is the arm that tests it.
 """
 
 import argparse
@@ -58,6 +63,10 @@ LEGACY = os.path.join(ROOT, "engine", "build-legacy", "pearson_engine")
 def parse_arm(spec, legacy_bin):
     """SPEC -> (label, argv-builder). Rejects anything it cannot run exactly."""
     parts = spec.split(":")
+    hoist = "off"
+    if parts[-1] in ("hoist", "nohoist"):
+        hoist = "on" if parts[-1] == "hoist" else "off"
+        parts = parts[:-1]
     kind = parts[0]
     if kind == "legacy":
         return spec, lambda fx: [legacy_bin, fx, "--backend", "cuda", "--validate"]
@@ -66,7 +75,8 @@ def parse_arm(spec, legacy_bin):
             raise SystemExit(f"cuda spec needs group and order: {spec}")
         g, order = parts[1], parts[2]
         return spec, lambda fx: [ENGINE, fx, "--backend", "cuda", "--validate",
-                                 "--group", g, "--pair-order", order]
+                                 "--group", g, "--pair-order", order,
+                                 "--hoist", hoist]
     if kind.startswith("nccl"):
         gpus = kind[4:] or "2"
         if len(parts) not in (4, 5):
@@ -75,7 +85,8 @@ def parse_arm(spec, legacy_bin):
         mode = parts[4] if len(parts) == 5 else "sync"
         return spec, lambda fx: [ENGINE_NCCL, fx, "--gpus", gpus, "--mode", mode,
                                  "--payload", payload, "--validate",
-                                 "--group", g, "--pair-order", order]
+                                 "--group", g, "--pair-order", order,
+                                 "--hoist", hoist]
     raise SystemExit(f"unknown arm: {spec}")
 
 

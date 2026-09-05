@@ -13,8 +13,12 @@ namespace engine {
 struct CudaMapOptions {
   int group = 32;                        // lanes per pair; power of two <= 32
   PairOrder order = PairOrder::kSource;  // kByShortLen enables packing
+  // Compute each pair's slice bounds once per group and broadcast, instead of
+  // repeating the four searches in every lane. Orthogonal to packing on
+  // purpose, so the two effects can be attributed separately.
+  bool hoist = false;
   bool is_default() const {
-    return group == 32 && order == PairOrder::kSource;
+    return group == 32 && order == PairOrder::kSource && !hoist;
   }
 };
 

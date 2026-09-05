@@ -21,6 +21,7 @@ mkdir -p results/bench
 # GID -- 0 as root -- which the binaries then correctly rejected as an
 # invalid group size.
 LANE_GROUPS="1 2 4 8 16 32"
+HOISTS="off on"
 
 say() { printf '\n=== %s ===\n' "$*"; }
 
@@ -70,11 +71,13 @@ for fx in item_tiny item_full_lane_full item_full_lane_tail item_full user_full;
   [ -d "data/fixtures/$fx" ] || { echo "SKIP $fx (absent)" | tee -a "$LADDER"; continue; }
   for g in $LANE_GROUPS; do
     for o in source bylen; do
-      line=$(./engine/build/pearson_engine "data/fixtures/$fx" --backend cuda \
-             --validate --group "$g" --pair-order "$o" | tail -1)
-      tf=$(python3 -c "import json,sys;d=json.loads(sys.argv[1]);print(d['tol_failures'],d['max_abs_diff'])" "$line")
-      echo "cuda  $fx g=$g order=$o -> $tf" | tee -a "$LADDER"
-      case "$tf" in 0\ *) ;; *) fail=1 ;; esac
+      for h in $HOISTS; do
+        line=$(./engine/build/pearson_engine "data/fixtures/$fx" --backend cuda \
+               --validate --group "$g" --pair-order "$o" --hoist "$h" | tail -1)
+        tf=$(python3 -c "import json,sys;d=json.loads(sys.argv[1]);print(d['tol_failures'],d['max_abs_diff'])" "$line")
+        echo "cuda  $fx g=$g order=$o hoist=$h -> $tf" | tee -a "$LADDER"
+        case "$tf" in 0\ *) ;; *) fail=1 ;; esac
+      done
     done
   done
 done
@@ -85,11 +88,13 @@ say "output permutation check" | tee -a "$LADDER"
     --group 32 --pair-order source --out /tmp/ref.bin >/dev/null
 for g in $LANE_GROUPS; do
   for o in source bylen; do
-    ./engine/build/pearson_engine data/fixtures/item_full --backend cuda \
-        --group "$g" --pair-order "$o" --out /tmp/try.bin >/dev/null
-    r=$(cmp -s /tmp/ref.bin /tmp/try.bin && echo identical || echo DIFFERENT)
-    echo "  g=$g order=$o vs g32/source: $r" | tee -a "$LADDER"
-    [ "$r" = identical ] || fail=1
+    for h in $HOISTS; do
+      ./engine/build/pearson_engine data/fixtures/item_full --backend cuda \
+          --group "$g" --pair-order "$o" --hoist "$h" --out /tmp/try.bin >/dev/null
+      r=$(cmp -s /tmp/ref.bin /tmp/try.bin && echo identical || echo DIFFERENT)
+      echo "  g=$g order=$o hoist=$h vs g32/source: $r" | tee -a "$LADDER"
+      [ "$r" = identical ] || fail=1
+    done
   done
 done
 
@@ -140,6 +145,7 @@ done
 
 say "CLI rejection checks" | tee -a "$LADDER"
 for bad in "--group 3" "--group 0" "--group 33" "--pair-order sideways" \
+           "--hoist maybe" "--hoist" \
            "--mode fast" "--gpus 0" "--gpus 99" "--chunk 0" "--bogus" "--group"; do
   if ./engine/build/pearson_engine_nccl data/fixtures/item_tiny $bad >>"$LADDER" 2>&1; then
     echo "  NOT REJECTED: $bad" | tee -a "$LADDER"; fail=1
@@ -160,8 +166,8 @@ if command -v compute-sanitizer >/dev/null; then
     for o in source bylen; do
       out=$(compute-sanitizer --tool memcheck --error-exitcode 9 \
             ./engine/build/pearson_engine data/fixtures/item_tiny --backend cuda \
-            --validate --group "$g" --pair-order "$o" 2>&1 | tail -3) && r=clean || { r=ERRORS; fail=1; }
-      echo "memcheck cuda g=$g order=$o: $r" | tee -a "$LADDER"
+            --validate --group "$g" --pair-order "$o" --hoist on 2>&1 | tail -3) && r=clean || { r=ERRORS; fail=1; }
+      echo "memcheck cuda g=$g order=$o hoist=on: $r" | tee -a "$LADDER"
       [ "$r" = clean ] || echo "$out" | tee -a "$LADDER"
     done
   done

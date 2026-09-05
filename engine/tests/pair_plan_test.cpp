@@ -450,6 +450,52 @@ void test_required_vs_diagnostic() {
   }
 }
 
+// Hoisting must be a pure relocation of work. The device version computes the
+// slice bounds in one lane and broadcasts them; __shfl cannot run here, but the
+// semantics can: compute once, hand the same bounds to every lane. If that ever
+// diverges from each lane computing its own, the hoisted kernel is not the same
+// kernel and its A/B against the unhoisted one measures two things at once.
+void test_hoist_is_behaviour_preserving() {
+  std::printf("hoisted bounds == per-lane bounds\n");
+  std::vector<Row> rows;
+  std::vector<std::pair<int32_t, int32_t>> prs;
+  for (int k = 0; k < 48; ++k) rows.push_back(dense_row(k % 4, 5 + (k * 13) % 70));
+  for (int k = 0; k + 1 < 48; ++k) prs.push_back({k, k + 1});
+  const engine::Fixture fx = make_fixture(rows, prs);
+  int32_t n_dims = 0;
+  for (int32_t d : fx.dims) n_dims = std::max(n_dims, d + 1);
+
+  for (int g : kGroups) {
+    for (int ranges : {1, 2, 3}) {
+      for (int r = 0; r < ranges; ++r) {
+        const int32_t lo = static_cast<int32_t>(int64_t(n_dims) * r / ranges);
+        const int32_t hi = static_cast<int32_t>(int64_t(n_dims) * (r + 1) / ranges);
+        for (int64_t k = 0; k < fx.n_pairs(); ++k) {
+          const int32_t ei = fx.pairs[2 * k], ej = fx.pairs[2 * k + 1];
+          double per_lane[6] = {}, hoisted[6] = {};
+          const engine_cuda::PairSlices shared =
+              engine_cuda::pair_slice_bounds(fx.offsets.data(), fx.dims.data(),
+                                             ei, ej, lo, hi);
+          for (int lane = 0; lane < g; ++lane) {
+            double a[6] = {}, b[6] = {};
+            engine_cuda::pair_lane_stats(fx.offsets.data(), fx.dims.data(),
+                                         fx.vals.data(), ei, ej, lo, hi, lane,
+                                         g, a);
+            engine_cuda::pair_lane_scan(fx.dims.data(), fx.vals.data(), shared,
+                                        lane, g, b);
+            for (int i = 0; i < 6; ++i) { per_lane[i] += a[i]; hoisted[i] += b[i]; }
+          }
+          for (int i = 0; i < 6; ++i)
+            // Bit-identical, not close: same additions in the same order.
+            expect(per_lane[i] == hoisted[i],
+                   "hoist matches at g=" + std::to_string(g) + " stat "
+                       + std::to_string(i));
+        }
+      }
+    }
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -460,6 +506,7 @@ int main() {
   test_tie_determinism();
   test_per_device_metrics();
   test_required_vs_diagnostic();
+  test_hoist_is_behaviour_preserving();
   test_scatter_and_payloads();
   std::printf("pair planning: %d checks, %d failures\n", checks, failures);
   return failures == 0 ? 0 : 1;

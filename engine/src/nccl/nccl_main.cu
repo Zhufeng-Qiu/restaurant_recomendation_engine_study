@@ -161,23 +161,23 @@ void check_payload_domain(const engine::Fixture& fx, Payload p) {
 
 // Payload-dispatching launchers. The three variants share their accumulation
 // path (engine_cuda::warp_pair_stats) and differ only in the width they emit.
-void launch_stats(Payload p, int group, unsigned blocks, cudaStream_t s,
-                  const Device& d, const int32_t* order, int64_t len,
-                  void* dst) {
+void launch_stats(Payload p, int group, bool hoist, unsigned blocks,
+                  cudaStream_t s, const Device& d, const int32_t* order,
+                  int64_t len, void* dst) {
   using namespace engine_cuda;
   switch (p) {
     case Payload::I32:
-      ENGINE_DISPATCH_GROUP(group, pair_stats_kernel_i32, blocks, kBlock, s,
+      ENGINE_DISPATCH_GROUP(group, hoist, pair_stats_kernel_i32, blocks, kBlock, s,
                             d.offsets, d.dims, d.vals, d.pairs, order, len,
                             d.dim_lo, d.dim_hi, static_cast<int32_t*>(dst));
       break;
     case Payload::Packed:
-      ENGINE_DISPATCH_GROUP(group, pair_stats_kernel_packed, blocks, kBlock, s,
+      ENGINE_DISPATCH_GROUP(group, hoist, pair_stats_kernel_packed, blocks, kBlock, s,
                             d.offsets, d.dims, d.vals, d.pairs, order, len,
                             d.dim_lo, d.dim_hi, static_cast<uint64_t*>(dst));
       break;
     default:
-      ENGINE_DISPATCH_GROUP(group, pair_stats_kernel, blocks, kBlock, s,
+      ENGINE_DISPATCH_GROUP(group, hoist, pair_stats_kernel, blocks, kBlock, s,
                             d.offsets, d.dims, d.vals, d.pairs, order, len,
                             d.dim_lo, d.dim_hi, static_cast<double*>(dst));
   }
@@ -228,6 +228,7 @@ int run(int argc, char** argv) {
                  "[--chunk PAIRS] [--payload f64|i32|packed] "
                  "[--finalize-stream comm|separate] [--validate] "
                  "[--group 1|2|4|8|16|32] [--pair-order source|bylen] "
+                 "[--hoist on|off] "
                  "[--out f]\n", argv[0]);
     return 2;
   }
@@ -237,6 +238,7 @@ int run(int argc, char** argv) {
   int64_t chunk = 1 << 18;  // 262144 pairs per chunk (async mode)
   int group = 32;                     // lanes per pair; 32 == phase-3 mapping
   std::string order_arg = "source";   // "bylen" enables warp packing
+  std::string hoist_arg = "off";      // slice bounds once per group, broadcast
   bool validate = false;
   // Argument parsing refuses what it cannot honour. Silently ignoring an
   // unknown flag, or a flag whose value went missing at the end of the line,
@@ -258,6 +260,7 @@ int run(int argc, char** argv) {
     else if (!std::strcmp(argv[a], "--out")) out_path = need_value(a++, "--out");
     else if (!std::strcmp(argv[a], "--group")) group = std::atoi(need_value(a++, "--group"));
     else if (!std::strcmp(argv[a], "--pair-order")) order_arg = need_value(a++, "--pair-order");
+    else if (!std::strcmp(argv[a], "--hoist")) hoist_arg = need_value(a++, "--hoist");
     else if (!std::strcmp(argv[a], "--validate")) validate = true;
     else throw std::runtime_error(std::string("unknown argument ") + argv[a]);
   }
@@ -277,6 +280,9 @@ int run(int argc, char** argv) {
     throw std::runtime_error("--group must be 1, 2, 4, 8, 16 or 32");
   if (order_arg != "source" && order_arg != "bylen")
     throw std::runtime_error("--pair-order must be source or bylen");
+  if (hoist_arg != "on" && hoist_arg != "off")
+    throw std::runtime_error("--hoist must be on or off");
+  const bool hoist = (hoist_arg == "on");
   const Payload payload = parse_payload(payload_arg);
   if (finalize_stream != "comm" && finalize_stream != "separate")
     throw std::runtime_error("--finalize-stream must be comm or separate");
@@ -435,8 +441,8 @@ int run(int argc, char** argv) {
       Device& d = devs[g];
       CUDA_CHECK(cudaSetDevice(g));
       const int64_t blocks = (n_pairs * group + kBlock - 1) / kBlock;
-      launch_stats(payload, group, static_cast<unsigned>(blocks), d.compute, d,
-                   d.order, n_pairs, d.stats);
+      launch_stats(payload, group, hoist, static_cast<unsigned>(blocks),
+                   d.compute, d, d.order, n_pairs, d.stats);
     }
     for (int g = 0; g < n_gpus; ++g) {
       CUDA_CHECK(cudaSetDevice(g));
@@ -516,8 +522,8 @@ int run(int argc, char** argv) {
         const int64_t blocks = (len * group + kBlock - 1) / kBlock;
         void* slot = stats_at(d.stats, payload, chunk * b);
         if (g == 0) CUDA_CHECK(cudaEventRecord(es0[c], d.compute));
-        launch_stats(payload, group, static_cast<unsigned>(blocks), d.compute,
-                     d, d.order + base, len, slot);
+        launch_stats(payload, group, hoist, static_cast<unsigned>(blocks),
+                     d.compute, d, d.order + base, len, slot);
         if (g == 0) CUDA_CHECK(cudaEventRecord(es1[c], d.compute));
         CUDA_CHECK(cudaEventRecord(d.chunk_ready[b], d.compute));
         // Communication stream reduces this chunk while the compute stream
@@ -642,15 +648,15 @@ int run(int argc, char** argv) {
   engine_cuda::OccupancyInfo occ{};
   switch (payload) {
     case Payload::I32:
-      ENGINE_OCCUPANCY_FOR_GROUP(group, engine_cuda::pair_stats_kernel_i32,
+      ENGINE_OCCUPANCY_FOR_GROUP(group, hoist, engine_cuda::pair_stats_kernel_i32,
                                  engine_cuda::kBlock, occ);
       break;
     case Payload::Packed:
-      ENGINE_OCCUPANCY_FOR_GROUP(group, engine_cuda::pair_stats_kernel_packed,
+      ENGINE_OCCUPANCY_FOR_GROUP(group, hoist, engine_cuda::pair_stats_kernel_packed,
                                  engine_cuda::kBlock, occ);
       break;
     default:
-      ENGINE_OCCUPANCY_FOR_GROUP(group, engine_cuda::pair_stats_kernel,
+      ENGINE_OCCUPANCY_FOR_GROUP(group, hoist, engine_cuda::pair_stats_kernel,
                                  engine_cuda::kBlock, occ);
   }
   char occ_json[512];
@@ -687,7 +693,7 @@ int run(int argc, char** argv) {
       "\"t_finalize_sum_s\":%.6f,"
       "\"device_total_s\":%.6f,\"t_comm_init_s\":%.6f,"
       "\"cold_data_path_s\":%.6f,"
-      "\"group\":%d,\"pair_order\":\"%s\","
+      "\"group\":%d,\"pair_order\":\"%s\",\"hoist\":%s,"
       "\"t_plan_s\":%.6f,\"t_plan_metrics_s\":%.6f,"
       "\"plan_order_basis\":\"global_full_dims\","
       "\"plan_per_device\":%s,"
@@ -714,7 +720,8 @@ int run(int argc, char** argv) {
       t_kernel, t_pipeline,
       t_stats_sum, t_allreduce_sum, t_finalize_sum,
       device_total, t_comm_init, cold_data_path,
-      group, order_arg.c_str(), plan.build_seconds, t_plan_metrics,
+      group, order_arg.c_str(), hoist ? "true" : "false",
+      plan.build_seconds, t_plan_metrics,
       per_device.c_str(),
       static_cast<long long>(critical_slots),
       static_cast<long long>(agg.effective_elements),

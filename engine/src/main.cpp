@@ -70,7 +70,8 @@ namespace {
 int run(int argc, char** argv) {
   if (argc < 2) {
     std::fprintf(stderr, "usage: %s <fixture_dir> [--backend serial] [--validate] [--out f]\n"
-                 "       [--group 1|2|4|8|16|32] [--pair-order source|bylen]\n",
+                 "       [--group 1|2|4|8|16|32] [--pair-order source|bylen]\n"
+                 "       [--hoist on|off]\n",
                  argv[0]);
     return 2;
   }
@@ -94,6 +95,12 @@ int run(int argc, char** argv) {
       }
       engine::cuda_map_options().group = g;
     }
+    else if (!std::strcmp(argv[a], "--hoist") && a + 1 < argc) {
+      const std::string v = argv[++a];
+      if (v == "on") engine::cuda_map_options().hoist = true;
+      else if (v == "off") engine::cuda_map_options().hoist = false;
+      else { std::fprintf(stderr, "--hoist must be on or off\n"); return 2; }
+    }
     else if (!std::strcmp(argv[a], "--pair-order") && a + 1 < argc) {
       const std::string v = argv[++a];
       if (v == "source") engine::cuda_map_options().order = engine::PairOrder::kSource;
@@ -109,7 +116,7 @@ int run(int argc, char** argv) {
   // CPU backend and ignoring them would report a mapping that never ran.
   if (backend_name != "cuda" && !engine::cuda_map_options().is_default()) {
     std::fprintf(stderr,
-                 "--group/--pair-order apply to --backend cuda, not '%s'\n",
+                 "--group/--pair-order/--hoist apply to --backend cuda, not '%s'\n",
                  backend_name.c_str());
     return 2;
   }

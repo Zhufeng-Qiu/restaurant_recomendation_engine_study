@@ -43,33 +43,63 @@ EC_HD int64_t lower_bound_i32(const int32_t* a, int64_t lo, int64_t hi,
 // [dim_lo, dim_hi). `s` is n, sx, sy, sxx, syy, sxy; the caller zeroes it.
 // x is always entity ei's rating and y entity ej's, regardless of which row
 // slice is shorter.
-EC_HD void pair_lane_stats(const int64_t* offsets, const int32_t* dims,
-                           const double* vals, int32_t ei, int32_t ej,
-                           int32_t dim_lo, int32_t dim_hi, int lane,
-                           int stride, double s[6]) {
-  int64_t a0 = lower_bound_i32(dims, offsets[ei], offsets[ei + 1], dim_lo);
-  int64_t a1 = lower_bound_i32(dims, a0, offsets[ei + 1], dim_hi);
-  int64_t b0 = lower_bound_i32(dims, offsets[ej], offsets[ej + 1], dim_lo);
-  int64_t b1 = lower_bound_i32(dims, b0, offsets[ej + 1], dim_hi);
+// The slice bounds for one pair: where each row's ratings intersect
+// [dim_lo, dim_hi), and which of the two is shorter. Four binary searches, and
+// they do not depend on the lane -- which is the point of separating them.
+struct PairSlices {
+  int64_t s0, s1;   // shorter slice
+  int64_t l0, l1;   // longer slice, the one that gets binary-searched
+  bool swapped;     // true when the shorter slice belongs to ej
+};
 
-  // Iterate the shorter slice, binary-search the longer one.
-  const bool swapped = (a1 - a0) > (b1 - b0);
-  const int64_t s0 = swapped ? b0 : a0, s1 = swapped ? b1 : a1;
-  const int64_t l0 = swapped ? a0 : b0, l1 = swapped ? a1 : b1;
+EC_HD PairSlices pair_slice_bounds(const int64_t* offsets, const int32_t* dims,
+                                   int32_t ei, int32_t ej, int32_t dim_lo,
+                                   int32_t dim_hi) {
+  const int64_t a0 = lower_bound_i32(dims, offsets[ei], offsets[ei + 1], dim_lo);
+  const int64_t a1 = lower_bound_i32(dims, a0, offsets[ei + 1], dim_hi);
+  const int64_t b0 = lower_bound_i32(dims, offsets[ej], offsets[ej + 1], dim_lo);
+  const int64_t b1 = lower_bound_i32(dims, b0, offsets[ej + 1], dim_hi);
+  PairSlices p;
+  p.swapped = (a1 - a0) > (b1 - b0);   // iterate the shorter side
+  p.s0 = p.swapped ? b0 : a0;
+  p.s1 = p.swapped ? b1 : a1;
+  p.l0 = p.swapped ? a0 : b0;
+  p.l1 = p.swapped ? a1 : b1;
+  return p;
+}
 
-  for (int64_t t = s0 + lane; t < s1; t += stride) {
+// Accumulates lane `lane`'s share (elements lane, lane+stride, ...) of the six
+// sufficient statistics, given bounds already computed. `s` is
+// n, sx, sy, sxx, syy, sxy; the caller zeroes it. x is always entity ei's
+// rating and y entity ej's, regardless of which slice is shorter.
+EC_HD void pair_lane_scan(const int32_t* dims, const double* vals,
+                          const PairSlices& p, int lane, int stride,
+                          double s[6]) {
+  for (int64_t t = p.s0 + lane; t < p.s1; t += stride) {
     const int32_t d = dims[t];
-    const int64_t pos = lower_bound_i32(dims, l0, l1, d);
-    if (pos < l1 && dims[pos] == d) {
+    const int64_t pos = lower_bound_i32(dims, p.l0, p.l1, d);
+    if (pos < p.l1 && dims[pos] == d) {
       const double xs = vals[t];    // value from the short side
       const double xl = vals[pos];  // value from the long side
-      const double x = swapped ? xl : xs;
-      const double y = swapped ? xs : xl;
+      const double x = p.swapped ? xl : xs;
+      const double y = p.swapped ? xs : xl;
       s[0] += 1.0;
       s[1] += x; s[2] += y;
       s[3] += x * x; s[4] += y * y; s[5] += x * y;
     }
   }
+}
+
+// Bounds + scan, the way every lane did it before hoisting existed. Kept as
+// the reference composition: the host emulation and the unhoisted device path
+// both go through it.
+EC_HD void pair_lane_stats(const int64_t* offsets, const int32_t* dims,
+                           const double* vals, int32_t ei, int32_t ej,
+                           int32_t dim_lo, int32_t dim_hi, int lane,
+                           int stride, double s[6]) {
+  pair_lane_scan(dims, vals,
+                 pair_slice_bounds(offsets, dims, ei, ej, dim_lo, dim_hi),
+                 lane, stride, s);
 }
 
 // Contract finalization (docs/pearson_contract.md §3) from a six-stat vector.
@@ -160,7 +190,18 @@ EC_HD void pack_add(const uint64_t* a, const uint64_t* b, uint64_t* out) {
 //
 // No lane returns early: threads past the end keep zeroed accumulators and
 // still take part in the shuffles, so the full-warp mask stays honest.
-template <int G>
+// HOIST: compute the four slice-bound searches ONCE per group and broadcast
+// them, instead of repeating them in all G lanes. The measured cost of the
+// unhoisted kernel scales with the thread count, and these searches are the
+// largest identifiable per-thread term -- this is the A/B that decides whether
+// they are actually it. Kept as a switch rather than a replacement so packing
+// and hoisting can be attributed separately.
+//
+// The broadcast sits OUTSIDE the active test: a group is G consecutive lanes
+// sharing one slot, so a group is uniformly active or inactive, but the whole
+// warp must still reach the shuffle for the full mask to be honest. An
+// inactive group broadcasts zeroes and scans nothing.
+template <int G, bool HOIST>
 __device__ inline bool subwarp_pair_stats(const int64_t* __restrict__ offsets,
                                           const int32_t* __restrict__ dims,
                                           const double* __restrict__ vals,
@@ -180,11 +221,24 @@ __device__ inline bool subwarp_pair_stats(const int64_t* __restrict__ offsets,
 
 #pragma unroll
   for (int i = 0; i < 6; ++i) s[i] = 0.0;
-  if (active) {
-    const int64_t k = order[slot];
-    pair_lane_stats(offsets, dims, vals, pairs[2 * k], pairs[2 * k + 1], dim_lo,
-                    dim_hi, sublane, G, s);
+
+  PairSlices sl{0, 0, 0, 0, false};
+  const int64_t k = active ? static_cast<int64_t>(order[slot]) : 0;
+  if (HOIST && G > 1) {
+    if (active && sublane == 0)
+      sl = pair_slice_bounds(offsets, dims, pairs[2 * k], pairs[2 * k + 1],
+                             dim_lo, dim_hi);
+    __syncwarp();
+    sl.s0 = __shfl_sync(0xffffffff, static_cast<long long>(sl.s0), 0, G);
+    sl.s1 = __shfl_sync(0xffffffff, static_cast<long long>(sl.s1), 0, G);
+    sl.l0 = __shfl_sync(0xffffffff, static_cast<long long>(sl.l0), 0, G);
+    sl.l1 = __shfl_sync(0xffffffff, static_cast<long long>(sl.l1), 0, G);
+    sl.swapped = __shfl_sync(0xffffffff, static_cast<int>(sl.swapped), 0, G) != 0;
+  } else if (active) {
+    sl = pair_slice_bounds(offsets, dims, pairs[2 * k], pairs[2 * k + 1],
+                           dim_lo, dim_hi);
   }
+  if (active) pair_lane_scan(dims, vals, sl, sublane, G, s);
 
   __syncwarp();
 #pragma unroll
@@ -197,7 +251,7 @@ __device__ inline bool subwarp_pair_stats(const int64_t* __restrict__ offsets,
 }
 
 // stats layout: [n_slots][6] doubles = n, sx, sy, sxx, syy, sxy.
-template <int G>
+template <int G, bool HOIST>
 __global__ void pair_stats_kernel(const int64_t* __restrict__ offsets,
                                   const int32_t* __restrict__ dims,
                                   const double* __restrict__ vals,
@@ -207,8 +261,8 @@ __global__ void pair_stats_kernel(const int64_t* __restrict__ offsets,
                                   int32_t dim_hi, double* __restrict__ stats) {
   int64_t slot;
   double s[6];
-  if (!subwarp_pair_stats<G>(offsets, dims, vals, pairs, order, n_slots, dim_lo,
-                             dim_hi, &slot, s))
+  if (!subwarp_pair_stats<G, HOIST>(offsets, dims, vals, pairs, order,
+                                    n_slots, dim_lo, dim_hi, &slot, s))
     return;
   double* dst = stats + 6 * slot;
 #pragma unroll
@@ -216,7 +270,7 @@ __global__ void pair_stats_kernel(const int64_t* __restrict__ offsets,
 }
 
 // stats layout: [n_slots][6] int32 -- 2x smaller collective payload.
-template <int G>
+template <int G, bool HOIST>
 __global__ void pair_stats_kernel_i32(const int64_t* __restrict__ offsets,
                                       const int32_t* __restrict__ dims,
                                       const double* __restrict__ vals,
@@ -227,8 +281,8 @@ __global__ void pair_stats_kernel_i32(const int64_t* __restrict__ offsets,
                                       int32_t* __restrict__ stats) {
   int64_t slot;
   double s[6];
-  if (!subwarp_pair_stats<G>(offsets, dims, vals, pairs, order, n_slots, dim_lo,
-                             dim_hi, &slot, s))
+  if (!subwarp_pair_stats<G, HOIST>(offsets, dims, vals, pairs, order,
+                                    n_slots, dim_lo, dim_hi, &slot, s))
     return;
   int32_t* dst = stats + 6 * slot;
 #pragma unroll
@@ -236,7 +290,7 @@ __global__ void pair_stats_kernel_i32(const int64_t* __restrict__ offsets,
 }
 
 // stats layout: [n_slots][2] uint64 -- 3x smaller, and summable as-is.
-template <int G>
+template <int G, bool HOIST>
 __global__ void pair_stats_kernel_packed(const int64_t* __restrict__ offsets,
                                          const int32_t* __restrict__ dims,
                                          const double* __restrict__ vals,
@@ -247,8 +301,8 @@ __global__ void pair_stats_kernel_packed(const int64_t* __restrict__ offsets,
                                          uint64_t* __restrict__ stats) {
   int64_t slot;
   double s[6];
-  if (!subwarp_pair_stats<G>(offsets, dims, vals, pairs, order, n_slots, dim_lo,
-                             dim_hi, &slot, s))
+  if (!subwarp_pair_stats<G, HOIST>(offsets, dims, vals, pairs, order,
+                                    n_slots, dim_lo, dim_hi, &slot, s))
     return;
   pack_six(s, stats + 2 * slot);
 }
@@ -256,16 +310,23 @@ __global__ void pair_stats_kernel_packed(const int64_t* __restrict__ offsets,
 // Runtime G -> template instantiation. Anything else is a caller bug, not a
 // fallback: quietly running a mapping other than the one on the command line
 // would corrupt the comparison.
-#define ENGINE_DISPATCH_GROUP(group, KERNEL, GRID, BLOCK, STREAM, ...)         \
+#define ENGINE_DISPATCH_G(group, H, KERNEL, GRID, BLOCK, STREAM, ...)          \
+  switch (group) {                                                            \
+    case 1:  KERNEL<1, H><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;     \
+    case 2:  KERNEL<2, H><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;     \
+    case 4:  KERNEL<4, H><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;     \
+    case 8:  KERNEL<8, H><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;     \
+    case 16: KERNEL<16, H><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;    \
+    case 32: KERNEL<32, H><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;    \
+    default: throw std::runtime_error("group must be 1, 2, 4, 8, 16 or 32");   \
+  }
+
+#define ENGINE_DISPATCH_GROUP(group, hoist, KERNEL, GRID, BLOCK, STREAM, ...)  \
   do {                                                                        \
-    switch (group) {                                                          \
-      case 1:  KERNEL<1><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;      \
-      case 2:  KERNEL<2><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;      \
-      case 4:  KERNEL<4><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;      \
-      case 8:  KERNEL<8><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;      \
-      case 16: KERNEL<16><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;     \
-      case 32: KERNEL<32><<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__); break;     \
-      default: throw std::runtime_error("group must be 1, 2, 4, 8, 16 or 32"); \
+    if (hoist) {                                                              \
+      ENGINE_DISPATCH_G(group, true, KERNEL, GRID, BLOCK, STREAM, __VA_ARGS__) \
+    } else {                                                                  \
+      ENGINE_DISPATCH_G(group, false, KERNEL, GRID, BLOCK, STREAM, __VA_ARGS__)\
     }                                                                         \
   } while (0)
 
