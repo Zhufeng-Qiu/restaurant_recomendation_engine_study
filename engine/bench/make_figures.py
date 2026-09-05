@@ -248,12 +248,14 @@ def main():
     print("wrote:", p3)
 
     # --- Figure 4 (GPU host only): backend latency comparison ------------------
-    # The f64 rows stand in for the GPU backends here; payload variants get
-    # their own figure below.
-    gpu_specs = [("cuda_1gpu", "CUDA 1 GPU"),
-                 (nccl_name(by_name, "sync", 1, "f64"), "NCCL sync 1 GPU"),
-                 (nccl_name(by_name, "sync", 2, "f64"), "NCCL sync 2 GPU"),
-                 (nccl_name(by_name, "async", 2, "f64"), "NCCL async 2 GPU")]
+    # Must match the README's headline table, which reports `packed` -- the
+    # best configuration -- and includes MPI. This figure previously showed
+    # f64 and omitted MPI, so it disagreed with the table directly beneath it.
+    gpu_specs = [("mpi_r16", "MPI 16 ranks"),
+                 ("cuda_1gpu", "CUDA 1 GPU"),
+                 (nccl_name(by_name, "sync", 1, "packed"), "NCCL sync 1 GPU"),
+                 (nccl_name(by_name, "sync", 2, "packed"), "NCCL sync 2 GPU"),
+                 (nccl_name(by_name, "async", 2, "packed"), "NCCL async 2 GPU")]
     gpu_specs = [(n, lab) for n, lab in gpu_specs if n and n in by_name]
     if gpu_specs:
         fig, ax = plt.subplots(figsize=(9, 4.2))
