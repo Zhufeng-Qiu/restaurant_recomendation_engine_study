@@ -350,9 +350,19 @@ this one with P2P already off. Most of the archived gap is topology and host
 memory path, not the P2P flag — another reason the three-host table describes
 regimes rather than a swept variable.
 
-Still open: a `PHB`/no-P2P host at 30 trials. The pool on 2026-09-04 offered
-only `SYS`-with-P2P machines, and the A/B above shows that configuration is
-not reachable by disabling P2P alone.
+**Resolved 2026-09-05.** A `PHB`/no-P2P host was found on the first
+probe-then-decide attempt in CA-MTL-3 (EPYC 7763, `P2P = NS`, the archived
+pod's class) and measured with the full 30-round randomised matrix on the
+timing-correct build: `sync f64` 48.719 ms, `sync packed` 21.723 ms,
+compression **−51.67%** [−54.61%, −48.55%] as a paired estimate. All three
+regimes now share a timing basis and a protocol. The A/B above still stands on
+its own point: disabling P2P costs 26% on the collective, while this host is
+several times slower again, so topology and host memory path dominate and the
+flag is not a substitute for the hardware.
+
+No Nsight traces were captured on that host, so the async mechanism on a
+host-staged link is still described here from the `SYS`+P2P captures — a
+different machine. See the README's open list.
 
 ### The PCIe async penalty had a cause, and it was ours
 
