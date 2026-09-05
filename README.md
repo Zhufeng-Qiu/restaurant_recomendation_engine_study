@@ -677,3 +677,13 @@ communication-heavier than `item_full`: more pairs, 2.7x cheaper each
   available; `PHB` with P2P unavailable was never offered. The within-host
   A/B above is the closest substitute and shows that configuration is not
   reachable by disabling P2P alone.
+- **The headline table predates the finalize fix.** Every async row in
+  *Results* above, and in the three-regime table, was measured with finalize
+  on the communication stream. On PCIe those rows now understate async by
+  11–16%; on NVLink they are unaffected. Re-running the full matrix under
+  `--finalize-stream separate` — and deciding whether it should become the
+  default — is the obvious next pass.
+- **Overlap skew on the GPU.** The band fixtures showed dynamic scheduling
+  matters more for CPU core heterogeneity than for workload skew. The GPU
+  equivalent — whether warp-per-pair suffers on `_ovl_skew`, where overlaps
+  run to 264 — was not measured.
