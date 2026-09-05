@@ -54,8 +54,8 @@ Three terms used throughout, if the vocabulary is unfamiliar:
 | `spark_pipeline/` | Maintained PySpark baseline: `cf_train.py`, `cf_predict.py`, fixture exporter, pinned env |
 | `docs/pearson_contract.md` | The frozen numerical contract every backend implements |
 | `docs/analysis.md` | Mechanism: roofline of the overlap, Nsight evidence, per-link regimes |
-| `tools/` | Spark-free validator, reference impl, archived-model cross-check, RMSE loop |
-| `data/fixtures/` | 4 exported workloads (CSR ratings + candidate pairs + golden sims) |
+| `tools/` | Spark-free validator, reference impl, archived-model cross-check, RMSE loop, fixture generators, bit-width audit |
+| `data/fixtures/` | 6 exported workloads (CSR ratings + candidate pairs + golden sims), 5 synthetic domain-gate fixtures; overlap bands are generated, not tracked |
 | `engine/` | Native engine: CMake, serial/OpenMP/MPI/CUDA/NCCL backends, tests, bench |
 | `results/` | Benchmark JSON/CSV, figures, prediction outputs |
 
