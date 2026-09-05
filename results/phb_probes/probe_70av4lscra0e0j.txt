@@ -1,0 +1,11 @@
+# probe 70av4lscra0e0j  CA-MTL-3 SECURE  2026-09-05T07:59:52Z
+== topo ==
+	[4mGPU0	GPU1	CPU Affinity	NUMA Affinity	GPU NUMA ID[0m
+GPU0	 X 	PHB	0-251	0		N/A
+GPU1	PHB	 X 	0-251	0		N/A
+== p2p read ==
+ GPU0	X	NS	
+ GPU1	NS	X	
+== driver/cpu ==
+595.91.07
+Model name:                              AMD EPYC 7763 64-Core Processor

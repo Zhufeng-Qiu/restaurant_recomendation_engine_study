@@ -1,0 +1,35 @@
+# nccl-tests all_reduce_perf, PHB / no-P2P host (host-staged)
+# pod 70av4lscra0e0j  CA-MTL-3 SECURE, 2x A100 80GB PCIe, PHB, P2P=NS, EPYC 7763
+# nccl-tests SHA: b4d5beebca8a76cf01335f724d154b9b9d394d96
+# engine collective is IN-PLACE -> read the in-place columns
+# columns: size count type redop root | OOP: time algbw busbw wrong | IP: time algbw busbw wrong
+
+### payload=packed bytes=18749712 dtype=uint64
+$ ./build/all_reduce_perf -b 18749712 -e 18749712 -d uint64 -g 2 -w 5 -n 20 -c 1
+    18749712       2343714    uint64     sum      -1  7768.53    2.41    2.41       0  7471.35    2.51    2.51       0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 2.46155 
+#
+# Collective test concluded: all_reduce_perf
+#
+
+
+### payload=i32 bytes=28124568 dtype=int32
+$ ./build/all_reduce_perf -b 28124568 -e 28124568 -d int32 -g 2 -w 5 -n 20 -c 1
+    28124568       7031142     int32     sum      -1  17943.1    1.57    1.57       0  17409.8    1.62    1.62       0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 1.59143 
+#
+# Collective test concluded: all_reduce_perf
+#
+
+
+### payload=f64 bytes=56249136 dtype=double
+$ ./build/all_reduce_perf -b 56249136 -e 56249136 -d double -g 2 -w 5 -n 20 -c 1
+    56249136       7031142    double     sum      -1  33027.4    1.70    1.70       0  33634.0    1.67    1.67       0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 1.68775 
+#
+# Collective test concluded: all_reduce_perf
+#
+
