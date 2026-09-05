@@ -87,15 +87,15 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
   // Unified timing schema: device_total is stats + finalize (no collective on
   // one GPU); one_shot adds the H2D staging and D2H readback a cold call pays.
   // t_load lives on main's line and is added by the bench harness.
-  const double d_stats = ms_stats / 1e3, d_final = ms_final / 1e3;
-  const double device_total = d_stats + d_final;
+  const double t_stats = ms_stats / 1e3, t_final = ms_final / 1e3;
+  const double device_total = t_stats + t_final;
   std::printf(
       "{\"cuda_detail\":{\"device\":\"%s\",\"timing_basis\":\"device_total\","
       "\"t_setup_s\":%.6f,\"t_h2d_s\":%.6f,"
       "\"t_stats_s\":%.6f,\"t_allreduce_s\":0.000000,\"t_finalize_s\":%.6f,"
       "\"t_kernel_stats_s\":%.6f,\"t_kernel_finalize_s\":%.6f,"
       "\"device_total_s\":%.6f,\"t_d2h_s\":%.6f}}\n",
-      prop.name, t_h2d, t_h2d, d_stats, d_final, d_stats, d_final,
+      prop.name, t_h2d, t_h2d, t_stats, t_final, t_stats, t_final,
       device_total, t_d2h);
 
   cudaFree(d_offsets); cudaFree(d_dims); cudaFree(d_vals);
