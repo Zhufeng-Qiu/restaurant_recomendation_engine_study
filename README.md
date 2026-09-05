@@ -137,9 +137,11 @@ dynamic scheduling buys):
 
 ![OpenMP speedup and efficiency](results/figures/openmp_scaling.png)
 
-MPI scaling (M5, 30 trials; the AllReduce share grows to ~13% at 8 ranks on
-`item_full` — but see the Sep. 4th update, where at 9,054 pairs it reaches
-83% and MPI turns net slower than serial):
+MPI scaling (EPYC 7742 pod, 30 trials, ranks to 48; peak 5.04x at 16, and the
+AllReduce share climbs to 51% by 48 ranks — the CPU-time quota and the growing
+collective are confounded there, see the Sep. 4th update. On the smaller
+fixtures the collective dominates far earlier: at 9,054 pairs it is 83% and MPI
+turns net slower than serial):
 
 ![MPI strong scaling and communication fraction](results/figures/mpi_scaling.png)
 
@@ -379,6 +381,7 @@ only annotated:
 | this section's finalize result | quoted −11.1% / −16.4% as settled | ten A/B measurements, sign reproducible, magnitude not |
 | all six figures | drawn from 5-trial runs (Aug 28–29), no error bars on the GPU charts | redrawn from the 30-trial runs; `gpu_comparison` and `payload_comparison` now carry IQR whiskers, and `gpu_comparison` moved to a log axis |
 | *Backend comparison* | speedups measured against two different serial baselines (M5 for MPI, pods for GPU) | left as measured, with a same-machine table added under *Four gaps the audit found* |
+| *Four gaps* | called OpenMP-vs-MPI a shared-memory/message-passing result; said the skewed GPU band was 2.1x more efficient at comparable work because `n = 3` idles 29 of 32 lanes | both corrected: the two backends also differ in decomposition, and the lane claim was simply false — the kernel strides over the shorter *row* (65 elements, 29.89 lanes busy), so normalised properly the gap is 1.21x |
 
 The same two corrections were applied to [docs/analysis.md](docs/analysis.md).
 Nothing in the *Results* tables was restated: those numbers stand as measured,
@@ -746,10 +749,10 @@ communication-heavier than `item_full`: more pairs, 2.7x cheaper each
 
 ### Four gaps the audit found, now measured
 
-An audit of what had never been run turned up two methodological gaps that
-matter more than the ones already listed. Both are closed here, on one host —
-the first in this project to run **MPI and NCCL together** (EPYC 7742, 2x
-A100 NV12, 30 trials).
+An audit of what had never been run turned up two methodological gaps and two
+open questions from the brief. All four were measured on one host — the first
+in this project to run **MPI and NCCL together** (EPYC 7742, 2x A100 NV12, 30
+trials).
 
 **Every backend on one machine.** MPI had only ever run on the Apple M5 and
 NCCL only on pods, so the headline table compared speedups against two
@@ -759,65 +762,86 @@ different serial baselines. Measured together:
 | --- | --- | --- |
 | serial | 1257.13 ms | 1.0x |
 | MPI, 16 ranks | 270.04 ms | 4.7x |
-| OpenMP, 16 threads | 94.12 ms | **13.4x** |
+| OpenMP, 16 threads | 94.12 ms | 13.4x |
 | CUDA, 1 GPU | 4.727 ms | 266x |
-| NCCL sync `packed`, 2 GPU | 3.917 ms | **321x** |
+| NCCL sync `packed`, 2 GPU | 3.917 ms | 321x |
 
-At equal core count **shared memory beats message passing by 2.9x** here
-(94 ms against 270 ms) — a comparison the cross-machine table could not make.
-The MPI backend earns its place as the distributed-correctness rehearsal for
-NCCL, not as a performance option.
+Two caveats keep this from being more than it is. The OpenMP/MPI gap (2.87x at
+16-way) is **not** a controlled shared-memory-versus-message-passing A/B: the
+OpenMP backend shards *candidate pairs* and needs no communication at all,
+while MPI shards the *rating dimension* and AllReduces a 56 MB tensor. Two
+variables move together, and the decomposition is the larger one. And the
+`321x` is not the same timing basis as the `266x` — see the note below.
 
-**MPI strong scaling, past 8 ranks for the first time.** The M5 has 10 cores,
-so the curve stopped at 8. This host reports 128 but is cgroup-limited to
-~27.2 CPUs (`cpu.max` = 2720000/100000), and the curve finds that ceiling on
-its own:
+**The NCCL sync rows exclude their finalize kernel.** `cuda` and `mpi` both
+include finalize in their totals; the sync NCCL path runs it *after* the timed
+region closes, so it was never counted. The kernel is 0.018–0.044 ms against a
+~3.9 ms iteration, so **0.5–1.1%** — no conclusion in this document turns on
+it, but `321x` versus `266x` is not a clean comparison and the compression
+percentages below are a *stats-kernel + AllReduce* subtotal rather than full
+device time. `run_bench.py` now adds `t_finalize_s` when the binary reports it;
+the binary does not yet report it, which is the one-line follow-up.
 
-| ranks | median | speedup | efficiency |
-| --- | --- | --- | --- |
-| 1 | 1359.92 ms | 1.00x | 100% |
-| 2 | 777.13 ms | 1.75x | 87.5% |
-| 4 | 491.46 ms | 2.77x | 69.2% |
-| 8 | 345.82 ms | 3.93x | 49.2% |
-| **16** | **270.04 ms** | **5.04x** | 31.5% |
-| 24 | 288.74 ms | 4.71x | 19.6% |
-| 32 | 287.93 ms | 4.72x | 14.8% |
-| 48 | 578.55 ms | 2.35x | 4.9% |
+**MPI strong scaling, past 8 ranks for the first time.** The M5 has 10 cores so
+the curve stopped at 8. This host exposes **128 logical CPUs but a cgroup
+CPU-time quota of 27.2 CPU-equivalents** (`cpu.max` = 2720000/100000):
 
-Peak at 16, flat through 32, collapse at 48. Reporting a rank count without
-the host's CPU quota would have been meaningless — a 128-core box that is
-really 27.
+| ranks | median | speedup | efficiency | AllReduce share |
+| --- | --- | --- | --- | --- |
+| 1 | 1359.92 ms | 1.00x | 100% | 0% |
+| 2 | 777.13 ms | 1.75x | 87.5% | 3.5% |
+| 4 | 491.46 ms | 2.77x | 69.2% | 9.4% |
+| 8 | 345.82 ms | 3.93x | 49.2% | 15.8% |
+| **16** | **270.04 ms** | **5.04x** | 31.5% | 23.1% |
+| 24 | 288.74 ms | 4.71x | 19.6% | 38.6% |
+| 32 | 287.93 ms | 4.72x | 14.8% | 35.5% |
+| 48 | 578.55 ms | 2.35x | 4.9% | **51.0%** |
 
-**Compression is not an `item_full` artefact.** Every compression number in
-this study came from one workload. `user_full` is structurally different —
-LSH-derived user pairs, 1.41M of them, rows a third as long — and the same
-host gives:
+Peak at 16, flat through 32, collapse at 48. The turnover is *consistent* with
+the quota but does not by itself prove it: the AllReduce share climbs from 15.8%
+to 51% over the same range, so communication growth and CPU-time starvation are
+confounded here. Separating them needs a host without a quota.
 
-| `sync` 2 GPU | `item_full` | `user_full` |
+**Compression is not an `item_full` artefact.** Every compression number in this
+study came from one workload. `user_full` is structurally different — LSH
+candidate pairs, 1.41M of them, with a pair-weighted shorter row about 36% as
+long — and the same host gives:
+
+| `sync` 2 GPU (stats + AllReduce) | `item_full` | `user_full` |
 | --- | --- | --- |
 | `f64` | 4.111 ms | 3.737 ms |
 | `i32` | 3.947 ms | 3.555 ms |
 | `packed` | 3.917 ms | 3.488 ms |
 | **`f64` → `packed`** | **−4.7%** | **−6.7%** |
 
-It reproduces, and is slightly larger on the second workload. The central
-claim no longer rests on a single fixture.
+It reproduces, and is slightly larger on the second workload. The claim no
+longer rests on a single fixture. Note the subtotal caveat above: these are
+stats-kernel plus AllReduce, and the collective is where the effect lives, so
+the direction is solid and the exact percentage will shift slightly once
+finalize is counted.
 
-**Overlap skew helps the GPU — the opposite of the expected answer.** The
-brief flagged bucketing "when pair costs are skewed", and the CPU study found
-skew mattered less than core heterogeneity. On the GPU the sign reverses:
+**Overlap skew: the measurement stands, my explanation of it did not.** The
+brief asked whether skewed pair costs need bucketing. Measured on two bands cut
+from `item_full`:
 
-| band | pairs | intersection work | CUDA | ns per element |
+| band | pairs | short-row elements scanned | CUDA | ns per element |
 | --- | --- | --- | --- | --- |
-| `n == 3` (stdev 0) | 504,958 | 1.51 M | 1.819 ms | **1.20** |
-| `n >= 11` (stdev 9.4) | 69,771 | 1.18 M | 0.675 ms | **0.57** |
+| `n == 3` (stdev 0) | 504,958 | 33.05 M | 1.819 ms | 0.0550 |
+| `n >= 11` (stdev 9.4) | 69,771 | 14.83 M | 0.675 ms | 0.0455 |
 
-At comparable total work the *skewed* band is **2.1x more efficient per
-element**. The warp-per-pair mapping assigns 32 lanes to one pair, so an
-`n = 3` pair leaves 29 of them idle; the pathology is not long tails but short
-overlaps, and 43% of `item_full` sits at exactly the `n = 3` minimum. Bucketing
-would help — but by packing several tiny pairs into a warp, not by isolating
-the big ones.
+An earlier draft of this section normalised by *intersection* elements, called
+the two bands comparable in work, and concluded the skewed band was 2.1x more
+efficient because an `n = 3` pair leaves 29 of a warp's 32 lanes idle. **All
+three of those are wrong.** `pair_lane_stats` strides its lanes over the
+*shorter rating row*, not over the intersection, so the work is 33.05 M against
+14.83 M — a 2.2x difference, not comparable — and the `n == 3` band's shorter
+row averages 65.45 elements, which keeps **29.89 of 32 lanes busy** in the first
+round rather than 3. Normalised against what the kernel actually scans, the gap
+is **1.21x**, not 2.1x.
+
+What survives: the skewed band is modestly more efficient per element scanned,
+and warp packing for short rows is a **hypothesis worth testing**, not a
+conclusion this experiment supports.
 
 ### Still open
 

@@ -14,6 +14,7 @@ AllReduce payload comparison only when the JSON contains those configs.
 
 import json
 import os
+import re
 import sys
 
 import matplotlib
@@ -166,7 +167,10 @@ def main():
     cpu = doc["environment"]["cpu"]
     src = f"{fixture} · {cpu} · median of {doc['repeats']} trials after {doc['warmups']} warm-ups"
     threads = [1, 2, 4, 8, 16]
-    ranks = [1, 2, 4, 8]
+    # Rank points come from the data: --ranks is configurable, and a many-core
+    # host sweeps well past the 1,2,4,8 a laptop can use.
+    ranks = sorted(int(m.group(1)) for m in
+                   (re.match(r"mpi_r(\d+)$", c) for c in by_name) if m)
 
     # --- Figure 1: OpenMP speedup and efficiency -----------------------------
     serial_t = by_name["serial"]["median_s"]
