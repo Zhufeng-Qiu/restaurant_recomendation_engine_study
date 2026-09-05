@@ -135,6 +135,18 @@ def main():
                                 "--validate"],
                         "env": {}, "threads": g,
                     })
+                    # async only: finalize on its own stream instead of the
+                    # communication stream. Named with a _sep suffix so the
+                    # pre-fix rows stay directly comparable.
+                    if mode == "async":
+                        configs.append({
+                            "name": f"nccl_{mode}_g{g}_{payload}_sep",
+                            "cmd": [ENGINE_NCCL, args.fixture, "--gpus", str(g),
+                                    "--mode", mode, "--payload", payload,
+                                    "--finalize-stream", "separate",
+                                    "--validate"],
+                            "env": {}, "threads": g,
+                        })
 
     results = []
     for cfg in configs:

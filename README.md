@@ -29,10 +29,12 @@ Whether that 3x is worth anything depends entirely on the link:
 | Communication is... | 11% of the iteration | 91% of the iteration |
 | ...so compressing 3x buys | **4%** | **55%** |
 
-Same binary, same data, same GPU model. Only the interconnect changed. That
-is the point: **compressing a collective pays when the collective is the
-bottleneck, and not otherwise** — and the second half of that sentence is the
-part usually left out.
+Same binary, same data, same GPU model — but **two different hosts**, so read
+this as two communication regimes rather than one variable swapped. Toggling
+P2P on a *single* machine reproduces the same trend with everything else held
+fixed (Sep. 4th update). The point survives the narrowing: **compressing a
+collective pays when the collective is the bottleneck, and not otherwise** —
+and the second half of that sentence is the part usually left out.
 
 Three terms used throughout, if the vocabulary is unfamiliar:
 
@@ -102,8 +104,10 @@ Key takeaways:
 - **On NVLink, neither optimisation is worth it.** Compressing the collective
   3x buys 4.3%; async overlap *costs* 9.3%. Communication is 11% of the
   iteration, so there is very little there to win.
-- **On PCIe, both reverse.** Compression buys 55%, async turns positive, and
-  together they cut the iteration 60% — same binary, same data.
+- **On PCIe, compression reverses** and buys 55%. Async also turned positive
+  there, but see the Sep. 4th update: every async 2-GPU row in this study
+  carries a 12–44% IQR, so async differences of this size are at the edge of
+  what these hosts resolve. The compression rows reproduce to under 0.3%.
 - **End-to-end RMSE 0.8652** (archived Spark model 0.8657; target 0.9).
 
 <details>
@@ -344,8 +348,36 @@ below 262144 pairs per chunk. Benchmarks come after.
 
 ## Sep. 4th 2026 - Update
 
-Two corrections, one new test, and a re-measurement on fresh hardware that
-adds a third interconnect. Everything above is unchanged.
+Corrections, new tests, and re-measurement on fresh hardware. Most of this
+section is appended rather than rewritten, but **some text above was edited in
+place** once the errata started contradicting it; that list is at the end of
+this section.
+
+### What was edited above, and why
+
+Appending everything preserved the record but left the first screen asserting
+things the errata disprove — a reader going top-down met three uncorrected
+claims before reaching any correction. These were changed in place rather than
+only annotated:
+
+| Where | Was | Now |
+| --- | --- | --- |
+| *Start here* | "Only the interconnect changed" | says two hosts, two regimes, and points at the within-host P2P A/B |
+| *Key takeaways* | "async turns positive" on PCIe | keeps it, flags the 12–44% IQR on every async 2-GPU row |
+| *Layout* | "4 exported workloads", 4 tools | 6 workloads + 5 domain fixtures, 10 tools |
+| *Three regimes* | blamed async's shortfall on chunking cost | superseded note: chunking is 1.23x here; the cause was stream occupancy |
+| this section's finalize result | quoted −11.1% / −16.4% as settled | ten A/B measurements, sign reproducible, magnitude not |
+
+The same two corrections were applied to [docs/analysis.md](docs/analysis.md).
+Nothing in the *Results* tables was restated: those numbers stand as measured,
+with their caveats now attached rather than buried.
+
+The last row is a correction to this document's own earlier draft. A full
+re-run of the matrix on two fresh hosts — 30 configurations each including
+`--finalize-stream separate`, `bench_20260905_*.json` — did not reproduce the
+effect size, and the reason turned out to be more interesting than the effect:
+async 2-GPU medians carry 12–44% IQR on every host measured, while `sync` rows
+reproduce to under 0.3%.
 
 ### `Sixteen bits of content` is wrong — it is 85
 
@@ -445,10 +477,17 @@ Compression tracks communication share monotonically across all three —
 11.6% / 76% / 91% of the iteration buys 4.7% / 23.5% / 55.5%. That is the
 paper's claim, now on three points instead of two.
 
-Async does not track it. It still *loses* at 76% communication and only turns
+Async does not track it. It *loses* at 76% communication and only turns
 positive on the host-staged link, so "async pays when the collective is the
-bottleneck" is too coarse: at 76% comm the overlap ceiling is 23.7% and
-chunking still costs more than it returns.
+bottleneck" is too coarse: at 76% comm the overlap ceiling is 23.7% and the
+pipeline still does not clear it.
+
+> **Superseded in part.** This paragraph originally blamed the per-chunk
+> cost. The traces below show that on this link chunking is cheap (1.23x)
+> and the real cause was GPU0 running finalize on its communication stream —
+> see *Async on PCIe was an implementation bug*. The `+9.7%` in the row above
+> was also measured before that change, and async 2-GPU rows carry a 12–44%
+> IQR, so treat it as a sign rather than a magnitude.
 
 ### The controlled version of that comparison
 
@@ -547,35 +586,63 @@ launching shell — Runpod injects it into the container's init environment,
 where `nsys` reads it from `/proc`. Unsetting in the shell is not sufficient;
 verify with `strings <trace> | grep rpa_` before sharing any capture.
 
-### Async on PCIe was an implementation bug, not a property of the link
+### Async on PCIe: a real mechanism, an effect size the hosts cannot resolve
 
-The PCIe traces above showed GPU0 hiding 0.2% of its collective while GPU1 hid
-55%. The only structural difference between them is that GPU0 also runs the
+The PCIe traces showed GPU0 hiding 0.2% of its collective while GPU1 hid 55%
+on identical work. The only structural difference is that GPU0 also runs the
 finalize kernel — on its **communication stream**. `--finalize-stream separate`
-moves it onto its own stream, chained to the collective by an event so the
-ordering is unchanged; bit-exact at every chunk size from 16k to 524k pairs.
+moves it onto its own stream, chained to the collective by an event so ordering
+is unchanged; bit-exact at every chunk size from 16k to 524k pairs.
 
-| PCIe, async 2 GPU, 30 trials | finalize on `comm` | on `separate` | |
-| --- | --- | --- | --- |
-| `f64` | 6.554 ms | 5.830 ms | **−11.1%** |
-| `packed` | 4.777 ms | 3.992 ms | **−16.4%** |
-
-Against `sync packed` on the same host (4.152 ms), async goes from **losing
-15%** to **winning 3.9%**. The traces confirm the mechanism rather than just
-the outcome — GPU0's share of compute hidden rises 4x, and the two GPUs become
-symmetric, which is what a stream-occupancy explanation predicts:
+**The mechanism is measured and unambiguous**, because it comes from the trace
+rather than from a wall-clock median:
 
 | PCIe, `async packed` | GPU0 compute hidden | GPU1 compute hidden |
 | --- | --- | --- |
 | finalize on `comm` | **8.9%** | 40.6% |
 | finalize on `separate` | **35.9%** | 37.1% |
 
-**It does not help on NVLink** (30 trials): `sync f64` 4.089 ms against async
-4.782 (`comm`) and 4.819 (`separate`); at `packed`, 3.905 against 4.563 and
-4.470, inside a 0.6–0.75 ms IQR. That is the prediction, not a disappointment —
-NVLink's collective is 0.25 ms, so there is nothing for a freed stream to
-overlap with. The two links really do fail for different reasons: chunking cost
-on NVLink, stream occupancy on PCIe. Only the second was fixable.
+GPU0's overlap rises 4x and the two GPUs become symmetric (70.2% and 69.8% of
+their collectives overlapped). GPU1, which never ran finalize, is unchanged.
+That is what a stream-occupancy explanation predicts and what a link-property
+explanation does not.
+
+**The end-to-end effect is another matter.** Ten A/B measurements across four
+host-runs put the direction where the mechanism says it should be — PCIe
+benefits, NVLink does not — but not one of them clears its own noise:
+
+| host | payload | `comm` | `separate` | effect | IQR |
+| --- | --- | --- | --- | --- | --- |
+| PCIe A | `f64` | 6.554 | 5.830 | −11.1% | 13.0% |
+| PCIe A | `packed` | 4.777 | 3.992 | −16.4% | 12.5% |
+| PCIe B | `f64` | 14.034 | 12.939 | −7.8% | 26.4% |
+| PCIe B | `i32` | 11.471 | 7.633 | −33.5% | 28.7% |
+| PCIe B | `packed` | 8.797 | 9.665 | +9.9% | 43.9% |
+| NVLink A | `f64` | 4.782 | 4.819 | +0.8% | 14.5% |
+| NVLink A | `packed` | 4.563 | 4.470 | −2.0% | 16.4% |
+| NVLink B | `f64` | 4.470 | 4.830 | +8.1% | 19.3% |
+| NVLink B | `packed` | 4.253 | 4.730 | +11.2% | 15.8% |
+
+Four of five PCIe measurements improve; four of five NVLink measurements do
+not. The sign is reproducible across independent hosts; the magnitude is not,
+so **no percentage here should be quoted as the effect size**. The stronger
+end-to-end evidence is the chunk curve below, where `separate` sits under
+`comm` at every one of four chunk counts on PCIe — four consistent points beat
+one median.
+
+**The async 2-GPU rows are the least trustworthy numbers in this study.** They
+carry 12–44% IQR on every host measured, while `sync` rows on the same runs
+reproduce across independent hosts to within 0.3%:
+
+| NVLink, independent runs | first | second | drift |
+| --- | --- | --- | --- |
+| `nccl_sync_g2_packed` | 3.928 ms | 3.928 ms | **0.00%** |
+| `nccl_sync_g2_f64` | 4.122 ms | 4.110 ms | −0.27% |
+| `cuda_1gpu` | 4.726 ms | 4.731 ms | +0.10% |
+
+So the measurement method is sound and it is the async pipeline itself that is
+unstable — which is the more useful finding, and the reason the earlier draft
+of this section quoted −11.1% / −16.4% as if they were settled. They are not.
 
 ### Chunk size, swept for time rather than correctness
 

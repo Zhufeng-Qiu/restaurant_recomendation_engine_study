@@ -238,14 +238,16 @@ available sits between NVLink and the host-staged `PHB` pod:
 Compression tracks communication share monotonically over all three points,
 which is the strongest form the central claim has been in.
 
-Overlap does not. It still loses at 76% communication even though the ceiling
-there — `min(compute, comm)/total` = 3.1/13.1 — is **23.7%**, nearly three
-times the 8.9% ceiling on the host-staged link where it wins. So the ceiling
-does not predict the sign, and the account above ("overlap pays when compute
-and communication are comparable") is necessary but not sufficient: on the
-P2P link the per-chunk cost still exceeds the hiding. The crossing point lies
-between 76% and 91% communication and is not localised, because no trace was
-obtained on the P2P host.
+Overlap does not. It loses at 76% communication even though the ceiling there
+— `min(compute, comm)/total` = 3.1/13.1 — is **23.7%**, nearly three times the
+8.9% ceiling on the host-staged link where it wins. So the ceiling does not
+predict the sign, and the account above ("overlap pays when compute and
+communication are comparable") is necessary but not sufficient.
+
+> **Superseded in part.** This paragraph originally attributed the shortfall
+> to per-chunk cost. The PCIe traces below measure chunking on this link at
+> 1.23x — cheap — and locate the real cause in GPU0 running finalize on its
+> communication stream. The `+9.7%` above also predates that change.
 
 ### Chunking cost, measured at the benchmarked chunk count
 
@@ -372,11 +374,31 @@ After the fix the two GPUs are symmetric — 70.2% and 69.8% of their collective
 overlapped — which is exactly what a stream-occupancy explanation predicts and
 what a link-property explanation does not.
 
-End to end, 30 trials: `f64` 6.554 → 5.830 ms (−11.1%), `packed` 4.777 → 3.992
-ms (−16.4%). Against `sync packed` at 4.152 ms on the same host, async moves
-from losing 15% to winning 3.9%. **The claim that async does not pay on this
-link does not survive; what did not pay was running finalize on the
-communication stream.**
+End to end is weaker evidence than the trace, and should be read that way. Ten
+A/B measurements across four host-runs put the sign where the mechanism says it
+belongs — PCIe improves in four of five, NVLink does not in four of five — but
+every one of them sits inside a 12–44% IQR, so the magnitude is not resolved:
+
+| host | payload | `comm` | `separate` | effect | IQR |
+| --- | --- | --- | --- | --- | --- |
+| PCIe A | `f64` | 6.554 | 5.830 | −11.1% | 13.0% |
+| PCIe A | `packed` | 4.777 | 3.992 | −16.4% | 12.5% |
+| PCIe B | `f64` | 14.034 | 12.939 | −7.8% | 26.4% |
+| PCIe B | `i32` | 11.471 | 7.633 | −33.5% | 28.7% |
+| PCIe B | `packed` | 8.797 | 9.665 | +9.9% | 43.9% |
+| NVLink A | `packed` | 4.563 | 4.470 | −2.0% | 16.4% |
+| NVLink B | `packed` | 4.253 | 4.730 | +11.2% | 15.8% |
+
+The stronger end-to-end evidence is the chunk curve below, where `separate`
+sits under `comm` at all four chunk counts on PCIe. **So: the claim that async
+cannot pay on this link does not survive, and the mechanism is identified — but
+"async now wins by N%" is not supportable at this noise level.**
+
+That noise is itself worth recording. `sync` rows reproduce across independent
+hosts and runs to within 0.3% (`nccl_sync_g2_packed` 3.928 → 3.928 ms,
+`nccl_sync_g2_f64` 4.122 → 4.110), so the method is sound and it is the async
+pipeline that is unstable. Async 2-GPU is the least trustworthy measurement in
+this study.
 
 The same flag does nothing on NVLink — `sync f64` 4.089 ms against async 4.782
 (`comm`) and 4.819 (`separate`), and at `packed` 3.905 against 4.563 and 4.470,
