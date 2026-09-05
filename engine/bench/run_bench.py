@@ -49,7 +49,8 @@ def time_of(trial):
     Every backend now emits device_total_s = stats + allreduce + finalize, and
     async emits pipeline_total (its stages overlap, so they cannot be summed).
     `timing_basis` says which one is comparable. Everything excludes fixture
-    load, device setup and H2D/D2H -- see one_shot_of for the cold-start view.
+    load, device setup, plan construction and H2D/D2H -- see
+    cold_data_path_of for the cold-start view.
 
     The fallbacks reconstruct the same quantity from pre-2026-09-05 runs, which
     predate the schema. NCCL sync is the one that changes: those runs never
@@ -86,6 +87,43 @@ def cold_data_path_of(trial):
         return (trial["t_load_s"] + trial["t_h2d_s"] + time_of(trial)
                 + trial.get("t_d2h_s", 0.0))
     return None
+
+
+def timing_identity(trial):
+    """Check a trial's own cold path against the sum of its own stages.
+
+    The plan-construction stage was added for warp packing and was initially
+    left out of both GPU cold paths, so a cold caller looked cheaper than it
+    was. The binaries now sum it; this re-derives the total from the parts the
+    same record carries, so a term that stops being summed is caught in the
+    results rather than in a later reading of the source.
+
+    Returns None when the record predates the schema or does not carry enough
+    stages to re-derive anything -- absence of the fields is not a failure.
+    """
+    cold = trial.get("cold_data_path_s")
+    if cold is None:
+        return None
+    parts = {k: trial[k] for k in
+             ("t_load_s", "t_plan_s", "t_comm_init_s", "t_setup_s", "t_h2d_s",
+              "t_d2h_s") if k in trial}
+    if "t_load_s" not in parts:
+        return None
+    # t_setup_s on the cuda line repeats t_h2d_s (the staging IS the setup), so
+    # counting both would double it.
+    staging = parts.get("t_h2d_s", parts.get("t_setup_s", 0.0))
+    if ("t_h2d_s" in parts and "t_setup_s" in parts
+            and abs(parts["t_h2d_s"] - parts["t_setup_s"]) > 1e-9):
+        staging = parts["t_h2d_s"] + parts["t_setup_s"]
+    want = (parts["t_load_s"] + parts.get("t_plan_s", 0.0)
+            + parts.get("t_comm_init_s", 0.0) + staging + time_of(trial)
+            + parts.get("t_d2h_s", 0.0))
+    # Loose: the stages use different clocks (CUDA events for kernels,
+    # steady_clock for transfers) and the binary adds a little unmeasured glue
+    # between them. A dropped stage is orders of magnitude bigger than that.
+    tol = max(1e-4, 0.02 * cold)
+    return {"ok": abs(cold - want) <= tol, "recorded_s": cold,
+            "resummed_s": want, "tolerance_s": tol}
 
 
 def sysctl(key):
@@ -333,6 +371,14 @@ def main():
         colds = [v for v in (cold_data_path_of(t) for t in trials) if v is not None]
         if colds:
             rec["cold_data_path_median_s"] = statistics.median(colds)
+        ident = [x for x in (timing_identity(t) for t in trials) if x is not None]
+        if ident:
+            rec["timing_identity_ok"] = all(x["ok"] for x in ident)
+            if not rec["timing_identity_ok"]:
+                bad = next(x for x in ident if not x["ok"])
+                rec["timing_identity_detail"] = bad
+                print(f"  WARNING {name}: cold_data_path_s {bad['recorded_s']:.6f}"
+                      f" != resummed {bad['resummed_s']:.6f}", flush=True)
         for field in ("payload", "payload_bytes_per_pair", "allreduce_bytes"):
             if field in trials[0]:
                 rec[field] = trials[0][field]

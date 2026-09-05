@@ -31,6 +31,11 @@ CudaMapOptions& cuda_map_options() {
   return opts;
 }
 
+CudaTimings& cuda_last_timings() {
+  static CudaTimings t;
+  return t;
+}
+
 void compute_cuda(const Fixture& fx, std::vector<double>& out) {
   using namespace engine_cuda;
   const int64_t n_pairs = fx.n_pairs();
@@ -40,10 +45,9 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
   for (int32_t d : fx.dims) n_dims = std::max(n_dims, d + 1);
 
   // The lane mapping. Building the plan is host work over the whole pair list,
-  // so it is setup, not steady state: it is timed and reported separately and
-  // is not inside device_total. For a resident engine answering repeated
-  // queries the plan is built once; a one-shot caller pays it every time,
-  // which is what t_plan_s is for.
+  // so it is setup, not steady state: it stays out of device_total, which a
+  // resident engine pays per query after building the plan once. It IS inside
+  // cold_data_path_s, which a caller running the binary once pays in full.
   const CudaMapOptions map = cuda_map_options();
   const PairPlan plan = plan_pairs(fx, 0, n_dims, map.order, map.group);
 
@@ -107,10 +111,16 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
   cudaDeviceProp prop{};
   CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
   // Unified timing schema: device_total is stats + finalize (no collective on
-  // one GPU); one_shot adds the H2D staging and D2H readback a cold call pays.
-  // t_load lives on main's line and is added by the bench harness.
+  // one GPU). t_load lives on main's line, so main assembles cold_data_path_s
+  // from these stage timings -- see CudaTimings.
   const double t_stats = ms_stats / 1e3, t_final = ms_final / 1e3;
-  const double device_total = t_stats + t_final;
+  CudaTimings& tm = cuda_last_timings();
+  tm.plan = plan.build_seconds;
+  tm.h2d = t_h2d;
+  tm.stats = t_stats;
+  tm.finalize = t_final;
+  tm.d2h = t_d2h;
+  const double device_total = tm.device_total();
   std::printf(
       "{\"cuda_detail\":{\"device\":\"%s\",\"timing_basis\":\"device_total\","
       "\"t_setup_s\":%.6f,\"t_h2d_s\":%.6f,"
@@ -118,14 +128,15 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
       "\"t_kernel_stats_s\":%.6f,\"t_kernel_finalize_s\":%.6f,"
       "\"device_total_s\":%.6f,\"t_d2h_s\":%.6f,"
       "\"group\":%d,\"pair_order\":\"%s\",\"t_plan_s\":%.6f,"
+      "\"plan_order_basis\":\"global_full_dims\","
       "\"plan_effective_elements\":%lld,\"plan_lane_slots\":%lld,"
       "\"plan_lane_utilisation\":%.5f}}\n",
       prop.name, t_h2d, t_h2d, t_stats, t_final, t_stats, t_final,
-      device_total, t_d2h, map.group,
-      map.order == PairOrder::kByShortLen ? "bylen" : "source",
+      device_total, t_d2h, map.group, pair_order_name(map.order),
       plan.build_seconds,
-      static_cast<long long>(plan.effective_elements),
-      static_cast<long long>(plan.lane_slots), plan.utilisation());
+      static_cast<long long>(plan.on_basis.effective_elements),
+      static_cast<long long>(plan.on_basis.lane_slots),
+      plan.on_basis.utilisation());
 
   cudaFree(d_offsets); cudaFree(d_dims); cudaFree(d_vals);
   cudaFree(d_pairs); cudaFree(d_order); cudaFree(d_stats); cudaFree(d_sims);
