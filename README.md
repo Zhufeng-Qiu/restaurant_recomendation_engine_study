@@ -974,6 +974,58 @@ dtypes, in-place column (the engine's collective is `ncclAllReduce(slot, slot,
 Worse than the 1.45/1.31/1.17 first published, which had swept 16/32/64 MiB
 and read the out-of-place column. The gap still widens as the payload shrinks.
 
+### Steps 5 and 6: the third regime, and the MPI confound separated
+
+**The `PHB` / no-P2P host was found and measured.** Probe-then-decide on the
+inventory: create, read `nvidia-smi topo`, keep only on an exact hit. The first
+attempt in CA-MTL-3 SECURE returned `PHB` with `P2P = NS` on an EPYC 7763 —
+the same class as the archived pod. Full randomised matrix on the
+timing-correct build, 30 rounds:
+
+| | NVLink `NV12` | PCIe `SYS` + P2P | PCIe `PHB`, no P2P |
+| --- | --- | --- | --- |
+| `sync f64` | 4.191 ms | 13.101 ms | **48.719 ms** |
+| `sync packed` | 3.977 ms | 10.020 ms | **21.723 ms** |
+| **compression, paired** | **−4.96%** (3 sessions) | — | **−51.67%** [−54.61%, −48.55%] |
+| AllReduce vs nccl-tests | 1.59x | — | **2.48x** |
+
+All three regimes are now on the same timing basis, the same randomisation
+protocol and the same build. The compression trend holds across a 10x span in
+communication share, and the third point is a paired estimate with a CI rather
+than a single 5-trial median.
+
+The distance from the library's own ceiling *widens* as the link slows and the
+payload shrinks: 1.35x at `f64` on this host, 2.48x at `packed`. On a
+host-staged link `all_reduce_perf` moves 18.75 MB in 7.47 ms; this engine
+takes 18.56 ms for the same bytes. That gap is the clearest remaining
+optimisation target in the project, and it is not one compression can close.
+
+**Read as regimes, not as a controlled interconnect sweep.** Three different
+physical hosts with different CPUs, topologies and P2P capability. Same code,
+same protocol, descriptively comparable — but the differences cannot be
+attributed causally to the interconnect alone.
+
+**The MPI turnover had two candidate causes and they are now separated.** The
+16-rank peak sat on a 27.2-CPU-equivalent quota while the AllReduce share
+climbed 15.8% → 51% over the same range. Running the identical sweep on a
+fixture with 6% of the payload, on the same machine in the same session:
+
+| fixture | AllReduce payload | peak speedup | at ranks |
+| --- | --- | --- | --- |
+| `item_full` | 56.2 MB | 4.40x | **16** |
+| `item_full_ovl_skew` | 3.35 MB | **7.11x** | **24** |
+
+A 16.8x smaller payload raises the peak 62% and moves the turnover from 16 to
+24. Pure quota starvation would have peaked at the same rank in both. **Both
+mechanisms are present**: the collective sets where the curve turns, the quota
+bounds how high it gets.
+
+An unrestricted host was not found. RunPod's CPU pods cap at 32 vCPU across
+the CPU3/CPU5 families, and the GPU hosts expose 128 physical cores (2 sockets
+x 64, no SMT, 2 NUMA nodes) behind a 27.2-equivalent quota. Scoped as: not
+found in this time window, this region, and the inventory checked — not a
+claim about the platform.
+
 ### Still open
 
 Cleaned 2026-09-05: three entries here had been overtaken by measurements

@@ -1,0 +1,44 @@
+[
+  {
+    "ranks": 1,
+    "total_ms": 170.41899999999998,
+    "allreduce_ms": 0.001,
+    "comm_pct": 0.0,
+    "speedup": 1.0
+  },
+  {
+    "ranks": 2,
+    "total_ms": 93.432,
+    "allreduce_ms": 1.539,
+    "comm_pct": 1.6500000000000001,
+    "speedup": 1.8239896395239317
+  },
+  {
+    "ranks": 4,
+    "total_ms": 52.63,
+    "allreduce_ms": 2.549,
+    "comm_pct": 4.77,
+    "speedup": 3.238058141744252
+  },
+  {
+    "ranks": 8,
+    "total_ms": 34.556999999999995,
+    "allreduce_ms": 4.183,
+    "comm_pct": 12.1,
+    "speedup": 4.931533408571346
+  },
+  {
+    "ranks": 16,
+    "total_ms": 24.566000000000003,
+    "allreduce_ms": 5.095,
+    "comm_pct": 20.47,
+    "speedup": 6.937189611658389
+  },
+  {
+    "ranks": 24,
+    "total_ms": 23.971,
+    "allreduce_ms": 7.32,
+    "comm_pct": 30.17,
+    "speedup": 7.109382170122231
+  }
+]
