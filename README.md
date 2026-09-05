@@ -843,6 +843,63 @@ What survives: the skewed band is modestly more efficient per element scanned,
 and warp packing for short rows is a **hypothesis worth testing**, not a
 conclusion this experiment supports.
 
+### Sep. 5th — unified timing, randomised order, and a second headline basis
+
+Steps 1–2 of the corrected plan, plus the nccl-tests baseline. One host
+(EPYC 7742, 2x A100 NV12), 30 rounds, **round-robin with a per-round reshuffle**
+(seed 20260905) rather than draining each configuration in turn.
+
+**Randomisation changed the noise picture, but not where expected.** With
+configurations interleaved, `sync` and single-GPU rows tighten to 0.22–1.12%
+IQR. The async 2-GPU rows stay at **13–16%**. So that spread is not thermal or
+temporal drift being mistaken for a configuration effect — it is intrinsic to
+the async pipeline, which is a stronger statement than the earlier runs could
+make.
+
+**The headline speedups were always steady-state.** Every backend now reports
+`device_total = stats + allreduce + finalize` and, alongside it,
+`one_shot_total = load + setup/H2D + device_total + D2H`. The two bases give
+very different answers:
+
+| backend | steady-state | one-shot | steady speedup | one-shot speedup |
+| --- | --- | --- | --- | --- |
+| serial | 1318.88 ms | 1333.7 ms | 1.0x | 1.0x |
+| OpenMP 16t | 86.67 ms | 102.4 ms | 15.2x | 13.0x |
+| MPI 16 ranks | 275.70 ms | 291.5 ms | 4.8x | 4.6x |
+| CUDA 1 GPU | 4.75 ms | 23.8 ms | **277.5x** | **55.9x** |
+| NCCL sync `packed` 2 GPU | 3.98 ms | 80.9 ms | **331.6x** | **16.5x** |
+
+**331x becomes 16.5x** once a cold caller pays for staging, and on that basis
+two GPUs are *worse than one* (80.9 vs 23.8 ms) because NCCL init and a second
+device's transfers dominate. The CPU backends barely move, because their only
+extra cost is reading the fixture. Neither number is wrong; the headline table
+above is the steady-state one, which is the right basis for a resident
+workload and the wrong one for a one-shot tool. Both are now recorded for
+every run.
+
+Sync `packed` also moves 3.917 → 3.977 ms, the 1.5% that was missing while
+NCCL sync excluded its finalize kernel.
+
+**How far from the hardware ceiling.** `all_reduce_perf` from nccl-tests, on
+the same host and GPUs, at this project's actual message sizes:
+
+| payload | bytes | this engine | nccl-tests | ratio |
+| --- | --- | --- | --- | --- |
+| `packed` | 18.75 MB | 250.0 µs | 173.0 µs | 1.45x |
+| `i32` | 28.12 MB | 305.0 µs | 233.3 µs | 1.31x |
+| `f64` | 56.25 MB | 459.5 µs | 392.3 µs | 1.17x |
+
+The collective runs within **1.2–1.5x** of what the library achieves on the
+same link with nothing else in flight, and the gap widens as the payload
+shrinks — consistent with the smaller message being more latency-bound, which
+is the same effect that caps what compression can return.
+
+Environment capture now records logical CPUs, scheduler affinity, cpuset,
+`cpu.max` and its CPU-equivalents, GPU UUIDs and driver, and the shuffle seed.
+This host: 128 logical CPUs, **27.2 CPU-equivalents of quota** — the number
+that makes the earlier rank sweep interpretable, and which no previous run
+stored.
+
 ### Still open
 
 - **A `PHB`/no-P2P host at 30 trials.** The 91%-communication column is still
