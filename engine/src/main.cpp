@@ -71,7 +71,8 @@ int run(int argc, char** argv) {
   if (argc < 2) {
     std::fprintf(stderr, "usage: %s <fixture_dir> [--backend serial] [--validate] [--out f]\n"
                  "       [--group 1|2|4|8|16|32] [--pair-order source|bylen]\n"
-                 "       [--hoist on|off] [--plan-metrics on|off]\n",
+                 "       [--hoist on|off] [--plan-metrics on|off]\n"
+                 "       [--pre-timing-delay-ms N]\n",
                  argv[0]);
     return 2;
   }
@@ -94,6 +95,14 @@ int run(int argc, char** argv) {
         return 2;
       }
       engine::cuda_map_options().group = g;
+    }
+    else if (!std::strcmp(argv[a], "--pre-timing-delay-ms") && a + 1 < argc) {
+      const int d = std::atoi(argv[++a]);
+      if (d < 0 || d > 60000) {
+        std::fprintf(stderr, "--pre-timing-delay-ms must be in [0, 60000]\n");
+        return 2;
+      }
+      engine::cuda_map_options().pre_timing_delay_ms = d;
     }
     else if (!std::strcmp(argv[a], "--plan-metrics") && a + 1 < argc) {
       const std::string v = argv[++a];

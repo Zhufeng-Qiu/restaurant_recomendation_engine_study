@@ -40,10 +40,12 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "common/fixture.hpp"
 #include "common/pair_order.hpp"
+#include "cuda/gpu_state.cuh"
 #include "cuda/occupancy.cuh"
 #include "common/payload_domain.hpp"
 #include "common/pearson.hpp"
@@ -241,6 +243,13 @@ int run(int argc, char** argv) {
   std::string order_arg = "source";   // "bylen" enables warp packing
   std::string hoist_arg = "off";      // slice bounds once per group, broadcast
   bool plan_metrics_on = false;       // diagnostics: OFF on the production path
+  // A PURE sleep at the same point as the diagnostics. The diagnostics A/B
+  // showed that doing ~490 ms of host work there makes the two-GPU stats
+  // kernel ~17% faster, but that work is not a sleep -- it is 1.17M binary
+  // searches, a sort and a lane-model pass, so it spends CPU, memory bandwidth
+  // and cache as well as giving the GPUs idle time. This isolates the idle
+  // time alone.
+  int pre_timing_delay_ms = 0;
   bool validate = false;
   // Argument parsing refuses what it cannot honour. Silently ignoring an
   // unknown flag, or a flag whose value went missing at the end of the line,
@@ -263,6 +272,8 @@ int run(int argc, char** argv) {
     else if (!std::strcmp(argv[a], "--group")) group = std::atoi(need_value(a++, "--group"));
     else if (!std::strcmp(argv[a], "--pair-order")) order_arg = need_value(a++, "--pair-order");
     else if (!std::strcmp(argv[a], "--hoist")) hoist_arg = need_value(a++, "--hoist");
+    else if (!std::strcmp(argv[a], "--pre-timing-delay-ms"))
+      pre_timing_delay_ms = std::atoi(need_value(a++, "--pre-timing-delay-ms"));
     else if (!std::strcmp(argv[a], "--plan-metrics")) {
       const std::string v = need_value(a++, "--plan-metrics");
       if (v != "on" && v != "off")
@@ -288,6 +299,8 @@ int run(int argc, char** argv) {
     throw std::runtime_error("--group must be 1, 2, 4, 8, 16 or 32");
   if (order_arg != "source" && order_arg != "bylen")
     throw std::runtime_error("--pair-order must be source or bylen");
+  if (pre_timing_delay_ms < 0 || pre_timing_delay_ms > 60000)
+    throw std::runtime_error("--pre-timing-delay-ms must be in [0, 60000]");
   if (hoist_arg != "on" && hoist_arg != "off")
     throw std::runtime_error("--hoist must be on or off");
   const bool hoist = (hoist_arg == "on");
@@ -388,6 +401,17 @@ int run(int argc, char** argv) {
   }
   const double diag_end = wall();
   const double t_plan_metrics = diag_end - diag_begin;
+
+  // Idle time, and nothing else, at exactly the point the diagnostics occupied.
+  if (pre_timing_delay_ms > 0)
+    std::this_thread::sleep_for(std::chrono::milliseconds(pre_timing_delay_ms));
+  // Device state as the timed region opens: if the diagnostics were buying a
+  // re-boost, the clocks here should say so.
+  char gpu_state[2][256];
+  for (int g = 0; g < n_gpus && g < 2; ++g)
+    engine_cuda::gpu_state_json(gpu_state[g], sizeof gpu_state[g],
+                                engine_cuda::read_gpu_state(g));
+  for (int g = n_gpus; g < 2; ++g) snprintf(gpu_state[g], 8, "null");
 
   const double t1 = wall();
   for (int g = 0; g < n_gpus; ++g) {
@@ -733,6 +757,8 @@ int run(int argc, char** argv) {
       "\"t_plan_s\":%.6f,\"t_plan_metrics_s\":%.6f,"
       "\"plan_order_basis\":\"global_full_dims\","
       "\"plan_metrics_computed\":%s,"
+      "\"pre_timing_delay_ms\":%d,"
+      "\"gpu_state_at_timing_start\":[%s,%s],"
       "\"stage_windows_disjoint\":%s,"
       "\"plan_per_device\":%s,"
       "\"plan_critical_lane_slots\":%lld,"
@@ -761,6 +787,7 @@ int run(int argc, char** argv) {
       group, order_arg.c_str(), hoist ? "true" : "false",
       plan.build_seconds, t_plan_metrics,
       plan_metrics_on ? "true" : "false",
+      pre_timing_delay_ms, gpu_state[0], gpu_state[1],
       stage_windows_disjoint ? "true" : "false",
       per_device.c_str(),
       static_cast<long long>(critical_slots),

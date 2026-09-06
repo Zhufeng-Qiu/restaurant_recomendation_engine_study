@@ -63,10 +63,16 @@ LEGACY = os.path.join(ROOT, "engine", "build-legacy", "pearson_engine")
 def parse_arm(spec, legacy_bin):
     """SPEC -> (label, argv-builder). Rejects anything it cannot run exactly."""
     parts = spec.split(":")
-    hoist, metrics = "off", "off"
-    while parts[-1] in ("hoist", "nohoist", "metrics", "nometrics"):
+    hoist, metrics, delay = "off", "off", "0"
+    while parts[-1] in ("hoist", "nohoist", "metrics", "nometrics") \
+            or parts[-1].startswith("delay"):
         tok = parts.pop()
-        if tok in ("hoist", "nohoist"):
+        if tok.startswith("delay"):
+            # A PURE sleep where the diagnostics used to sit. The diagnostics
+            # arm confounds idle time with the CPU work they also do; this
+            # separates them.
+            delay = tok[len("delay"):] or "0"
+        elif tok in ("hoist", "nohoist"):
             hoist = "on" if tok == "hoist" else "off"
         else:
             # Plan diagnostics. Not a mapping choice: it exists as an arm
@@ -84,7 +90,8 @@ def parse_arm(spec, legacy_bin):
         g, order = parts[1], parts[2]
         return spec, lambda fx: [ENGINE, fx, "--backend", "cuda", "--validate",
                                  "--group", g, "--pair-order", order,
-                                 "--hoist", hoist, "--plan-metrics", metrics]
+                                 "--hoist", hoist, "--plan-metrics", metrics,
+                                 "--pre-timing-delay-ms", delay]
     if kind.startswith("nccl"):
         gpus = kind[4:] or "2"
         if len(parts) not in (4, 5):
@@ -94,7 +101,8 @@ def parse_arm(spec, legacy_bin):
         return spec, lambda fx: [ENGINE_NCCL, fx, "--gpus", gpus, "--mode", mode,
                                  "--payload", payload, "--validate",
                                  "--group", g, "--pair-order", order,
-                                 "--hoist", hoist, "--plan-metrics", metrics]
+                                 "--hoist", hoist, "--plan-metrics", metrics,
+                                 "--pre-timing-delay-ms", delay]
     raise SystemExit(f"unknown arm: {spec}")
 
 
@@ -138,7 +146,8 @@ def time_of(rec):
 # diagnostic pass sat in the cold path unnoticed.
 TRIAL_FIELDS = ("device_total_s", "t_plan_s", "t_plan_metrics_s", "t_h2d_s",
                 "t_setup_s", "t_d2h_s", "cold_data_path_s", "t_process_wall_s",
-                "t_stats_s", "t_allreduce_s", "t_finalize_s", "max_abs_diff")
+                "t_stats_s", "t_allreduce_s", "t_finalize_s", "max_abs_diff",
+                "pre_timing_delay_ms")
 
 
 def trial_of(rec):
@@ -228,6 +237,8 @@ def screen(args):
             "t_plan_metrics_s": (summarise(ts, "t_plan_metrics_s") or {}).get("median"),
             "cold_data_path_s": (summarise(ts, "cold_data_path_s") or {}).get("median"),
             "occupancy": rec.get("occupancy"),
+            "gpu_state_at_timing_start": rec.get("gpu_state_at_timing_start"),
+            "pre_timing_delay_ms": rec.get("pre_timing_delay_ms"),
             "max_abs_diff": rec.get("max_abs_diff"),
             "plan_lane_slots": rec.get("plan_lane_slots"),
             "plan_lane_utilisation": rec.get("plan_lane_utilisation"),

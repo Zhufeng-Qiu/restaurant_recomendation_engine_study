@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <cuda_runtime.h>
@@ -14,6 +15,7 @@
 #include "common/fixture.hpp"
 #include "common/pair_order.hpp"
 #include "cuda/cuda_backend.hpp"
+#include "cuda/gpu_state.cuh"
 #include "cuda/occupancy.cuh"
 #include "cuda/pair_kernel.cuh"
 
@@ -57,6 +59,10 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
       map.plan_metrics ? measure_plan(fx, plan, 0, n_dims) : PlanMetrics{};
   const double t_plan_metrics =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - pm0).count();
+  if (map.pre_timing_delay_ms > 0)
+    std::this_thread::sleep_for(std::chrono::milliseconds(map.pre_timing_delay_ms));
+  char gpu_state[256];
+  gpu_state_json(gpu_state, sizeof gpu_state, read_gpu_state(0));
 
   int64_t *d_offsets;
   int32_t *d_dims, *d_pairs, *d_order;
@@ -144,12 +150,14 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
       "\"t_plan_s\":%.6f,\"t_plan_metrics_s\":%.6f,"
       "\"plan_order_basis\":\"global_full_dims\","
       "\"plan_metrics_computed\":%s,"
+      "\"pre_timing_delay_ms\":%d,\"gpu_state_at_timing_start\":%s,"
       "\"plan_effective_elements\":%lld,\"plan_lane_slots\":%lld,"
       "\"plan_lane_utilisation\":%.5f,\"occupancy\":%s}}\n",
       prop.name, t_h2d, t_h2d, t_stats, t_final, t_stats, t_final,
       device_total, t_d2h, map.group, pair_order_name(map.order),
       map.hoist ? "true" : "false", plan.build_seconds, t_plan_metrics,
       map.plan_metrics ? "true" : "false",
+      map.pre_timing_delay_ms, gpu_state,
       static_cast<long long>(plan_metrics.effective_elements),
       static_cast<long long>(plan_metrics.lane_slots),
       plan_metrics.utilisation(), occ_json);

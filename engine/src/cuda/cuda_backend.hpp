@@ -33,8 +33,13 @@ struct CudaMapOptions {
   // a reclassification rather than a saving; the production path does not
   // compute them at all.
   bool plan_metrics = false;
+  // Pure sleep at the same point as the diagnostics, to separate idle time from
+  // the CPU work the diagnostics also do. Single GPU is the control arm: it did
+  // not move when the diagnostics were switched off, so it should not move here.
+  int pre_timing_delay_ms = 0;
   bool is_default() const {
-    return group == 4 && order == PairOrder::kSource && !hoist && !plan_metrics;
+    return group == 4 && order == PairOrder::kSource && !hoist && !plan_metrics
+           && pre_timing_delay_ms == 0;
   }
 };
 

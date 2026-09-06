@@ -49,11 +49,24 @@ if(ENGINE_MPI)
   engine_strict_formats(pearson_engine_mpi)
 endif()
 
+# NVML gives clock/power/temperature at a chosen instant, which is what
+# separates "the GPUs idled and re-boosted" from "the CPU was busy". Optional:
+# absent NVML, those fields are reported as null and everything else still runs.
+find_library(NVML_LIB nvidia-ml
+             PATHS /usr/local/cuda/lib64/stubs /usr/lib/x86_64-linux-gnu
+             ${CUDAToolkit_LIBRARY_DIR}/stubs)
+find_path(NVML_INC nvml.h PATHS /usr/local/cuda/include)
+
 if(ENGINE_CUDA)
   enable_language(CUDA)
   set(CMAKE_CUDA_STANDARD 17)
   add_library(engine_cuda src/cuda/cuda_backend.cu)
   engine_strict_formats(engine_cuda)
+  if(NVML_LIB AND NVML_INC)
+    target_include_directories(engine_cuda PRIVATE ${NVML_INC})
+    target_link_libraries(engine_cuda PRIVATE ${NVML_LIB})
+    target_compile_definitions(engine_cuda PRIVATE ENGINE_HAVE_NVML)
+  endif()
   target_include_directories(engine_cuda PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   target_link_libraries(pearson_engine PRIVATE engine_cuda)
   target_compile_definitions(pearson_engine PRIVATE ENGINE_HAVE_CUDA)
@@ -66,6 +79,11 @@ if(ENGINE_NCCL)
   find_path(NCCL_INC nccl.h REQUIRED)
   add_executable(pearson_engine_nccl src/nccl/nccl_main.cu)
   engine_strict_formats(pearson_engine_nccl)
+  if(NVML_LIB AND NVML_INC)
+    target_include_directories(pearson_engine_nccl PRIVATE ${NVML_INC})
+    target_link_libraries(pearson_engine_nccl PRIVATE ${NVML_LIB})
+    target_compile_definitions(pearson_engine_nccl PRIVATE ENGINE_HAVE_NVML)
+  endif()
   target_include_directories(pearson_engine_nccl PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src ${NCCL_INC})
   target_link_libraries(pearson_engine_nccl PRIVATE ${NCCL_LIB})
