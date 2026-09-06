@@ -327,16 +327,64 @@ int run(int argc, char** argv) {
   NCCL_CHECK(ncclCommInitAll(comms.data(), n_gpus, ids.data()));
   const double t_comm_init = wall() - c0;
 
+  // Dimension ranges first: they are pure arithmetic, and computing them here
+  // lets the plan diagnostics run BEFORE the timed setup window rather than
+  // inside it. Nesting the diagnostics in t_setup put them straight back into
+  // cold_data_path_s -- which the comment beside them denied, and which
+  // run_bench's identity check could not catch, because both sides of that
+  // check read the same inflated t_setup.
+  std::vector<std::pair<int32_t, int32_t>> dim_range(n_gpus);
+  for (int g = 0; g < n_gpus; ++g)
+    dim_range[g] = {static_cast<int32_t>(static_cast<int64_t>(n_dims) * g / n_gpus),
+                    static_cast<int32_t>(static_cast<int64_t>(n_dims) * (g + 1) / n_gpus)};
+
   const int64_t epp = elems_per_pair(payload);
   const int64_t stats_pairs = (mode == "sync") ? n_pairs : 2 * chunk;
   const int64_t stats_len = epp * stats_pairs;
   const size_t stats_bytes = static_cast<size_t>(stats_len) * elem_bytes(payload);
+  // What the shared order actually costs on each device's own slice.
+  //
+  // The plan's own metrics describe the full dimension range, which no device
+  // executes; reporting those as the GPUs' utilisation would overstate it,
+  // because splitting the dimensions shortens every row and leaves shorter
+  // tails. So the fixed order is re-evaluated against each [dim_lo, dim_hi).
+  // The counterfactual is what that slice would cost if it could sort its own
+  // pairs -- unreachable while the collective is elementwise, and recorded
+  // only as an upper bound on what a better mapping could reach.
+  //
+  // This is diagnostics, not execution. It runs BEFORE the timed setup
+  // window opens, so it cannot be inside it by construction -- the previous
+  // version sat between t1 and t_setup and was silently charged to the cold
+  // path despite a comment saying otherwise. The window boundaries are
+  // emitted so the disjointness is checkable from the record.
+  //
+  // The full-dimension figure is diagnostic too, and used to hide inside
+  // t_plan_s: plan_pairs computed it unconditionally, so even --pair-order
+  // source paid a ~50 ms length pass it never needed. Both live here now.
+  const double diag_begin = wall();
+  const engine::PlanMetrics on_basis = engine::measure_plan(fx, plan, 0, n_dims);
+  std::vector<engine::PlanMetrics> per_dev(n_gpus), per_dev_ideal(n_gpus);
+  engine::PlanMetrics agg;
+  int64_t critical_slots = 0;
+  for (int g = 0; g < n_gpus; ++g) {
+    const std::vector<int32_t> len =
+        engine::short_lens(fx, dim_range[g].first, dim_range[g].second);
+    per_dev[g] = engine::evaluate_order(plan.order, len, group);
+    per_dev_ideal[g] = engine::counterfactual_per_device_ideal(
+        fx, group, dim_range[g].first, dim_range[g].second);
+    agg.effective_elements += per_dev[g].effective_elements;
+    agg.lane_slots += per_dev[g].lane_slots;
+    critical_slots = std::max(critical_slots, per_dev[g].lane_slots);
+  }
+  const double diag_end = wall();
+  const double t_plan_metrics = diag_end - diag_begin;
+
   const double t1 = wall();
   for (int g = 0; g < n_gpus; ++g) {
     Device& d = devs[g];
     d.id = g;
-    d.dim_lo = static_cast<int32_t>(static_cast<int64_t>(n_dims) * g / n_gpus);
-    d.dim_hi = static_cast<int32_t>(static_cast<int64_t>(n_dims) * (g + 1) / n_gpus);
+    d.dim_lo = dim_range[g].first;    // one source, so the diagnostics above
+    d.dim_hi = dim_range[g].second;   // describe the slice actually executed
     CUDA_CHECK(cudaSetDevice(g));
     CUDA_CHECK(cudaStreamCreate(&d.compute));
     CUDA_CHECK(cudaStreamCreate(&d.comm));
@@ -364,39 +412,6 @@ int run(int argc, char** argv) {
     CUDA_CHECK(cudaMemcpy(d.order, plan.order.data(),
                           plan.order.size() * sizeof(int32_t), cudaMemcpyHostToDevice));
   }
-  // What the shared order actually costs on each device's own slice.
-  //
-  // The plan's own metrics describe the full dimension range, which no device
-  // executes; reporting those as the GPUs' utilisation would overstate it,
-  // because splitting the dimensions shortens every row and leaves shorter
-  // tails. So the fixed order is re-evaluated against each [dim_lo, dim_hi).
-  // The counterfactual is what that slice would cost if it could sort its own
-  // pairs -- unreachable while the collective is elementwise, and recorded
-  // only as an upper bound on what a better mapping could reach.
-  //
-  // This is diagnostics, not execution, so it is timed separately and kept out
-  // of cold_data_path_s. Building the order is required to run; measuring it
-  // is not.
-  //
-  // The full-dimension figure is diagnostic too, and used to hide inside
-  // t_plan_s: plan_pairs computed it unconditionally, so even --pair-order
-  // source paid a ~50 ms length pass it never needed. Both live here now.
-  const double pm0 = wall();
-  const engine::PlanMetrics on_basis = engine::measure_plan(fx, plan, 0, n_dims);
-  std::vector<engine::PlanMetrics> per_dev(n_gpus), per_dev_ideal(n_gpus);
-  engine::PlanMetrics agg;
-  int64_t critical_slots = 0;
-  for (int g = 0; g < n_gpus; ++g) {
-    const std::vector<int32_t> len =
-        engine::short_lens(fx, devs[g].dim_lo, devs[g].dim_hi);
-    per_dev[g] = engine::evaluate_order(plan.order, len, group);
-    per_dev_ideal[g] = engine::counterfactual_per_device_ideal(
-        fx, group, devs[g].dim_lo, devs[g].dim_hi);
-    agg.effective_elements += per_dev[g].effective_elements;
-    agg.lane_slots += per_dev[g].lane_slots;
-    critical_slots = std::max(critical_slots, per_dev[g].lane_slots);
-  }
-  const double t_plan_metrics = wall() - pm0;
 
   for (int g = 0; g < n_gpus; ++g) {
     CUDA_CHECK(cudaSetDevice(g));
@@ -420,7 +435,10 @@ int run(int argc, char** argv) {
     CUDA_CHECK(cudaMemset(devs[g].stats, 0, stats_bytes));
     CUDA_CHECK(cudaDeviceSynchronize());
   }
-  const double t_setup = wall() - t1;
+  const double setup_end = wall();
+  const double t_setup = setup_end - t1;
+  // Provable from the record rather than asserted in prose.
+  const bool stage_windows_disjoint = (diag_end <= t1) || (diag_begin >= setup_end);
 
   using namespace engine_cuda;
   // Timing contract (see README, unified 2026-09-05):
@@ -697,6 +715,7 @@ int run(int argc, char** argv) {
       "\"group\":%d,\"pair_order\":\"%s\",\"hoist\":%s,"
       "\"t_plan_s\":%.6f,\"t_plan_metrics_s\":%.6f,"
       "\"plan_order_basis\":\"global_full_dims\","
+      "\"stage_windows_disjoint\":%s,"
       "\"plan_per_device\":%s,"
       "\"plan_critical_lane_slots\":%lld,"
       "\"plan_aggregate_effective_elements\":%lld,"
@@ -723,6 +742,7 @@ int run(int argc, char** argv) {
       device_total, t_comm_init, cold_data_path,
       group, order_arg.c_str(), hoist ? "true" : "false",
       plan.build_seconds, t_plan_metrics,
+      stage_windows_disjoint ? "true" : "false",
       per_device.c_str(),
       static_cast<long long>(critical_slots),
       static_cast<long long>(agg.effective_elements),

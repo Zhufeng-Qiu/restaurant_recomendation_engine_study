@@ -34,6 +34,7 @@ import os
 import platform
 import random
 import statistics
+import signal
 import subprocess
 import sys
 
@@ -118,6 +119,15 @@ def timing_identity(trial):
         return {"checked": False, "ok": True, "backend": backend,
                 "reason": f"no cold-path contract known for backend {backend!r}"}
 
+    # The binary reports whether its diagnostic window overlapped its timed
+    # setup window. It did once, silently, and no re-summation could catch it:
+    # both sides of the identity read the same inflated t_setup_s.
+    if trial.get("stage_windows_disjoint") is False:
+        return {"checked": True, "ok": False, "backend": backend,
+                "recorded_s": cold, "resummed_s": float("nan"),
+                "tolerance_s": 0.0,
+                "reason": "diagnostic timing window overlaps the setup window; "
+                          "cold_data_path_s includes t_plan_metrics_s"}
     parts = {k: trial[k] for k in
              ("t_load_s", "t_plan_s", "t_comm_init_s", "t_setup_s", "t_h2d_s",
               "t_d2h_s") if k in trial}
@@ -148,6 +158,8 @@ def timing_identity_warning(config_name, bad):
     had finished measuring and before anything was written. A diagnostic must
     not be able to destroy the measurement it is describing.
     """
+    if bad.get("reason"):
+        return f"  WARNING {config_name}: {bad['reason']}"
     return (f"  WARNING {config_name}: cold_data_path_s "
             f"{bad['recorded_s']:.6f} != resummed {bad['resummed_s']:.6f} "
             f"(tolerance {bad['tolerance_s']:.6f})")
@@ -181,6 +193,56 @@ def selftest():
     m = timing_identity(mpi)
     check(m is not None and not m["checked"] and m["ok"], "mpi is skipped, not failed")
     check(timing_identity({"backend": "cuda"}) is None, "no cold path -> None")
+    # An overlapping diagnostic window is a failure even when the arithmetic
+    # is self-consistent -- which is exactly how it escaped the first time.
+    nested = dict(base, cold_data_path_s=0.465, backend="nccl",
+                  stage_windows_disjoint=False)
+    n = timing_identity(nested)
+    check(n["checked"] and not n["ok"], "overlapping timing windows are caught")
+    check("overlaps" in timing_identity_warning("nccl_sync_g2_packed", n),
+          "the overlap warning renders")
+
+    # --- the failure modes that cost an hour of GPU time -------------------
+    import tempfile, time as _time
+    good = ('echo \'{"n_pairs":1,"tol_failures":0,"device_total_s":0.1,'
+            '"timing_basis":"device_total"}\'')
+
+    t0 = _time.time()
+    try:
+        run_once(["/bin/sh", "-c", "sleep 30"], {}, timeout=1.0)
+        check(False, "a hung trial is killed")
+    except TrialTimeout:
+        check(_time.time() - t0 < 5, "a hung trial is killed by its timeout")
+
+    try:                                   # OOM/SIGKILL: no traceback at all
+        run_once(["/bin/sh", "-c", "kill -9 $$"], {})
+        check(False, "a killed trial raises")
+    except RuntimeError as exc:
+        check("signal 9" in str(exc), "a killed trial names the signal")
+
+    try:                                   # exit 0, no JSON: used to return {}
+        run_once(["/bin/sh", "-c", "echo not json; exit 0"], {})
+        check(False, "a trial with no JSON raises")
+    except RuntimeError as exc:
+        check("no usable record" in str(exc), "exit 0 without JSON is rejected")
+
+    check(run_once(["/bin/sh", "-c", good], {})["n_pairs"] == 1,
+          "a valid record still parses")
+
+    d = tempfile.mkdtemp()
+    ck = os.path.join(d, "ck.json")
+    cfgs = [{"name": "a", "threads": 1, "cmd": ["/bin/sh", "-c", good], "env": {}}]
+    bench_round_robin(cfgs, 0, 3, 7, log=lambda m: None, checkpoint=ck)
+    saved = json.load(open(ck))
+    check(saved["rounds_done"] == 3 and len(saved["trials_by_config"]["a"]) == 3,
+          "every round is checkpointed")
+    check(not os.path.exists(ck + ".tmp"), "atomic write leaves no temp file")
+    saved["rounds_done"] = 1
+    saved["trials_by_config"]["a"] = saved["trials_by_config"]["a"][:1]
+    atomic_write_json(ck, saved)
+    tr, _ = bench_round_robin(cfgs, 0, 3, 7, log=lambda m: None, resume_from=ck)
+    check(len(tr["a"]) == 3, "resume completes the remaining rounds")
+
     print(f"run_bench selftest: {'PASS' if fails == 0 else 'FAIL'}")
     return fails
 
@@ -264,24 +326,70 @@ def environment():
     return env
 
 
-def run_once(cmd, env_extra):
+# A trial that prints no usable JSON is a failed trial, not an empty one.
+# Returning {} let a broken configuration travel all the way to the summary,
+# where it crashed an hour of measurement instead of one trial.
+REQUIRED_FIELDS = ("n_pairs", "tol_failures")
+
+
+class TrialTimeout(RuntimeError):
+    pass
+
+
+def run_once(cmd, env_extra, timeout=None):
+    """One invocation -> merged JSON record. Raises on anything unusable.
+
+    Started in its own session so a timeout can kill the whole process group.
+    mpirun spawns children that survive a bare kill() and would then compete
+    with every later trial for the same GPUs.
+    """
     env = dict(os.environ, **env_extra)
-    p = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         text=True, env=env, start_new_session=True)
+    try:
+        out, err = p.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            p.kill()
+        p.communicate()
+        raise TrialTimeout(f"{' '.join(cmd)} exceeded {timeout}s")
     if p.returncode != 0:
-        raise RuntimeError(f"{' '.join(cmd)} failed:\n{p.stderr[-2000:]}")
+        # OOM and SIGKILL arrive as a negative return code and no traceback,
+        # so say which signal rather than printing empty stderr.
+        why = (f"killed by signal {-p.returncode}" if p.returncode < 0
+               else f"exit {p.returncode}")
+        raise RuntimeError(f"{' '.join(cmd)} failed ({why}):\n{err[-2000:]}")
     # Backends may print auxiliary JSON lines (e.g. cuda_detail) before the
     # summary line; merge them all into one flat record.
     rec = {}
-    for line in p.stdout.strip().splitlines():
+    for line in out.strip().splitlines():
         line = line.strip()
         if line.startswith("{"):
             d = json.loads(line)
             rec.update(d.pop("cuda_detail", {}))
             rec.update(d)
+    missing = [f for f in REQUIRED_FIELDS if f not in rec]
+    if missing:
+        raise RuntimeError(f"{' '.join(cmd)} produced no usable record "
+                           f"(missing {missing}); stdout was:\n{out[-800:]}")
     return rec
 
 
-def bench_round_robin(configs, warmups, repeats, seed, log=print):
+def atomic_write_json(path, doc):
+    """Write via a temporary file and rename, so a checkpoint is never half a
+    file. A crash mid-write must not also destroy the previous checkpoint."""
+    tmp = f"{path}.tmp"
+    with open(tmp, "w") as f:
+        json.dump(doc, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def bench_round_robin(configs, warmups, repeats, seed, log=print,
+                      timeout=None, checkpoint=None, resume_from=None):
     """Interleave configurations instead of draining each one in turn.
 
     Running 30 consecutive trials of `f64` and then 30 of `packed` confounds
@@ -299,29 +407,57 @@ def bench_round_robin(configs, warmups, repeats, seed, log=print):
     trials = {c["name"]: [] for c in configs}
     errors = {}
     live = list(configs)
+    first_round = 0
 
-    for c in list(live):                       # warm-ups, in declaration order
-        try:
-            for _ in range(warmups):
-                run_once(c["cmd"], c["env"])
-        except Exception as exc:
-            errors[c["name"]] = f"{type(exc).__name__}: {exc}"
-            log(f"{c['name']:26s} FAILED (warm-up): {type(exc).__name__}: {exc}")
-            live.remove(c)
+    if resume_from:
+        # Continue an interrupted session. The shuffle sequence is a function
+        # of the seed alone, so replaying the completed rounds' shuffles puts
+        # the generator back where it was -- the resumed half sees the order it
+        # would have seen.
+        prev = json.load(open(resume_from))
+        for name, ts in prev.get("trials_by_config", {}).items():
+            if name in trials:
+                trials[name] = ts
+        errors.update(prev.get("errors", {}))
+        live = [c for c in live if c["name"] not in errors]
+        first_round = prev.get("rounds_done", 0)
+        for _ in range(first_round):
+            rng.shuffle(list(live))
+        log(f"resumed from {os.path.basename(resume_from)}: "
+            f"{first_round} rounds done, {len(live)} live configs")
+    else:
+        for c in list(live):                   # warm-ups, in declaration order
+            try:
+                for _ in range(warmups):
+                    run_once(c["cmd"], c["env"], timeout=timeout)
+            except Exception as exc:
+                errors[c["name"]] = f"{type(exc).__name__}: {exc}"
+                log(f"{c['name']:26s} FAILED (warm-up): {type(exc).__name__}: {exc}")
+                live.remove(c)
 
-    for r in range(repeats):
+    for r in range(first_round, repeats):
         order = list(live)
         rng.shuffle(order)
         for c in order:
             try:
-                trials[c["name"]].append(run_once(c["cmd"], c["env"]))
+                trials[c["name"]].append(
+                    run_once(c["cmd"], c["env"], timeout=timeout))
             except Exception as exc:
                 errors[c["name"]] = f"{type(exc).__name__}: {exc}"
                 log(f"{c['name']:26s} FAILED (round {r + 1}): "
                     f"{type(exc).__name__}: {exc}")
                 live.remove(c)
-        if (r + 1) % 5 == 0 or r == repeats - 1:
-            log(f"  ... round {r + 1}/{repeats} done ({len(live)} live configs)")
+        # Checkpoint EVERY round. The previous version held 30 rounds over 37
+        # configurations in memory and wrote once at the end; a crash in the
+        # summariser threw all of it away.
+        if checkpoint:
+            atomic_write_json(checkpoint, {
+                "partial": True, "rounds_done": r + 1, "repeats": repeats,
+                "seed": seed, "warmups": warmups,
+                "live_configs": [c["name"] for c in live],
+                "errors": errors, "trials_by_config": trials,
+            })
+        log(f"  ... round {r + 1}/{repeats} done ({len(live)} live configs)")
     return trials, errors
 
 
@@ -333,6 +469,14 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "results/bench"))
     ap.add_argument("--gpu", action="store_true",
                     help="add cuda + nccl configurations (GPU host only)")
+    ap.add_argument("--timeout", type=float, default=900,
+                    help="per-trial wall clock limit in seconds; the whole "
+                         "process group is killed on expiry (0 disables)")
+    ap.add_argument("--checkpoint",
+                    help="path for the per-round checkpoint "
+                         "(default: <out>/checkpoint_<stamp>.json)")
+    ap.add_argument("--resume", help="continue from a checkpoint written by "
+                                     "an interrupted run")
     ap.add_argument("--selftest", action="store_true",
                     help="run the timing-check self-test and exit")
     ap.add_argument("--seed", type=int, default=None,
@@ -396,8 +540,18 @@ def main():
     seed = args.seed if args.seed is not None else random.randrange(1 << 30)
     print(f"round-robin order, seed={seed}, {args.repeats} rounds x "
           f"{len(configs)} configs after {args.warmups} warm-ups", flush=True)
-    all_trials, errors = bench_round_robin(configs, args.warmups, args.repeats,
-                                           seed)
+    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    ckpt = args.checkpoint or os.path.join(args.out, f"checkpoint_{stamp}.json")
+
+    def log(msg):
+        print(msg, flush=True)          # unbuffered: a run this long is
+                                        # watched from outside, and a silent
+                                        # pipe is indistinguishable from a hang
+
+    all_trials, errors = bench_round_robin(
+        configs, args.warmups, args.repeats, seed, log=log,
+        timeout=(args.timeout or None), checkpoint=ckpt,
+        resume_from=args.resume)
 
     results = []
     for cfg in configs:
@@ -453,6 +607,13 @@ def main():
             rec["timing_identity_error"] = repr(exc)
             print(f"  WARNING {cfg['name']}: timing check failed: {exc!r}",
                   flush=True)
+        # The lane mapping belongs on the summary record, not only inside the
+        # trials: a table that cannot see it labels the row from memory, which
+        # is how the README kept saying "warp-per-pair" after the default
+        # changed.
+        for field in ("group", "pair_order", "hoist", "plan_order_basis"):
+            if field in trials[0]:
+                rec[field] = trials[0][field]
         for field in ("payload", "payload_bytes_per_pair", "allreduce_bytes"):
             if field in trials[0]:
                 rec[field] = trials[0][field]
@@ -486,10 +647,8 @@ def main():
         "environment": environment(),
         "results": results,
     }
-    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     json_path = os.path.join(args.out, f"bench_{stamp}.json")
-    with open(json_path, "w") as f:
-        json.dump(doc, f, indent=2)
+    atomic_write_json(json_path, doc)
 
     csv_path = os.path.join(args.out, f"bench_{stamp}.csv")
     with open(csv_path, "w", newline="") as f:
