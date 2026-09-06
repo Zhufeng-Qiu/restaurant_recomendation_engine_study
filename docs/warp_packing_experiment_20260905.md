@@ -564,6 +564,34 @@ the current production path"; the earlier −47.62% was measured with the
 diagnostics present on both arms and is not comparable to a pause-free
 deployment.
 
+## 7c. The headline, and how far it reproduces
+
+The table in the README is the median of three independent hosts running
+identical engine sources with the plan diagnostics off. All three runs are
+committed (`bench_20260906_034430`, `_044118`, `_044505`):
+
+| | host A | host B (README) | host C | spread |
+| --- | --- | --- | --- | --- |
+| Serial | 1262.053 ms | 1253.179 | 1250.637 | 0.9% |
+| OpenMP 16t | 94.239 | 94.366 | 94.393 | 0.2% |
+| MPI 16 ranks | 282.233 | 278.642 | 277.937 | 1.5% |
+| CUDA 1 GPU | 4.181 | 4.207 | 4.173 | 0.8% |
+| NCCL sync `packed` 1 GPU | 4.554 | 4.636 | 4.618 | 1.8% |
+| NCCL sync `packed` 2 GPU | 3.069 | 3.170 | 3.202 | 4.3% |
+| NCCL async `packed` 2 GPU | 3.783 | 3.707 | 3.855 | 4.0% |
+| **speedup, NCCL sync 2 GPU** | 411.3x | 395.3x | 390.6x | **5.3%** |
+
+The CPU rows agree to within a percent and the single-GPU rows to under one;
+the two-GPU rows are the loose ones at 4-5%. **5.3% on the headline speedup is
+the error bar to quote** — it is larger than any single run's IQR (0.9-2.2% on
+those rows), so a run's own spread understates how well the number travels.
+
+Compression on the final default, same three hosts, 30 balanced crossover
+blocks each: **−7.70% [−8.68, −6.72]**, −9.47% [−15.19, −3.36], −6.99%
+[−17.61, +5.01]. The sign is consistent; only the first has an interval tight
+enough to be worth quoting, and the other two are wide because those sessions
+were noisier.
+
 ## 8. What the per-device reporting changed
 
 The full-dimension plan's utilisation is not what a GPU executes, and on
