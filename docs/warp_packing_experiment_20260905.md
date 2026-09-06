@@ -479,12 +479,13 @@ blocks (`results/bench/warp_packing_metrics_pause_*.json`):
 The two-GPU effect is entirely in the stats measurement, the collective does not
 move, and the single-GPU control is null.
 
-### It is not a duty-cycle effect. The pure-delay control says so.
+### A pure wait does not reproduce it
 
 The obvious reading was that the diagnostics gave the GPUs ~490 ms to idle and
-re-boost. That reading was mine, and it is wrong. `--pre-timing-delay-ms`
-inserts a *pure sleep* at exactly the point the diagnostics occupied, with
-`--plan-metrics off`, so idle time can be varied on its own:
+re-boost. That reading was mine, and the control does not support it.
+`--pre-timing-delay-ms` inserts a *pure sleep* at exactly the point the
+diagnostics occupied, with `--plan-metrics off`, so idle time can be varied on
+its own:
 
 | NCCL 2 GPU arm | median | `t_stats` | SM clock † | mem clock † | power † | temp † | throttle † |
 | --- | --- | --- | --- | --- | --- | --- | --- |
