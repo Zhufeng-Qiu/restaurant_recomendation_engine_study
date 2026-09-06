@@ -705,37 +705,46 @@ claim about the platform.
 
 ### Still open
 
+*Scope: these are open **for the host class and protocol used in this
+document** — 2x A100-SXM4-80GB, 5- or 30-trial runs on the pre-warp-packing
+default. Several were closed by later work; where that is so, it says which.*
+
 Rewritten 2026-09-05 after the baseline campaign closed. Entries removed
 because they are done: the `PHB` host, the nccl-tests redo, the cross-session
 replication, and the finalize labelling. The async-spread entry is gone for a
-different reason: the 13–16% IQR reproduced across three independent pods
-(16.3% / 16.4% / 15.6%), so it is a property of the pipeline, recorded in the
-audit document, not an open question.
+different reason: the IQR reproduced across three independent pods (16.3% /
+15.6% / 16.4% here; 10.9–11.2% in later runs on the current default), so it is
+a reproducible property of this pipeline **on this host class**, not an open
+question — but the magnitude is protocol- and host-dependent and the later
+figure is the one to quote.
 
 - **Warp packing is implemented and measured** (2026-09-05, after this audit
-  was written). It works, and the mechanism above is not why: see
+  was written): see
   [docs/warp_packing_experiment_20260905.md](warp_packing_experiment_20260905.md).
-  The lane-slot prize quoted in this document -- 14.42% at one GPU, 25.32% at
-  two, 19.22% after the shared-order constraint -- was directionally right and
-  quantitatively short. Measured critical lane slots did fall 18.3% at two
-  GPUs, close to the model; measured stats time fell 51.2%. Most of the gain is
-  a per-thread cost this document never counted: `pair_lane_stats` runs four
-  `lower_bound` searches per THREAD to locate each row's restricted slice, and
-  every lane of a group repeats them, so that cost scales with the group size.
-  The `lane_full` fixture settles it -- its lane slots vary by 0.02% across
-  group sizes and its stats time still drops 13.5%. The numbers in this
-  section remain what the model predicted, not what the hardware did.
+  It works, and **the lane-slot model in this document is not why**. The prize
+  quoted here — 14.42% at one GPU, 25.32% at two, 19.22% after the shared-order
+  constraint — was directionally right and quantitatively short: measured
+  critical lane slots fell 18.3% at two GPUs, close to the model, while stats
+  time fell far more. The `lane_full` fixture settles it — its lane slots vary
+  by 0.02% across group sizes and its stats time still drops 13.5%.
+  A replacement hypothesis (four redundant `lower_bound` searches per thread)
+  was implemented as a hoist and **measured at +0.15% [−0.08, +0.38] — no
+  effect**, so it is not that either. A cost proportional to the thread count
+  is real and remains unattributed. The numbers in this section are what the
+  model predicted, not what the hardware did.
 - **The AllReduce is 1.2–2.5x off the library's own ceiling**, and the gap
   widens as the link slows and the payload shrinks — 2.48x at `packed` on the
   host-staged link, where `all_reduce_perf` moves the same 18.75 MB in 7.47 ms
   against this engine's 18.56 ms. That is a larger prize than warp packing and
   nothing in this project has looked at it.
-- **Provenance is not closed.** The NVLink headline matrix predates the
-  provenance fields entirely (no `git_sha`); the PHB run records the public
-  clone's SHA with `git_dirty=true`, because the engine tree is rsynced over
-  the clone rather than pushed; and **no result file in this repository
-  records an `image_digest`**. No dirty patch or binary hash was kept, so
-  identical source across the three regimes is intended, not evidenced.
+- **Provenance is not closed *for the three-regime experiments in this
+  document*.** The NVLink headline matrix here predates the provenance fields
+  (no `git_sha`); the PHB run records the public clone's SHA with
+  `git_dirty=true` because the engine tree was rsynced over it; and none of
+  these runs records an `image_digest`. That limitation is specific to this
+  campaign — later work records `git_sha`, a tracked-vs-untracked dirty split
+  and a real `image_digest`, and the headline was re-measured on a clean
+  checkout. See the warp-packing document.
   The three replication sessions (`../results/bench/repro_s*.json`) carry seed,
   block count and results but no host, SHA, image or timestamp —
   `../engine/bench/repro_session.py` records those now, but s1–s3 predate it and
