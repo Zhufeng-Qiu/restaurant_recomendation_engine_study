@@ -40,9 +40,13 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "common/fixture.hpp"
+#include "common/pair_order.hpp"
+#include "cuda/gpu_state.cuh"
+#include "cuda/occupancy.cuh"
 #include "common/payload_domain.hpp"
 #include "common/pearson.hpp"
 #include "cuda/pair_kernel.cuh"
@@ -71,6 +75,7 @@ struct Device {
   int32_t* dims = nullptr;
   double* vals = nullptr;
   int32_t* pairs = nullptr;
+  int32_t* order = nullptr;  // slot -> pair; identical on every device
   void* stats = nullptr;     // elems_per_pair(payload) entries per pair
   double* sims = nullptr;    // n_pairs (device 0 finalizes)
   cudaStream_t compute = nullptr, comm = nullptr;
@@ -158,43 +163,44 @@ void check_payload_domain(const engine::Fixture& fx, Payload p) {
 
 // Payload-dispatching launchers. The three variants share their accumulation
 // path (engine_cuda::warp_pair_stats) and differ only in the width they emit.
-void launch_stats(Payload p, unsigned blocks, cudaStream_t s, const Device& d,
-                  const int32_t* pairs, int64_t len, void* dst) {
+void launch_stats(Payload p, int group, bool hoist, unsigned blocks,
+                  cudaStream_t s, const Device& d, const int32_t* order,
+                  int64_t len, void* dst) {
   using namespace engine_cuda;
   switch (p) {
     case Payload::I32:
-      pair_stats_kernel_i32<<<blocks, kBlock, 0, s>>>(
-          d.offsets, d.dims, d.vals, pairs, len, d.dim_lo, d.dim_hi,
-          static_cast<int32_t*>(dst));
+      ENGINE_DISPATCH_GROUP(group, hoist, pair_stats_kernel_i32, blocks, kBlock, s,
+                            d.offsets, d.dims, d.vals, d.pairs, order, len,
+                            d.dim_lo, d.dim_hi, static_cast<int32_t*>(dst));
       break;
     case Payload::Packed:
-      pair_stats_kernel_packed<<<blocks, kBlock, 0, s>>>(
-          d.offsets, d.dims, d.vals, pairs, len, d.dim_lo, d.dim_hi,
-          static_cast<uint64_t*>(dst));
+      ENGINE_DISPATCH_GROUP(group, hoist, pair_stats_kernel_packed, blocks, kBlock, s,
+                            d.offsets, d.dims, d.vals, d.pairs, order, len,
+                            d.dim_lo, d.dim_hi, static_cast<uint64_t*>(dst));
       break;
     default:
-      pair_stats_kernel<<<blocks, kBlock, 0, s>>>(
-          d.offsets, d.dims, d.vals, pairs, len, d.dim_lo, d.dim_hi,
-          static_cast<double*>(dst));
+      ENGINE_DISPATCH_GROUP(group, hoist, pair_stats_kernel, blocks, kBlock, s,
+                            d.offsets, d.dims, d.vals, d.pairs, order, len,
+                            d.dim_lo, d.dim_hi, static_cast<double*>(dst));
   }
 }
 
 void launch_finalize(Payload p, int64_t len, cudaStream_t s, const void* stats,
-                     double* sims) {
+                     const int32_t* order, double* sims) {
   using namespace engine_cuda;
   const unsigned blocks = static_cast<unsigned>((len + 255) / 256);
   switch (p) {
     case Payload::I32:
       finalize_kernel_i32<<<blocks, 256, 0, s>>>(
-          static_cast<const int32_t*>(stats), len, sims);
+          static_cast<const int32_t*>(stats), order, len, sims);
       break;
     case Payload::Packed:
       finalize_kernel_packed<<<blocks, 256, 0, s>>>(
-          static_cast<const uint64_t*>(stats), len, sims);
+          static_cast<const uint64_t*>(stats), order, len, sims);
       break;
     default:
       finalize_kernel<<<blocks, 256, 0, s>>>(
-          static_cast<const double*>(stats), len, sims);
+          static_cast<const double*>(stats), order, len, sims);
   }
 }
 
@@ -223,6 +229,8 @@ int run(int argc, char** argv) {
                  "usage: %s <fixture_dir> [--gpus N] [--mode sync|async] "
                  "[--chunk PAIRS] [--payload f64|i32|packed] "
                  "[--finalize-stream comm|separate] [--validate] "
+                 "[--group 1|2|4|8|16|32] [--pair-order source|bylen] "
+                 "[--hoist on|off] [--plan-metrics on|off] "
                  "[--out f]\n", argv[0]);
     return 2;
   }
@@ -230,16 +238,77 @@ int run(int argc, char** argv) {
   std::string finalize_stream = "comm";  // async only; "comm" | "separate"
   int n_gpus = 2;
   int64_t chunk = 1 << 18;  // 262144 pairs per chunk (async mode)
+  int group = 4;                      // lanes per pair; see cuda_backend.hpp
+                                      // (32 was the phase-3 mapping)
+  std::string order_arg = "source";   // "bylen" enables warp packing
+  std::string hoist_arg = "off";      // slice bounds once per group, broadcast
+  bool plan_metrics_on = false;       // diagnostics: OFF on the production path
+  // A PURE sleep at the same point as the diagnostics. The diagnostics A/B
+  // showed that doing ~490 ms of host work there makes the two-GPU stats
+  // kernel ~17% faster, but that work is not a sleep -- it is 1.17M binary
+  // searches, a sort and a lane-model pass, so it spends CPU, memory bandwidth
+  // and cache as well as giving the GPUs idle time. This isolates the idle
+  // time alone.
+  int pre_timing_delay_ms = 0;
   bool validate = false;
+  // Argument parsing refuses what it cannot honour. Silently ignoring an
+  // unknown flag, or a flag whose value went missing at the end of the line,
+  // would run a configuration nobody asked for and label the results with the
+  // one they did -- the kind of thing that only surfaces after a benchmark
+  // campaign is already written up.
+  auto need_value = [&](int a, const char* flag) {
+    if (a + 1 >= argc)
+      throw std::runtime_error(std::string(flag) + " needs a value");
+    return argv[a + 1];
+  };
   for (int a = 2; a < argc; ++a) {
-    if (!std::strcmp(argv[a], "--gpus") && a + 1 < argc) n_gpus = std::atoi(argv[++a]);
-    else if (!std::strcmp(argv[a], "--mode") && a + 1 < argc) mode = argv[++a];
-    else if (!std::strcmp(argv[a], "--chunk") && a + 1 < argc) chunk = std::atoll(argv[++a]);
-    else if (!std::strcmp(argv[a], "--payload") && a + 1 < argc) payload_arg = argv[++a];
-    else if (!std::strcmp(argv[a], "--finalize-stream") && a + 1 < argc) finalize_stream = argv[++a];
+    if (!std::strcmp(argv[a], "--gpus")) n_gpus = std::atoi(need_value(a++, "--gpus"));
+    else if (!std::strcmp(argv[a], "--mode")) mode = need_value(a++, "--mode");
+    else if (!std::strcmp(argv[a], "--chunk")) chunk = std::atoll(need_value(a++, "--chunk"));
+    else if (!std::strcmp(argv[a], "--payload")) payload_arg = need_value(a++, "--payload");
+    else if (!std::strcmp(argv[a], "--finalize-stream"))
+      finalize_stream = need_value(a++, "--finalize-stream");
+    else if (!std::strcmp(argv[a], "--out")) out_path = need_value(a++, "--out");
+    else if (!std::strcmp(argv[a], "--group")) group = std::atoi(need_value(a++, "--group"));
+    else if (!std::strcmp(argv[a], "--pair-order")) order_arg = need_value(a++, "--pair-order");
+    else if (!std::strcmp(argv[a], "--hoist")) hoist_arg = need_value(a++, "--hoist");
+    else if (!std::strcmp(argv[a], "--pre-timing-delay-ms")) {
+#if !defined(ENGINE_PROFILING)
+      throw std::runtime_error("--pre-timing-delay-ms needs a profiling build "
+                               "(-DENGINE_PROFILING=ON)");
+#endif
+      pre_timing_delay_ms = std::atoi(need_value(a++, "--pre-timing-delay-ms"));
+    }
+    else if (!std::strcmp(argv[a], "--plan-metrics")) {
+      const std::string v = need_value(a++, "--plan-metrics");
+      if (v != "on" && v != "off")
+        throw std::runtime_error("--plan-metrics must be on or off");
+      plan_metrics_on = (v == "on");
+    }
     else if (!std::strcmp(argv[a], "--validate")) validate = true;
-    else if (!std::strcmp(argv[a], "--out") && a + 1 < argc) out_path = argv[++a];
+    else throw std::runtime_error(std::string("unknown argument ") + argv[a]);
   }
+  if (mode != "sync" && mode != "async")
+    throw std::runtime_error("--mode must be sync or async");
+  if (chunk <= 0) throw std::runtime_error("--chunk must be positive");
+  if (n_gpus <= 0) throw std::runtime_error("--gpus must be positive");
+  {
+    int visible = 0;
+    CUDA_CHECK(cudaGetDeviceCount(&visible));
+    if (n_gpus > visible)
+      throw std::runtime_error("--gpus " + std::to_string(n_gpus) +
+                               " exceeds the " + std::to_string(visible) +
+                               " visible device(s)");
+  }
+  if (!engine::valid_group(group))
+    throw std::runtime_error("--group must be 1, 2, 4, 8, 16 or 32");
+  if (order_arg != "source" && order_arg != "bylen")
+    throw std::runtime_error("--pair-order must be source or bylen");
+  if (pre_timing_delay_ms < 0 || pre_timing_delay_ms > 60000)
+    throw std::runtime_error("--pre-timing-delay-ms must be in [0, 60000]");
+  if (hoist_arg != "on" && hoist_arg != "off")
+    throw std::runtime_error("--hoist must be on or off");
+  const bool hoist = (hoist_arg == "on");
   const Payload payload = parse_payload(payload_arg);
   if (finalize_stream != "comm" && finalize_stream != "separate")
     throw std::runtime_error("--finalize-stream must be comm or separate");
@@ -259,6 +328,18 @@ int run(int argc, char** argv) {
   int32_t n_dims = 0;
   for (int32_t d : fx.dims) n_dims = std::max(n_dims, d + 1);
 
+  // One plan for every device. It is built over the FULL dimension range, not
+  // each GPU's slice: slot s must mean the same pair on every GPU or the
+  // AllReduce would sum statistics belonging to different pairs. Sorting by
+  // the global shorter-slice length is therefore nobody's own optimum -- each
+  // device executes this shared order against its own [dim_lo, dim_hi), where
+  // the rows are shorter and the tails fall differently.
+  const engine::PairPlan plan =
+      engine::plan_pairs(fx, 0, n_dims,
+                         order_arg == "bylen" ? engine::PairOrder::kByShortLen
+                                              : engine::PairOrder::kSource,
+                         group);
+
   std::vector<Device> devs(n_gpus);
   std::vector<ncclComm_t> comms(n_gpus);
   std::vector<int> ids(n_gpus);
@@ -271,16 +352,85 @@ int run(int argc, char** argv) {
   NCCL_CHECK(ncclCommInitAll(comms.data(), n_gpus, ids.data()));
   const double t_comm_init = wall() - c0;
 
+  // Dimension ranges first: they are pure arithmetic, and computing them here
+  // lets the plan diagnostics run BEFORE the timed setup window rather than
+  // inside it. Nesting the diagnostics in t_setup put them straight back into
+  // cold_data_path_s -- which the comment beside them denied, and which
+  // run_bench's identity check could not catch, because both sides of that
+  // check read the same inflated t_setup.
+  std::vector<std::pair<int32_t, int32_t>> dim_range(n_gpus);
+  for (int g = 0; g < n_gpus; ++g)
+    dim_range[g] = {static_cast<int32_t>(static_cast<int64_t>(n_dims) * g / n_gpus),
+                    static_cast<int32_t>(static_cast<int64_t>(n_dims) * (g + 1) / n_gpus)};
+
   const int64_t epp = elems_per_pair(payload);
   const int64_t stats_pairs = (mode == "sync") ? n_pairs : 2 * chunk;
   const int64_t stats_len = epp * stats_pairs;
   const size_t stats_bytes = static_cast<size_t>(stats_len) * elem_bytes(payload);
+  // What the shared order actually costs on each device's own slice.
+  //
+  // The plan's own metrics describe the full dimension range, which no device
+  // executes; reporting those as the GPUs' utilisation would overstate it,
+  // because splitting the dimensions shortens every row and leaves shorter
+  // tails. So the fixed order is re-evaluated against each [dim_lo, dim_hi).
+  // The counterfactual is what that slice would cost if it could sort its own
+  // pairs -- unreachable while the collective is elementwise, and recorded
+  // only as an upper bound on what a better mapping could reach.
+  //
+  // This is diagnostics, not execution. It runs BEFORE the timed setup
+  // window opens, so it cannot be inside it by construction -- the previous
+  // version sat between t1 and t_setup and was silently charged to the cold
+  // path despite a comment saying otherwise. The window boundaries are
+  // emitted so the disjointness is checkable from the record.
+  //
+  // The full-dimension figure is diagnostic too, and used to hide inside
+  // t_plan_s: plan_pairs computed it unconditionally, so even --pair-order
+  // source paid a ~50 ms length pass it never needed. Both live here now.
+  const double diag_begin = wall();
+  engine::PlanMetrics on_basis;
+  std::vector<engine::PlanMetrics> per_dev(n_gpus), per_dev_ideal(n_gpus);
+  engine::PlanMetrics agg;
+  int64_t critical_slots = 0;
+  if (plan_metrics_on) {
+  on_basis = engine::measure_plan(fx, plan, 0, n_dims);
+  for (int g = 0; g < n_gpus; ++g) {
+    const std::vector<int32_t> len =
+        engine::short_lens(fx, dim_range[g].first, dim_range[g].second);
+    per_dev[g] = engine::evaluate_order(plan.order, len, group);
+    per_dev_ideal[g] = engine::counterfactual_per_device_ideal(
+        fx, group, dim_range[g].first, dim_range[g].second);
+    agg.effective_elements += per_dev[g].effective_elements;
+    agg.lane_slots += per_dev[g].lane_slots;
+    critical_slots = std::max(critical_slots, per_dev[g].lane_slots);
+  }
+  }
+  const double diag_end = wall();
+  const double t_plan_metrics = diag_end - diag_begin;
+
+#if defined(ENGINE_PROFILING)
+  // Profiling build only -- see the note in cuda_backend.cu. Leaving an NVML
+  // call on the default path would contradict the finding it was added to
+  // investigate.
+  //
+  // NOTE ON WHAT THIS SAMPLES: it runs before allocation, H2D and the warm-up
+  // collective, so it is the state at the START OF SETUP, not at the start of
+  // the stats phase. It cannot rule out a device-state change that develops
+  // during setup.
+  if (pre_timing_delay_ms > 0)
+    std::this_thread::sleep_for(std::chrono::milliseconds(pre_timing_delay_ms));
+  char gpu_state[2][256];
+  for (int g = 0; g < n_gpus && g < 2; ++g)
+    engine_cuda::gpu_state_json(gpu_state[g], sizeof gpu_state[g],
+                                engine_cuda::read_gpu_state(g));
+  for (int g = n_gpus; g < 2; ++g) snprintf(gpu_state[g], 8, "null");
+#endif
+
   const double t1 = wall();
   for (int g = 0; g < n_gpus; ++g) {
     Device& d = devs[g];
     d.id = g;
-    d.dim_lo = static_cast<int32_t>(static_cast<int64_t>(n_dims) * g / n_gpus);
-    d.dim_hi = static_cast<int32_t>(static_cast<int64_t>(n_dims) * (g + 1) / n_gpus);
+    d.dim_lo = dim_range[g].first;    // one source, so the diagnostics above
+    d.dim_hi = dim_range[g].second;   // describe the slice actually executed
     CUDA_CHECK(cudaSetDevice(g));
     CUDA_CHECK(cudaStreamCreate(&d.compute));
     CUDA_CHECK(cudaStreamCreate(&d.comm));
@@ -294,6 +444,7 @@ int run(int argc, char** argv) {
     CUDA_CHECK(cudaMalloc(&d.dims, fx.dims.size() * sizeof(int32_t)));
     CUDA_CHECK(cudaMalloc(&d.vals, fx.vals.size() * sizeof(double)));
     CUDA_CHECK(cudaMalloc(&d.pairs, fx.pairs.size() * sizeof(int32_t)));
+    CUDA_CHECK(cudaMalloc(&d.order, plan.order.size() * sizeof(int32_t)));
     CUDA_CHECK(cudaMalloc(&d.stats, stats_bytes));
     CUDA_CHECK(cudaMalloc(&d.sims, n_pairs * sizeof(double)));
     CUDA_CHECK(cudaMemcpy(d.offsets, fx.offsets.data(),
@@ -304,16 +455,26 @@ int run(int argc, char** argv) {
                           fx.vals.size() * sizeof(double), cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(d.pairs, fx.pairs.data(),
                           fx.pairs.size() * sizeof(int32_t), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d.order, plan.order.data(),
+                          plan.order.size() * sizeof(int32_t), cudaMemcpyHostToDevice));
   }
+
   for (int g = 0; g < n_gpus; ++g) {
     CUDA_CHECK(cudaSetDevice(g));
     CUDA_CHECK(cudaDeviceSynchronize());
   }
   // Untimed warm-up collective: NCCL initializes its kernels/buffers lazily
   // on the first call, which would otherwise land inside the timed region.
+  // Clamped to the buffer that was actually allocated. It used to warm a
+  // fixed 1024 pairs regardless, which reads and writes past the end whenever
+  // the allocation is smaller: a sync run on a fixture with fewer than 1024
+  // pairs, or an async run with --chunk below 512. item_full and item_tiny
+  // (1,223 pairs) both happen to sit above the threshold, which is why it
+  // survived every ladder so far; data/fixtures/domain/ok has 3.
+  const int64_t warmup_pairs = std::min<int64_t>(1024, stats_pairs);
   NCCL_CHECK(ncclGroupStart());
   for (int g = 0; g < n_gpus; ++g) {
-    NCCL_CHECK(ncclAllReduce(devs[g].stats, devs[g].stats, epp * 1024,
+    NCCL_CHECK(ncclAllReduce(devs[g].stats, devs[g].stats, epp * warmup_pairs,
                              nccl_dtype(payload), ncclSum, comms[g],
                              devs[g].compute));
   }
@@ -327,14 +488,18 @@ int run(int argc, char** argv) {
     CUDA_CHECK(cudaMemset(devs[g].stats, 0, stats_bytes));
     CUDA_CHECK(cudaDeviceSynchronize());
   }
-  const double t_setup = wall() - t1;
+  const double setup_end = wall();
+  const double t_setup = setup_end - t1;
+  // Provable from the record rather than asserted in prose.
+  const bool stage_windows_disjoint = (diag_end <= t1) || (diag_begin >= setup_end);
 
   using namespace engine_cuda;
-  const int wpb = kBlock / kWarp;
   // Timing contract (see README, unified 2026-09-05):
   //   device_total = stats + allreduce + finalize   -- comparable across
   //                                                    backends, headline uses it
-  //   one_shot_total = load + setup + device_total + d2h
+  //   cold_data_path = load + plan + comm_init + setup + device_total + d2h
+  //                                                 -- entry to results in
+  //                                                    host memory
   // Async cannot sum its stages (that is the point of overlapping them), so it
   // reports pipeline_total as its comparable number and the three stage SUMS
   // separately, for mechanism only.
@@ -347,9 +512,9 @@ int run(int argc, char** argv) {
     for (int g = 0; g < n_gpus; ++g) {
       Device& d = devs[g];
       CUDA_CHECK(cudaSetDevice(g));
-      const int64_t blocks = (n_pairs + wpb - 1) / wpb;
-      launch_stats(payload, static_cast<unsigned>(blocks), d.compute, d,
-                   d.pairs, n_pairs, d.stats);
+      const int64_t blocks = (n_pairs * group + kBlock - 1) / kBlock;
+      launch_stats(payload, group, hoist, static_cast<unsigned>(blocks),
+                   d.compute, d, d.order, n_pairs, d.stats);
     }
     for (int g = 0; g < n_gpus; ++g) {
       CUDA_CHECK(cudaSetDevice(g));
@@ -382,10 +547,21 @@ int run(int argc, char** argv) {
     const double f0 = wall();
     CUDA_CHECK(cudaSetDevice(0));
     launch_finalize(payload, n_pairs, devs[0].compute, devs[0].stats,
-                    devs[0].sims);
+                    devs[0].order, devs[0].sims);
     CUDA_CHECK(cudaStreamSynchronize(devs[0].compute));
     t_finalize = wall() - f0;
   } else {
+    // ORDER AND ASYNC DO NOT MIX CLEANLY YET. Chunks are contiguous runs of
+    // slots, so an ascending-by-length order hands the early chunks the short
+    // pairs and the late chunks the long ones. That changes chunk cost,
+    // pipeline balance and the tail -- effects that have nothing to do with
+    // lane packing but land in the same number. So async is deliberately NOT
+    // part of the first-stage decision on whether packing is worth defaulting
+    // to; it is measured here for correctness only. A chunk-balanced order is
+    // a separate piece of work: pack first, cost each pack on every device's
+    // slice, then distribute packs across chunks so the critical lane slots
+    // per chunk are even, keeping one shared order and near-length neighbours
+    // inside each chunk.
     // Async: chunked, double-buffered pipeline. Buffer b of GPU g holds the
     // stats of the chunk currently using slot b.
     const int64_t n_chunks = (n_pairs + chunk - 1) / chunk;
@@ -415,11 +591,11 @@ int run(int argc, char** argv) {
         CUDA_CHECK(cudaSetDevice(g));
         // Reuse of slot b must wait until its previous AllReduce finished.
         if (c >= 2) CUDA_CHECK(cudaStreamWaitEvent(d.compute, d.chunk_reduced[b], 0));
-        const int64_t blocks = (len + wpb - 1) / wpb;
+        const int64_t blocks = (len * group + kBlock - 1) / kBlock;
         void* slot = stats_at(d.stats, payload, chunk * b);
         if (g == 0) CUDA_CHECK(cudaEventRecord(es0[c], d.compute));
-        launch_stats(payload, static_cast<unsigned>(blocks), d.compute, d,
-                     d.pairs + 2 * base, len, slot);
+        launch_stats(payload, group, hoist, static_cast<unsigned>(blocks),
+                     d.compute, d, d.order + base, len, slot);
         if (g == 0) CUDA_CHECK(cudaEventRecord(es1[c], d.compute));
         CUDA_CHECK(cudaEventRecord(d.chunk_ready[b], d.compute));
         // Communication stream reduces this chunk while the compute stream
@@ -455,9 +631,12 @@ int run(int argc, char** argv) {
           CUDA_CHECK(cudaStreamWaitEvent(fs, devs[0].chunk_allreduced[b], 0));
         }
         CUDA_CHECK(cudaEventRecord(ef0[c], fs));
+        // sims is not offset here: finalize scatters through order, which
+        // holds global pair indices, so the chunk writes straight to its
+        // pairs' slots in the full output.
         launch_finalize(payload, len, fs,
                         stats_at(devs[0].stats, payload, chunk * b),
-                        devs[0].sims + base);
+                        devs[0].order + base, devs[0].sims);
         CUDA_CHECK(cudaEventRecord(ef1[c], fs));
       }
       for (int g = 0; g < n_gpus; ++g) {
@@ -517,16 +696,62 @@ int run(int argc, char** argv) {
   // Unified timing schema. device_total is the cross-backend comparable number
   // for sync (stats + allreduce + finalize); async cannot sum overlapping
   // stages, so it reports pipeline_total and keeps the stage SUMS for
-  // mechanism only. one_shot_total adds everything a cold invocation pays.
+  // mechanism only. cold_data_path adds everything from entry to results in
+  // host memory, the plan included.
   const bool is_async = (mode != "sync");
   const double device_total = is_async ? t_pipeline
                                        : (t_kernel + t_allreduce + t_finalize);
-  const double cold_data_path =
-      t_load + t_comm_init + t_setup + device_total + t_d2h;
+  // Plan construction is in here and NOT in device_total: a resident engine
+  // builds the order once and pays device_total per query, while a caller that
+  // runs this binary once pays for the order too. Still not a CLI one-shot --
+  // process launch and the CUDA driver's first touch precede any code that
+  // could time them.
+  const double cold_data_path = t_load + plan.build_seconds + t_comm_init +
+                                t_setup + device_total + t_d2h;
   // Held in a named string: taking .c_str() off a temporary inside the printf
   // argument list would dangle before printf reads it.
   const std::string fs_field =
       is_async ? ("\"" + finalize_stream + "\"") : std::string("\"not_applicable\"");
+
+  // Per-device lane accounting for the shared order. Named so it cannot be
+  // confused with the full-dimension plan below it: these are the slices the
+  // GPUs ran, that one is the range the order was sorted on and nobody
+  // executed.
+  engine_cuda::OccupancyInfo occ{};
+  switch (payload) {
+    case Payload::I32:
+      ENGINE_OCCUPANCY_FOR_GROUP(group, hoist, engine_cuda::pair_stats_kernel_i32,
+                                 engine_cuda::kBlock, occ);
+      break;
+    case Payload::Packed:
+      ENGINE_OCCUPANCY_FOR_GROUP(group, hoist, engine_cuda::pair_stats_kernel_packed,
+                                 engine_cuda::kBlock, occ);
+      break;
+    default:
+      ENGINE_OCCUPANCY_FOR_GROUP(group, hoist, engine_cuda::pair_stats_kernel,
+                                 engine_cuda::kBlock, occ);
+  }
+  char occ_json[512];
+  engine_cuda::occupancy_json(occ_json, sizeof occ_json, occ);
+
+  std::string per_device = "[";
+  for (int g = 0; g < n_gpus; ++g) {
+    char buf[512];
+    std::snprintf(buf, sizeof buf,
+                  "%s{\"device\":%d,\"dim_lo\":%d,\"dim_hi\":%d,"
+                  "\"effective_elements\":%lld,\"lane_slots\":%lld,"
+                  "\"lane_utilisation\":%.5f,"
+                  "\"counterfactual_per_device_sorted_lane_slots\":%lld,"
+                  "\"counterfactual_per_device_sorted_utilisation\":%.5f}",
+                  g ? "," : "", g, devs[g].dim_lo, devs[g].dim_hi,
+                  static_cast<long long>(per_dev[g].effective_elements),
+                  static_cast<long long>(per_dev[g].lane_slots),
+                  per_dev[g].utilisation(),
+                  static_cast<long long>(per_dev_ideal[g].lane_slots),
+                  per_dev_ideal[g].utilisation());
+    per_device += buf;
+  }
+  per_device += "]";
   std::printf(
       "{\"fixture\":\"%s\",\"backend\":\"nccl\",\"mode\":\"%s\",\"gpus\":%d,"
       "\"chunk\":%lld,\"finalize_stream\":%s,"
@@ -540,6 +765,24 @@ int run(int argc, char** argv) {
       "\"t_finalize_sum_s\":%.6f,"
       "\"device_total_s\":%.6f,\"t_comm_init_s\":%.6f,"
       "\"cold_data_path_s\":%.6f,"
+      "\"group\":%d,\"pair_order\":\"%s\",\"hoist\":%s,"
+      "\"t_plan_s\":%.6f,\"t_plan_metrics_s\":%.6f,"
+      "\"plan_order_basis\":\"global_full_dims\","
+      "\"plan_metrics_computed\":%s,"
+#if defined(ENGINE_PROFILING)
+      "\"pre_timing_delay_ms\":%d,"
+      "\"gpu_state_at_setup_start\":[%s,%s],"
+#endif
+      "\"stage_windows_disjoint\":%s,"
+      "\"plan_per_device\":%s,"
+      "\"plan_critical_lane_slots\":%lld,"
+      "\"plan_aggregate_effective_elements\":%lld,"
+      "\"plan_aggregate_lane_slots\":%lld,"
+      "\"plan_aggregate_lane_utilisation\":%.5f,"
+      "\"global_full_dimension_effective_elements\":%lld,"
+      "\"global_full_dimension_lane_slots\":%lld,"
+      "\"global_full_dimension_lane_utilisation\":%.5f,"
+      "\"occupancy\":%s,"
       "\"t_d2h_s\":%.6f,\"validated\":%s,\"max_abs_diff\":%.3e,"
       "\"tol_failures\":%d,\"emitted\":%lld}\n",
       dir.c_str(), mode.c_str(), n_gpus, static_cast<long long>(chunk),
@@ -555,6 +798,20 @@ int run(int argc, char** argv) {
       t_kernel, t_pipeline,
       t_stats_sum, t_allreduce_sum, t_finalize_sum,
       device_total, t_comm_init, cold_data_path,
+      group, order_arg.c_str(), hoist ? "true" : "false",
+      plan.build_seconds, t_plan_metrics,
+      plan_metrics_on ? "true" : "false",
+#if defined(ENGINE_PROFILING)
+      pre_timing_delay_ms, gpu_state[0], gpu_state[1],
+#endif
+      stage_windows_disjoint ? "true" : "false",
+      per_device.c_str(),
+      static_cast<long long>(critical_slots),
+      static_cast<long long>(agg.effective_elements),
+      static_cast<long long>(agg.lane_slots), agg.utilisation(),
+      static_cast<long long>(on_basis.effective_elements),
+      static_cast<long long>(on_basis.lane_slots), on_basis.utilisation(),
+      occ_json,
       t_d2h, validate ? "true" : "false", max_diff, failures,
       static_cast<long long>(emitted));
 

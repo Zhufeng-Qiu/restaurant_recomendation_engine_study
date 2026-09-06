@@ -1,0 +1,231 @@
+
+=== CORRECTNESS LADDER ===
+cuda  item_tiny g=1 order=source -> 0 0.0
+cuda  item_tiny g=1 order=bylen -> 0 0.0
+cuda  item_tiny g=2 order=source -> 0 0.0
+cuda  item_tiny g=2 order=bylen -> 0 0.0
+cuda  item_tiny g=4 order=source -> 0 0.0
+cuda  item_tiny g=4 order=bylen -> 0 0.0
+cuda  item_tiny g=8 order=source -> 0 0.0
+cuda  item_tiny g=8 order=bylen -> 0 0.0
+cuda  item_tiny g=16 order=source -> 0 0.0
+cuda  item_tiny g=16 order=bylen -> 0 0.0
+cuda  item_tiny g=32 order=source -> 0 0.0
+cuda  item_tiny g=32 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=1 order=source -> 0 0.0
+cuda  item_full_lane_full g=1 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=2 order=source -> 0 0.0
+cuda  item_full_lane_full g=2 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=4 order=source -> 0 0.0
+cuda  item_full_lane_full g=4 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=8 order=source -> 0 0.0
+cuda  item_full_lane_full g=8 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=16 order=source -> 0 0.0
+cuda  item_full_lane_full g=16 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=32 order=source -> 0 0.0
+cuda  item_full_lane_full g=32 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=1 order=source -> 0 0.0
+cuda  item_full_lane_tail g=1 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=2 order=source -> 0 0.0
+cuda  item_full_lane_tail g=2 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=4 order=source -> 0 0.0
+cuda  item_full_lane_tail g=4 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=8 order=source -> 0 0.0
+cuda  item_full_lane_tail g=8 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=16 order=source -> 0 0.0
+cuda  item_full_lane_tail g=16 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=32 order=source -> 0 0.0
+cuda  item_full_lane_tail g=32 order=bylen -> 0 0.0
+cuda  item_full g=1 order=source -> 0 0.0
+cuda  item_full g=1 order=bylen -> 0 0.0
+cuda  item_full g=2 order=source -> 0 0.0
+cuda  item_full g=2 order=bylen -> 0 0.0
+cuda  item_full g=4 order=source -> 0 0.0
+cuda  item_full g=4 order=bylen -> 0 0.0
+cuda  item_full g=8 order=source -> 0 0.0
+cuda  item_full g=8 order=bylen -> 0 0.0
+cuda  item_full g=16 order=source -> 0 0.0
+cuda  item_full g=16 order=bylen -> 0 0.0
+cuda  item_full g=32 order=source -> 0 0.0
+cuda  item_full g=32 order=bylen -> 0 0.0
+cuda  user_full g=1 order=source -> 0 0.0
+cuda  user_full g=1 order=bylen -> 0 0.0
+cuda  user_full g=2 order=source -> 0 0.0
+cuda  user_full g=2 order=bylen -> 0 0.0
+cuda  user_full g=4 order=source -> 0 0.0
+cuda  user_full g=4 order=bylen -> 0 0.0
+cuda  user_full g=8 order=source -> 0 0.0
+cuda  user_full g=8 order=bylen -> 0 0.0
+cuda  user_full g=16 order=source -> 0 0.0
+cuda  user_full g=16 order=bylen -> 0 0.0
+cuda  user_full g=32 order=source -> 0 0.0
+cuda  user_full g=32 order=bylen -> 0 0.0
+
+=== output permutation check ===
+  g=1 order=source vs g32/source: identical
+  g=1 order=bylen vs g32/source: identical
+  g=2 order=source vs g32/source: identical
+  g=2 order=bylen vs g32/source: identical
+  g=4 order=source vs g32/source: identical
+  g=4 order=bylen vs g32/source: identical
+  g=8 order=source vs g32/source: identical
+  g=8 order=bylen vs g32/source: identical
+  g=16 order=source vs g32/source: identical
+  g=16 order=bylen vs g32/source: identical
+  g=32 order=source vs g32/source: identical
+  g=32 order=bylen vs g32/source: identical
+
+=== NCCL correctness ===
+nccl1 f64 g=1 order=source -> tol_failures=0
+nccl1 f64 g=1 order=bylen -> tol_failures=0
+nccl1 f64 g=2 order=source -> tol_failures=0
+nccl1 f64 g=2 order=bylen -> tol_failures=0
+nccl1 f64 g=4 order=source -> tol_failures=0
+nccl1 f64 g=4 order=bylen -> tol_failures=0
+nccl1 f64 g=8 order=source -> tol_failures=0
+nccl1 f64 g=8 order=bylen -> tol_failures=0
+nccl1 f64 g=16 order=source -> tol_failures=0
+nccl1 f64 g=16 order=bylen -> tol_failures=0
+nccl1 f64 g=32 order=source -> tol_failures=0
+nccl1 f64 g=32 order=bylen -> tol_failures=0
+nccl1 i32 g=1 order=source -> tol_failures=0
+nccl1 i32 g=1 order=bylen -> tol_failures=0
+nccl1 i32 g=2 order=source -> tol_failures=0
+nccl1 i32 g=2 order=bylen -> tol_failures=0
+nccl1 i32 g=4 order=source -> tol_failures=0
+nccl1 i32 g=4 order=bylen -> tol_failures=0
+nccl1 i32 g=8 order=source -> tol_failures=0
+nccl1 i32 g=8 order=bylen -> tol_failures=0
+nccl1 i32 g=16 order=source -> tol_failures=0
+nccl1 i32 g=16 order=bylen -> tol_failures=0
+nccl1 i32 g=32 order=source -> tol_failures=0
+nccl1 i32 g=32 order=bylen -> tol_failures=0
+nccl1 packed g=1 order=source -> tol_failures=0
+nccl1 packed g=1 order=bylen -> tol_failures=0
+nccl1 packed g=2 order=source -> tol_failures=0
+nccl1 packed g=2 order=bylen -> tol_failures=0
+nccl1 packed g=4 order=source -> tol_failures=0
+nccl1 packed g=4 order=bylen -> tol_failures=0
+nccl1 packed g=8 order=source -> tol_failures=0
+nccl1 packed g=8 order=bylen -> tol_failures=0
+nccl1 packed g=16 order=source -> tol_failures=0
+nccl1 packed g=16 order=bylen -> tol_failures=0
+nccl1 packed g=32 order=source -> tol_failures=0
+nccl1 packed g=32 order=bylen -> tol_failures=0
+nccl2 f64 g=1 order=source -> tol_failures=0
+nccl2 f64 g=1 order=bylen -> tol_failures=0
+nccl2 f64 g=2 order=source -> tol_failures=0
+nccl2 f64 g=2 order=bylen -> tol_failures=0
+nccl2 f64 g=4 order=source -> tol_failures=0
+nccl2 f64 g=4 order=bylen -> tol_failures=0
+nccl2 f64 g=8 order=source -> tol_failures=0
+nccl2 f64 g=8 order=bylen -> tol_failures=0
+nccl2 f64 g=16 order=source -> tol_failures=0
+nccl2 f64 g=16 order=bylen -> tol_failures=0
+nccl2 f64 g=32 order=source -> tol_failures=0
+nccl2 f64 g=32 order=bylen -> tol_failures=0
+nccl2 i32 g=1 order=source -> tol_failures=0
+nccl2 i32 g=1 order=bylen -> tol_failures=0
+nccl2 i32 g=2 order=source -> tol_failures=0
+nccl2 i32 g=2 order=bylen -> tol_failures=0
+nccl2 i32 g=4 order=source -> tol_failures=0
+nccl2 i32 g=4 order=bylen -> tol_failures=0
+nccl2 i32 g=8 order=source -> tol_failures=0
+nccl2 i32 g=8 order=bylen -> tol_failures=0
+nccl2 i32 g=16 order=source -> tol_failures=0
+nccl2 i32 g=16 order=bylen -> tol_failures=0
+nccl2 i32 g=32 order=source -> tol_failures=0
+nccl2 i32 g=32 order=bylen -> tol_failures=0
+nccl2 packed g=1 order=source -> tol_failures=0
+nccl2 packed g=1 order=bylen -> tol_failures=0
+nccl2 packed g=2 order=source -> tol_failures=0
+nccl2 packed g=2 order=bylen -> tol_failures=0
+nccl2 packed g=4 order=source -> tol_failures=0
+nccl2 packed g=4 order=bylen -> tol_failures=0
+nccl2 packed g=8 order=source -> tol_failures=0
+nccl2 packed g=8 order=bylen -> tol_failures=0
+nccl2 packed g=16 order=source -> tol_failures=0
+nccl2 packed g=16 order=bylen -> tol_failures=0
+nccl2 packed g=32 order=source -> tol_failures=0
+nccl2 packed g=32 order=bylen -> tol_failures=0
+nccl1 item_full f64 g=32 order=source -> 0 0.0
+nccl1 item_full f64 g=8 order=bylen -> 0 0.0
+nccl1 item_full f64 g=4 order=bylen -> 0 0.0
+nccl1 item_full f64 g=1 order=bylen -> 0 0.0
+nccl1 item_full packed g=32 order=source -> 0 0.0
+nccl1 item_full packed g=8 order=bylen -> 0 0.0
+nccl1 item_full packed g=4 order=bylen -> 0 0.0
+nccl1 item_full packed g=1 order=bylen -> 0 0.0
+nccl2 item_full f64 g=32 order=source -> 0 0.0
+nccl2 item_full f64 g=8 order=bylen -> 0 0.0
+nccl2 item_full f64 g=4 order=bylen -> 0 0.0
+nccl2 item_full f64 g=1 order=bylen -> 0 0.0
+nccl2 item_full packed g=32 order=source -> 0 0.0
+nccl2 item_full packed g=8 order=bylen -> 0 0.0
+nccl2 item_full packed g=4 order=bylen -> 0 0.0
+nccl2 item_full packed g=1 order=bylen -> 0 0.0
+
+=== async correctness (chunk boundaries, both finalize streams) ===
+async chunk=16384 fs=comm g=32 order=source -> tol_failures=0
+async chunk=16384 fs=comm g=8 order=bylen -> tol_failures=0
+async chunk=16384 fs=separate g=32 order=source -> tol_failures=0
+async chunk=16384 fs=separate g=8 order=bylen -> tol_failures=0
+async chunk=262144 fs=comm g=32 order=source -> tol_failures=0
+async chunk=262144 fs=comm g=8 order=bylen -> tol_failures=0
+async chunk=262144 fs=separate g=32 order=source -> tol_failures=0
+async chunk=262144 fs=separate g=8 order=bylen -> tol_failures=0
+async chunk=100003 fs=comm g=32 order=source -> tol_failures=0
+async chunk=100003 fs=comm g=8 order=bylen -> tol_failures=0
+async chunk=100003 fs=separate g=32 order=source -> tol_failures=0
+async chunk=100003 fs=separate g=8 order=bylen -> tol_failures=0
+
+=== CLI rejection checks ===
+error: --group must be 1, 2, 4, 8, 16 or 32
+  rejected: --group 3
+error: --group must be 1, 2, 4, 8, 16 or 32
+  rejected: --group 0
+error: --group must be 1, 2, 4, 8, 16 or 32
+  rejected: --group 33
+error: --pair-order must be source or bylen
+  rejected: --pair-order sideways
+error: --mode must be sync or async
+  rejected: --mode fast
+error: --gpus must be positive
+  rejected: --gpus 0
+error: --gpus 99 exceeds the 2 visible device(s)
+  rejected: --gpus 99
+error: --chunk must be positive
+  rejected: --chunk 0
+error: unknown argument --bogus
+  rejected: --bogus
+error: --group needs a value
+  rejected: --group
+error: --finalize-stream applies to --mode async only; a sync run has a single finalize outside the pipeline. Refusing rather than recording a sync result labelled with a setting that did nothing.
+  rejected: sync + --finalize-stream separate
+
+=== compute-sanitizer (memcheck, small fixture, both ends of G) ===
+memcheck cuda g=1 order=source: clean
+memcheck cuda g=1 order=bylen: clean
+memcheck cuda g=2 order=source: clean
+memcheck cuda g=2 order=bylen: clean
+memcheck cuda g=4 order=source: clean
+memcheck cuda g=4 order=bylen: clean
+memcheck cuda g=8 order=source: clean
+memcheck cuda g=8 order=bylen: clean
+memcheck cuda g=16 order=source: clean
+memcheck cuda g=16 order=bylen: clean
+memcheck cuda g=32 order=source: clean
+memcheck cuda g=32 order=bylen: clean
+memcheck nccl2 g=1: ERRORS
+========= 
+{"fixture":"data/fixtures/item_tiny","backend":"nccl","mode":"sync","gpus":2,"chunk":262144,"finalize_stream":"not_applicable","payload":"packed","payload_bytes_per_pair":16,"allreduce_bytes":19568,"n_pairs":1223,"timing_basis":"device_total","t_load_s":0.000408,"t_setup_s":0.065632,"t_stats_s":0.032802,"t_allreduce_s":0.000864,"t_finalize_s":0.000505,"t_kernel_s":0.032802,"t_pipeline_s":0.000000,"t_stats_sum_s":0.000000,"t_allreduce_sum_s":0.000000,"t_finalize_sum_s":0.000000,"device_total_s":0.034172,"t_comm_init_s":9.525691,"cold_data_path_s":9.626055,"group":1,"pair_order":"bylen","t_plan_s":0.000088,"t_plan_metrics_s":0.000463,"plan_order_basis":"global_full_dims","plan_per_device":[{"device":0,"dim_lo":0,"dim_hi":7158,"effective_elements":366752,"lane_slots":396192,"lane_utilisation":0.92569,"counterfactual_per_device_sorted_lane_slots":388128,"counterfactual_per_device_sorted_utilisation":0.94493},{"device":1,"dim_lo":7158,"dim_hi":14317,"effective_elements":370030,"lane_slots":398624,"lane_utilisation":0.92827,"counterfactual_per_device_sorted_lane_slots":392416,"counterfactual_per_device_sorted_utilisation":0.94295}],"plan_critical_lane_slots":398624,"plan_aggregate_effective_elements":736782,"plan_aggregate_lane_slots":794816,"plan_aggregate_lane_utilisation":0.92698,"global_full_dimension_effective_elements":738390,"global_full_dimension_lane_slots":782656,"global_full_dimension_lane_utilisation":0.94344,"t_d2h_s":0.000066,"validated":true,"max_abs_diff":0.000e+00,"tol_failures":0,"emitted":889}
+========= ERROR SUMMARY: 94 errors
+memcheck nccl2 g=8: ERRORS
+========= 
+{"fixture":"data/fixtures/item_tiny","backend":"nccl","mode":"sync","gpus":2,"chunk":262144,"finalize_stream":"not_applicable","payload":"packed","payload_bytes_per_pair":16,"allreduce_bytes":19568,"n_pairs":1223,"timing_basis":"device_total","t_load_s":0.000419,"t_setup_s":0.064033,"t_stats_s":0.006218,"t_allreduce_s":0.000933,"t_finalize_s":0.000771,"t_kernel_s":0.006218,"t_pipeline_s":0.000000,"t_stats_sum_s":0.000000,"t_allreduce_sum_s":0.000000,"t_finalize_sum_s":0.000000,"device_total_s":0.007923,"t_comm_init_s":9.819893,"cold_data_path_s":9.892425,"group":8,"pair_order":"bylen","t_plan_s":0.000092,"t_plan_metrics_s":0.000453,"plan_order_basis":"global_full_dims","plan_per_device":[{"device":0,"dim_lo":0,"dim_hi":7158,"effective_elements":366752,"lane_slots":373760,"lane_utilisation":0.98125,"counterfactual_per_device_sorted_lane_slots":371936,"counterfactual_per_device_sorted_utilisation":0.98606},{"device":1,"dim_lo":7158,"dim_hi":14317,"effective_elements":370030,"lane_slots":376960,"lane_utilisation":0.98162,"counterfactual_per_device_sorted_lane_slots":375264,"counterfactual_per_device_sorted_utilisation":0.98605}],"plan_critical_lane_slots":376960,"plan_aggregate_effective_elements":736782,"plan_aggregate_lane_slots":750720,"plan_aggregate_lane_utilisation":0.98143,"global_full_dimension_effective_elements":738390,"global_full_dimension_lane_slots":745504,"global_full_dimension_lane_utilisation":0.99046,"t_d2h_s":0.000066,"validated":true,"max_abs_diff":0.000e+00,"tol_failures":0,"emitted":889}
+========= ERROR SUMMARY: 94 errors
+memcheck nccl2 g=32: ERRORS
+========= 
+{"fixture":"data/fixtures/item_tiny","backend":"nccl","mode":"sync","gpus":2,"chunk":262144,"finalize_stream":"not_applicable","payload":"packed","payload_bytes_per_pair":16,"allreduce_bytes":19568,"n_pairs":1223,"timing_basis":"device_total","t_load_s":0.000411,"t_setup_s":0.178622,"t_stats_s":0.003457,"t_allreduce_s":0.001609,"t_finalize_s":0.000785,"t_kernel_s":0.003457,"t_pipeline_s":0.000000,"t_stats_sum_s":0.000000,"t_allreduce_sum_s":0.000000,"t_finalize_sum_s":0.000000,"device_total_s":0.005850,"t_comm_init_s":9.285548,"cold_data_path_s":9.470581,"group":32,"pair_order":"bylen","t_plan_s":0.000091,"t_plan_metrics_s":0.000465,"plan_order_basis":"global_full_dims","plan_per_device":[{"device":0,"dim_lo":0,"dim_hi":7158,"effective_elements":366752,"lane_slots":386112,"lane_utilisation":0.94986,"counterfactual_per_device_sorted_lane_slots":386112,"counterfactual_per_device_sorted_utilisation":0.94986},{"device":1,"dim_lo":7158,"dim_hi":14317,"effective_elements":370030,"lane_slots":388416,"lane_utilisation":0.95266,"counterfactual_per_device_sorted_lane_slots":388416,"counterfactual_per_device_sorted_utilisation":0.95266}],"plan_critical_lane_slots":388416,"plan_aggregate_effective_elements":736782,"plan_aggregate_lane_slots":774528,"plan_aggregate_lane_utilisation":0.95127,"global_full_dimension_effective_elements":738390,"global_full_dimension_lane_slots":754368,"global_full_dimension_lane_utilisation":0.97882,"t_d2h_s":0.000059,"validated":true,"max_abs_diff":0.000e+00,"tol_failures":0,"emitted":889}
+========= ERROR SUMMARY: 94 errors
+CORRECTNESS LADDER FAILED -- stopping before any timing.

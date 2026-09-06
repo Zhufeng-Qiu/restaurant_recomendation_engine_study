@@ -1,0 +1,16 @@
+# session manifest metricsab
+utc=2026-09-06T08:09:16Z
+host=3162e823f744
+git_sha=67663156cd3b63a53d4a3fd917798c7e68fd25f4
+git_dirty_tracked=0
+git_dirty_untracked=3
+image_digest=unset
+
+# tracked files modified, if any:
+  (none)
+
+# full diff of tracked changes:
+
+# gpus:
+NVIDIA A100-SXM4-80GB, GPU-ada69b09-3d6e-5ef1-b548-b2b910bdc2ef, 580.126.16
+NVIDIA A100-SXM4-80GB, GPU-174ad8b7-efe9-4e14-6960-65d4ce9d5711, 580.126.16

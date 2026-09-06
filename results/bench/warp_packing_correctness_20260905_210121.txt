@@ -1,0 +1,225 @@
+
+=== CORRECTNESS LADDER ===
+cuda  item_tiny g=1 order=source -> 0 0.0
+cuda  item_tiny g=1 order=bylen -> 0 0.0
+cuda  item_tiny g=2 order=source -> 0 0.0
+cuda  item_tiny g=2 order=bylen -> 0 0.0
+cuda  item_tiny g=4 order=source -> 0 0.0
+cuda  item_tiny g=4 order=bylen -> 0 0.0
+cuda  item_tiny g=8 order=source -> 0 0.0
+cuda  item_tiny g=8 order=bylen -> 0 0.0
+cuda  item_tiny g=16 order=source -> 0 0.0
+cuda  item_tiny g=16 order=bylen -> 0 0.0
+cuda  item_tiny g=32 order=source -> 0 0.0
+cuda  item_tiny g=32 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=1 order=source -> 0 0.0
+cuda  item_full_lane_full g=1 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=2 order=source -> 0 0.0
+cuda  item_full_lane_full g=2 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=4 order=source -> 0 0.0
+cuda  item_full_lane_full g=4 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=8 order=source -> 0 0.0
+cuda  item_full_lane_full g=8 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=16 order=source -> 0 0.0
+cuda  item_full_lane_full g=16 order=bylen -> 0 0.0
+cuda  item_full_lane_full g=32 order=source -> 0 0.0
+cuda  item_full_lane_full g=32 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=1 order=source -> 0 0.0
+cuda  item_full_lane_tail g=1 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=2 order=source -> 0 0.0
+cuda  item_full_lane_tail g=2 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=4 order=source -> 0 0.0
+cuda  item_full_lane_tail g=4 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=8 order=source -> 0 0.0
+cuda  item_full_lane_tail g=8 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=16 order=source -> 0 0.0
+cuda  item_full_lane_tail g=16 order=bylen -> 0 0.0
+cuda  item_full_lane_tail g=32 order=source -> 0 0.0
+cuda  item_full_lane_tail g=32 order=bylen -> 0 0.0
+cuda  item_full g=1 order=source -> 0 0.0
+cuda  item_full g=1 order=bylen -> 0 0.0
+cuda  item_full g=2 order=source -> 0 0.0
+cuda  item_full g=2 order=bylen -> 0 0.0
+cuda  item_full g=4 order=source -> 0 0.0
+cuda  item_full g=4 order=bylen -> 0 0.0
+cuda  item_full g=8 order=source -> 0 0.0
+cuda  item_full g=8 order=bylen -> 0 0.0
+cuda  item_full g=16 order=source -> 0 0.0
+cuda  item_full g=16 order=bylen -> 0 0.0
+cuda  item_full g=32 order=source -> 0 0.0
+cuda  item_full g=32 order=bylen -> 0 0.0
+cuda  user_full g=1 order=source -> 0 0.0
+cuda  user_full g=1 order=bylen -> 0 0.0
+cuda  user_full g=2 order=source -> 0 0.0
+cuda  user_full g=2 order=bylen -> 0 0.0
+cuda  user_full g=4 order=source -> 0 0.0
+cuda  user_full g=4 order=bylen -> 0 0.0
+cuda  user_full g=8 order=source -> 0 0.0
+cuda  user_full g=8 order=bylen -> 0 0.0
+cuda  user_full g=16 order=source -> 0 0.0
+cuda  user_full g=16 order=bylen -> 0 0.0
+cuda  user_full g=32 order=source -> 0 0.0
+cuda  user_full g=32 order=bylen -> 0 0.0
+
+=== output permutation check ===
+  g=1 order=source vs g32/source: identical
+  g=1 order=bylen vs g32/source: identical
+  g=2 order=source vs g32/source: identical
+  g=2 order=bylen vs g32/source: identical
+  g=4 order=source vs g32/source: identical
+  g=4 order=bylen vs g32/source: identical
+  g=8 order=source vs g32/source: identical
+  g=8 order=bylen vs g32/source: identical
+  g=16 order=source vs g32/source: identical
+  g=16 order=bylen vs g32/source: identical
+  g=32 order=source vs g32/source: identical
+  g=32 order=bylen vs g32/source: identical
+
+=== NCCL correctness ===
+nccl1 f64 g=1 order=source -> tol_failures=0
+nccl1 f64 g=1 order=bylen -> tol_failures=0
+nccl1 f64 g=2 order=source -> tol_failures=0
+nccl1 f64 g=2 order=bylen -> tol_failures=0
+nccl1 f64 g=4 order=source -> tol_failures=0
+nccl1 f64 g=4 order=bylen -> tol_failures=0
+nccl1 f64 g=8 order=source -> tol_failures=0
+nccl1 f64 g=8 order=bylen -> tol_failures=0
+nccl1 f64 g=16 order=source -> tol_failures=0
+nccl1 f64 g=16 order=bylen -> tol_failures=0
+nccl1 f64 g=32 order=source -> tol_failures=0
+nccl1 f64 g=32 order=bylen -> tol_failures=0
+nccl1 i32 g=1 order=source -> tol_failures=0
+nccl1 i32 g=1 order=bylen -> tol_failures=0
+nccl1 i32 g=2 order=source -> tol_failures=0
+nccl1 i32 g=2 order=bylen -> tol_failures=0
+nccl1 i32 g=4 order=source -> tol_failures=0
+nccl1 i32 g=4 order=bylen -> tol_failures=0
+nccl1 i32 g=8 order=source -> tol_failures=0
+nccl1 i32 g=8 order=bylen -> tol_failures=0
+nccl1 i32 g=16 order=source -> tol_failures=0
+nccl1 i32 g=16 order=bylen -> tol_failures=0
+nccl1 i32 g=32 order=source -> tol_failures=0
+nccl1 i32 g=32 order=bylen -> tol_failures=0
+nccl1 packed g=1 order=source -> tol_failures=0
+nccl1 packed g=1 order=bylen -> tol_failures=0
+nccl1 packed g=2 order=source -> tol_failures=0
+nccl1 packed g=2 order=bylen -> tol_failures=0
+nccl1 packed g=4 order=source -> tol_failures=0
+nccl1 packed g=4 order=bylen -> tol_failures=0
+nccl1 packed g=8 order=source -> tol_failures=0
+nccl1 packed g=8 order=bylen -> tol_failures=0
+nccl1 packed g=16 order=source -> tol_failures=0
+nccl1 packed g=16 order=bylen -> tol_failures=0
+nccl1 packed g=32 order=source -> tol_failures=0
+nccl1 packed g=32 order=bylen -> tol_failures=0
+nccl2 f64 g=1 order=source -> tol_failures=0
+nccl2 f64 g=1 order=bylen -> tol_failures=0
+nccl2 f64 g=2 order=source -> tol_failures=0
+nccl2 f64 g=2 order=bylen -> tol_failures=0
+nccl2 f64 g=4 order=source -> tol_failures=0
+nccl2 f64 g=4 order=bylen -> tol_failures=0
+nccl2 f64 g=8 order=source -> tol_failures=0
+nccl2 f64 g=8 order=bylen -> tol_failures=0
+nccl2 f64 g=16 order=source -> tol_failures=0
+nccl2 f64 g=16 order=bylen -> tol_failures=0
+nccl2 f64 g=32 order=source -> tol_failures=0
+nccl2 f64 g=32 order=bylen -> tol_failures=0
+nccl2 i32 g=1 order=source -> tol_failures=0
+nccl2 i32 g=1 order=bylen -> tol_failures=0
+nccl2 i32 g=2 order=source -> tol_failures=0
+nccl2 i32 g=2 order=bylen -> tol_failures=0
+nccl2 i32 g=4 order=source -> tol_failures=0
+nccl2 i32 g=4 order=bylen -> tol_failures=0
+nccl2 i32 g=8 order=source -> tol_failures=0
+nccl2 i32 g=8 order=bylen -> tol_failures=0
+nccl2 i32 g=16 order=source -> tol_failures=0
+nccl2 i32 g=16 order=bylen -> tol_failures=0
+nccl2 i32 g=32 order=source -> tol_failures=0
+nccl2 i32 g=32 order=bylen -> tol_failures=0
+nccl2 packed g=1 order=source -> tol_failures=0
+nccl2 packed g=1 order=bylen -> tol_failures=0
+nccl2 packed g=2 order=source -> tol_failures=0
+nccl2 packed g=2 order=bylen -> tol_failures=0
+nccl2 packed g=4 order=source -> tol_failures=0
+nccl2 packed g=4 order=bylen -> tol_failures=0
+nccl2 packed g=8 order=source -> tol_failures=0
+nccl2 packed g=8 order=bylen -> tol_failures=0
+nccl2 packed g=16 order=source -> tol_failures=0
+nccl2 packed g=16 order=bylen -> tol_failures=0
+nccl2 packed g=32 order=source -> tol_failures=0
+nccl2 packed g=32 order=bylen -> tol_failures=0
+nccl1 item_full f64 g=32 order=source -> 0 0.0
+nccl1 item_full f64 g=8 order=bylen -> 0 0.0
+nccl1 item_full f64 g=4 order=bylen -> 0 0.0
+nccl1 item_full f64 g=1 order=bylen -> 0 0.0
+nccl1 item_full packed g=32 order=source -> 0 0.0
+nccl1 item_full packed g=8 order=bylen -> 0 0.0
+nccl1 item_full packed g=4 order=bylen -> 0 0.0
+nccl1 item_full packed g=1 order=bylen -> 0 0.0
+nccl2 item_full f64 g=32 order=source -> 0 0.0
+nccl2 item_full f64 g=8 order=bylen -> 0 0.0
+nccl2 item_full f64 g=4 order=bylen -> 0 0.0
+nccl2 item_full f64 g=1 order=bylen -> 0 0.0
+nccl2 item_full packed g=32 order=source -> 0 0.0
+nccl2 item_full packed g=8 order=bylen -> 0 0.0
+nccl2 item_full packed g=4 order=bylen -> 0 0.0
+nccl2 item_full packed g=1 order=bylen -> 0 0.0
+
+=== async correctness (chunk boundaries, both finalize streams) ===
+async chunk=16384 fs=comm g=32 order=source -> tol_failures=0
+async chunk=16384 fs=comm g=8 order=bylen -> tol_failures=0
+async chunk=16384 fs=separate g=32 order=source -> tol_failures=0
+async chunk=16384 fs=separate g=8 order=bylen -> tol_failures=0
+async chunk=262144 fs=comm g=32 order=source -> tol_failures=0
+async chunk=262144 fs=comm g=8 order=bylen -> tol_failures=0
+async chunk=262144 fs=separate g=32 order=source -> tol_failures=0
+async chunk=262144 fs=separate g=8 order=bylen -> tol_failures=0
+async chunk=100003 fs=comm g=32 order=source -> tol_failures=0
+async chunk=100003 fs=comm g=8 order=bylen -> tol_failures=0
+async chunk=100003 fs=separate g=32 order=source -> tol_failures=0
+async chunk=100003 fs=separate g=8 order=bylen -> tol_failures=0
+
+=== CLI rejection checks ===
+error: --group must be 1, 2, 4, 8, 16 or 32
+  rejected: --group 3
+error: --group must be 1, 2, 4, 8, 16 or 32
+  rejected: --group 0
+error: --group must be 1, 2, 4, 8, 16 or 32
+  rejected: --group 33
+error: --pair-order must be source or bylen
+  rejected: --pair-order sideways
+error: --mode must be sync or async
+  rejected: --mode fast
+error: --gpus must be positive
+  rejected: --gpus 0
+error: --gpus 99 exceeds the 2 visible device(s)
+  rejected: --gpus 99
+error: --chunk must be positive
+  rejected: --chunk 0
+error: unknown argument --bogus
+  rejected: --bogus
+error: --group needs a value
+  rejected: --group
+error: --finalize-stream applies to --mode async only; a sync run has a single finalize outside the pipeline. Refusing rather than recording a sync result labelled with a setting that did nothing.
+  rejected: sync + --finalize-stream separate
+
+=== compute-sanitizer (memcheck, small fixture, both ends of G) ===
+memcheck cuda g=1 order=source: clean
+memcheck cuda g=1 order=bylen: clean
+memcheck cuda g=2 order=source: clean
+memcheck cuda g=2 order=bylen: clean
+memcheck cuda g=4 order=source: clean
+memcheck cuda g=4 order=bylen: clean
+memcheck cuda g=8 order=source: clean
+memcheck cuda g=8 order=bylen: clean
+memcheck cuda g=16 order=source: clean
+memcheck cuda g=16 order=bylen: clean
+memcheck cuda g=32 order=source: clean
+memcheck cuda g=32 order=bylen: clean
+memcheck nccl2 g=1: no memory errors (94x NCCL peer-access 704)
+memcheck nccl2 g=2: no memory errors (94x NCCL peer-access 704)
+memcheck nccl2 g=4: no memory errors (94x NCCL peer-access 704)
+memcheck nccl2 g=8: no memory errors (94x NCCL peer-access 704)
+memcheck nccl2 g=16: no memory errors (94x NCCL peer-access 704)
+memcheck nccl2 g=32: no memory errors (94x NCCL peer-access 704)
+CORRECTNESS LADDER PASSED

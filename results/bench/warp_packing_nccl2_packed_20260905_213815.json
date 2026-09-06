@@ -1,0 +1,384 @@
+{
+  "phase": "screen",
+  "fixture": "data/fixtures/item_full",
+  "seed": 52,
+  "repeats": 8,
+  "warmups": 3,
+  "round_order": [
+    [
+      "nccl2:4:bylen:packed",
+      "nccl2:2:bylen:packed",
+      "nccl2:32:bylen:packed",
+      "nccl2:8:bylen:packed",
+      "nccl2:32:source:packed",
+      "nccl2:16:bylen:packed"
+    ],
+    [
+      "nccl2:16:bylen:packed",
+      "nccl2:2:bylen:packed",
+      "nccl2:8:bylen:packed",
+      "nccl2:4:bylen:packed",
+      "nccl2:32:bylen:packed",
+      "nccl2:32:source:packed"
+    ],
+    [
+      "nccl2:2:bylen:packed",
+      "nccl2:32:bylen:packed",
+      "nccl2:4:bylen:packed",
+      "nccl2:32:source:packed",
+      "nccl2:8:bylen:packed",
+      "nccl2:16:bylen:packed"
+    ],
+    [
+      "nccl2:2:bylen:packed",
+      "nccl2:16:bylen:packed",
+      "nccl2:4:bylen:packed",
+      "nccl2:32:bylen:packed",
+      "nccl2:32:source:packed",
+      "nccl2:8:bylen:packed"
+    ],
+    [
+      "nccl2:32:source:packed",
+      "nccl2:4:bylen:packed",
+      "nccl2:16:bylen:packed",
+      "nccl2:2:bylen:packed",
+      "nccl2:8:bylen:packed",
+      "nccl2:32:bylen:packed"
+    ],
+    [
+      "nccl2:32:bylen:packed",
+      "nccl2:16:bylen:packed",
+      "nccl2:32:source:packed",
+      "nccl2:4:bylen:packed",
+      "nccl2:2:bylen:packed",
+      "nccl2:8:bylen:packed"
+    ],
+    [
+      "nccl2:2:bylen:packed",
+      "nccl2:32:bylen:packed",
+      "nccl2:16:bylen:packed",
+      "nccl2:32:source:packed",
+      "nccl2:8:bylen:packed",
+      "nccl2:4:bylen:packed"
+    ],
+    [
+      "nccl2:4:bylen:packed",
+      "nccl2:8:bylen:packed",
+      "nccl2:32:source:packed",
+      "nccl2:32:bylen:packed",
+      "nccl2:16:bylen:packed",
+      "nccl2:2:bylen:packed"
+    ]
+  ],
+  "environment": {
+    "utc": "2026-09-05T21:38:15Z",
+    "host": "1d532d191a3e",
+    "git_sha": "ccbfe4e016455f6b00eef73ae0e946d5764dac12",
+    "git_dirty": true,
+    "legacy_sha": "df29ca1eb5823b70e5e55a33c8a8169a3f45cb69",
+    "image_digest": null,
+    "gpus": "NVIDIA A100-SXM4-80GB, GPU-c3aab2f9-3de8-2561-370e-b364095ad57d\nNVIDIA A100-SXM4-80GB, GPU-7ef491a4-26cd-0be2-0a28-30d2a4f84055",
+    "driver": "580.126.16",
+    "nvcc": "Build cuda_12.8.r12.8/compiler.35583870_0",
+    "nccl_version": "22501",
+    "topo": "\u001b[4mGPU0\tGPU1\tNIC0\tNIC1\tNIC2\tNIC3\tNIC4\tNIC5\tNIC6\tNIC7\tNIC8\tNIC9\tCPU Affinity\tNUMA Affinity\tGPU NUMA ID\u001b[0m\nGPU0\t X \tNV12\tSYS\tSYS\tSYS\tSYS\tPXB\tPXB\tNODE\tNODE\tNODE\tNODE\t64-127\t1\t\tN/A\nGPU1\tNV12\t X \tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tPXB\tPXB\tNODE\tNODE\t64-127\t1\t\tN/A\nNIC0\tSYS\tSYS\t X \tPXB\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC1\tSYS\tSYS\tPXB\t X \tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC2\tSYS\tSYS\tNODE\tNODE\t X \tPXB\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC3\tSYS\tSYS\tNODE\tNODE\tPXB\t X \tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC4\tPXB\tNODE\tSYS\tSYS\tSYS\tSYS\t X \tPXB\tNODE\tNODE\tNODE\tNODE\t\t\t\t\nNIC5\tPXB\tNODE\tSYS\tSYS\tSYS\tSYS\tPXB\t X \tNODE\tNODE\tNODE\tNODE\t\t\t\t\nNIC6\tNODE\tPXB\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\t X \tPXB\tNODE\tNODE\t\t\t\t\nNIC7\tNODE\tPXB\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tPXB\t X \tNODE\tNODE\t\t\t\t\nNIC8\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tNODE\tNODE\t X \tPIX\t\t\t\t\nNIC9\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tNODE\tNODE\tPIX\t X \t\t\t\t\n\nLegend:\n\n  X    = Self\n  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)\n  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node\n  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)\n  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)\n  PIX  = Connection traversing at most a single PCIe bridge\n  NV#  = Connection traversing a bonded set of # NVLinks\n\nNIC Legend:\n\n  NIC0: mlx5_0\n  NIC1: mlx5_1\n  NIC2: mlx5_2\n  NIC3: mlx5_3\n  NIC4: mlx5_4\n  NIC5: mlx5_5\n  NIC6: mlx5_6\n  NIC7: mlx5_7\n  NIC8: mlx5_8\n  NIC9: mlx5_9",
+    "p2p_r": "\u001b[4mGPU0\tGPU1\t\u001b[0m\n GPU0\tX\tOK\t\n GPU1\tOK\tX\t\n\nLegend:\n\n  X    = Self\n  OK   = Status Ok\n  CNS  = Chipset not supported\n  GNS  = GPU not supported\n  TNS  = Topology not supported\n  NS   = Not supported\n  U    = Unknown",
+    "p2p_w": "\u001b[4mGPU0\tGPU1\t\u001b[0m\n GPU0\tX\tOK\t\n GPU1\tOK\tX\t\n\nLegend:\n\n  X    = Self\n  OK   = Status Ok\n  CNS  = Chipset not supported\n  GNS  = GPU not supported\n  TNS  = Topology not supported\n  NS   = Not supported\n  U    = Unknown"
+  },
+  "arms": {
+    "nccl2:32:source:packed": {
+      "trials_s": [
+        0.004084,
+        0.004083,
+        0.00404,
+        0.004075,
+        0.004092,
+        0.004094,
+        0.004093,
+        0.00409
+      ],
+      "median_s": 0.004087,
+      "min_s": 0.00404,
+      "max_s": 0.004094,
+      "iqr_pct": 0.38536824076342074,
+      "t_stats_s": 0.003784,
+      "t_finalize_s": 4.9e-05,
+      "t_allreduce_s": 0.00025,
+      "t_plan_s": 0.050204,
+      "cold_data_path_s": 1.38665,
+      "max_abs_diff": 0.0,
+      "plan_lane_slots": null,
+      "plan_lane_utilisation": null,
+      "plan_aggregate_lane_slots": 144048000,
+      "plan_aggregate_lane_utilisation": 0.74683,
+      "plan_critical_lane_slots": 72771808,
+      "plan_per_device": [
+        {
+          "device": 0,
+          "dim_lo": 0,
+          "dim_hi": 13092,
+          "effective_elements": 53026536,
+          "lane_slots": 71276192,
+          "lane_utilisation": 0.74396,
+          "counterfactual_per_device_sorted_lane_slots": 71276192,
+          "counterfactual_per_device_sorted_utilisation": 0.74396
+        },
+        {
+          "device": 1,
+          "dim_lo": 13092,
+          "dim_hi": 26184,
+          "effective_elements": 54552667,
+          "lane_slots": 72771808,
+          "lane_utilisation": 0.74964,
+          "counterfactual_per_device_sorted_lane_slots": 72771808,
+          "counterfactual_per_device_sorted_utilisation": 0.74964
+        }
+      ]
+    },
+    "nccl2:32:bylen:packed": {
+      "trials_s": [
+        0.004032,
+        0.004072,
+        0.004119,
+        0.00412,
+        0.004121,
+        0.004128,
+        0.004052,
+        0.004032
+      ],
+      "median_s": 0.0040955,
+      "min_s": 0.004032,
+      "max_s": 0.004128,
+      "iqr_pct": 2.04492735929678,
+      "t_stats_s": 0.003732,
+      "t_finalize_s": 7e-05,
+      "t_allreduce_s": 0.000229,
+      "t_plan_s": 0.10318,
+      "cold_data_path_s": 1.323613,
+      "max_abs_diff": 0.0,
+      "plan_lane_slots": null,
+      "plan_lane_utilisation": null,
+      "plan_aggregate_lane_slots": 144048000,
+      "plan_aggregate_lane_utilisation": 0.74683,
+      "plan_critical_lane_slots": 72771808,
+      "plan_per_device": [
+        {
+          "device": 0,
+          "dim_lo": 0,
+          "dim_hi": 13092,
+          "effective_elements": 53026536,
+          "lane_slots": 71276192,
+          "lane_utilisation": 0.74396,
+          "counterfactual_per_device_sorted_lane_slots": 71276192,
+          "counterfactual_per_device_sorted_utilisation": 0.74396
+        },
+        {
+          "device": 1,
+          "dim_lo": 13092,
+          "dim_hi": 26184,
+          "effective_elements": 54552667,
+          "lane_slots": 72771808,
+          "lane_utilisation": 0.74964,
+          "counterfactual_per_device_sorted_lane_slots": 72771808,
+          "counterfactual_per_device_sorted_utilisation": 0.74964
+        }
+      ]
+    },
+    "nccl2:16:bylen:packed": {
+      "trials_s": [
+        0.002852,
+        0.002896,
+        0.002901,
+        0.002835,
+        0.002898,
+        0.002896,
+        0.002898,
+        0.002813
+      ],
+      "median_s": 0.002896,
+      "min_s": 0.002813,
+      "max_s": 0.002901,
+      "iqr_pct": 2.028660220994482,
+      "t_stats_s": 0.002535,
+      "t_finalize_s": 7.1e-05,
+      "t_allreduce_s": 0.000246,
+      "t_plan_s": 0.103294,
+      "cold_data_path_s": 1.363574,
+      "max_abs_diff": 0.0,
+      "plan_lane_slots": null,
+      "plan_lane_utilisation": null,
+      "plan_aggregate_lane_slots": 127720448,
+      "plan_aggregate_lane_utilisation": 0.8423,
+      "plan_critical_lane_slots": 64547360,
+      "plan_per_device": [
+        {
+          "device": 0,
+          "dim_lo": 0,
+          "dim_hi": 13092,
+          "effective_elements": 53026536,
+          "lane_slots": 63173088,
+          "lane_utilisation": 0.83938,
+          "counterfactual_per_device_sorted_lane_slots": 61770112,
+          "counterfactual_per_device_sorted_utilisation": 0.85845
+        },
+        {
+          "device": 1,
+          "dim_lo": 13092,
+          "dim_hi": 26184,
+          "effective_elements": 54552667,
+          "lane_slots": 64547360,
+          "lane_utilisation": 0.84516,
+          "counterfactual_per_device_sorted_lane_slots": 63154720,
+          "counterfactual_per_device_sorted_utilisation": 0.86379
+        }
+      ]
+    },
+    "nccl2:8:bylen:packed": {
+      "trials_s": [
+        0.002378,
+        0.002346,
+        0.002312,
+        0.002342,
+        0.002268,
+        0.002372,
+        0.00237,
+        0.002368
+      ],
+      "median_s": 0.0023569999999999997,
+      "min_s": 0.002268,
+      "max_s": 0.002378,
+      "iqr_pct": 2.206194314806957,
+      "t_stats_s": 0.002055,
+      "t_finalize_s": 7.5e-05,
+      "t_allreduce_s": 0.000247,
+      "t_plan_s": 0.102417,
+      "cold_data_path_s": 1.337483,
+      "max_abs_diff": 0.0,
+      "plan_lane_slots": null,
+      "plan_lane_utilisation": null,
+      "plan_aggregate_lane_slots": 120460128,
+      "plan_aggregate_lane_utilisation": 0.89307,
+      "plan_critical_lane_slots": 60994240,
+      "plan_per_device": [
+        {
+          "device": 0,
+          "dim_lo": 0,
+          "dim_hi": 13092,
+          "effective_elements": 53026536,
+          "lane_slots": 59465888,
+          "lane_utilisation": 0.89171,
+          "counterfactual_per_device_sorted_lane_slots": 57123424,
+          "counterfactual_per_device_sorted_utilisation": 0.92828
+        },
+        {
+          "device": 1,
+          "dim_lo": 13092,
+          "dim_hi": 26184,
+          "effective_elements": 54552667,
+          "lane_slots": 60994240,
+          "lane_utilisation": 0.89439,
+          "counterfactual_per_device_sorted_lane_slots": 58618720,
+          "counterfactual_per_device_sorted_utilisation": 0.93064
+        }
+      ]
+    },
+    "nccl2:4:bylen:packed": {
+      "trials_s": [
+        0.002171,
+        0.00218,
+        0.002194,
+        0.002163,
+        0.00217,
+        0.002175,
+        0.0022,
+        0.002173
+      ],
+      "median_s": 0.0021739999999999997,
+      "min_s": 0.002163,
+      "max_s": 0.0022,
+      "iqr_pct": 0.9314627414903345,
+      "t_stats_s": 0.001847,
+      "t_finalize_s": 7.3e-05,
+      "t_allreduce_s": 0.000251,
+      "t_plan_s": 0.103284,
+      "cold_data_path_s": 1.488601,
+      "max_abs_diff": 0.0,
+      "plan_lane_slots": null,
+      "plan_lane_utilisation": null,
+      "plan_aggregate_lane_slots": 117419040,
+      "plan_aggregate_lane_utilisation": 0.9162,
+      "plan_critical_lane_slots": 59488032,
+      "plan_per_device": [
+        {
+          "device": 0,
+          "dim_lo": 0,
+          "dim_hi": 13092,
+          "effective_elements": 53026536,
+          "lane_slots": 57931008,
+          "lane_utilisation": 0.91534,
+          "counterfactual_per_device_sorted_lane_slots": 54812096,
+          "counterfactual_per_device_sorted_utilisation": 0.96742
+        },
+        {
+          "device": 1,
+          "dim_lo": 13092,
+          "dim_hi": 26184,
+          "effective_elements": 54552667,
+          "lane_slots": 59488032,
+          "lane_utilisation": 0.91704,
+          "counterfactual_per_device_sorted_lane_slots": 56312032,
+          "counterfactual_per_device_sorted_utilisation": 0.96876
+        }
+      ]
+    },
+    "nccl2:2:bylen:packed": {
+      "trials_s": [
+        0.002159,
+        0.002245,
+        0.002245,
+        0.002261,
+        0.002246,
+        0.002231,
+        0.002175,
+        0.002168
+      ],
+      "median_s": 0.002238,
+      "min_s": 0.002159,
+      "max_s": 0.002261,
+      "iqr_pct": 3.3958891867739296,
+      "t_stats_s": 0.001849,
+      "t_finalize_s": 7.5e-05,
+      "t_allreduce_s": 0.000235,
+      "t_plan_s": 0.102584,
+      "cold_data_path_s": 1.455241,
+      "max_abs_diff": 0.0,
+      "plan_lane_slots": null,
+      "plan_lane_utilisation": null,
+      "plan_aggregate_lane_slots": 116283424,
+      "plan_aggregate_lane_utilisation": 0.92515,
+      "plan_critical_lane_slots": 58914304,
+      "plan_per_device": [
+        {
+          "device": 0,
+          "dim_lo": 0,
+          "dim_hi": 13092,
+          "effective_elements": 53026536,
+          "lane_slots": 57369120,
+          "lane_utilisation": 0.9243,
+          "counterfactual_per_device_sorted_lane_slots": 53627360,
+          "counterfactual_per_device_sorted_utilisation": 0.9888
+        },
+        {
+          "device": 1,
+          "dim_lo": 13092,
+          "dim_hi": 26184,
+          "effective_elements": 54552667,
+          "lane_slots": 58914304,
+          "lane_utilisation": 0.92597,
+          "counterfactual_per_device_sorted_lane_slots": 55149312,
+          "counterfactual_per_device_sorted_utilisation": 0.98918
+        }
+      ]
+    }
+  }
+}

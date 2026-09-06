@@ -18,7 +18,27 @@ is current.
 
 ---
 
+> ## How to read this document
+>
+> It has two vintages and they disagree in places.
+>
+> **Sections 1–5** (down to *Caveats on scope*) are the **original trace
+> analysis**: two hosts, median of 5 trials after 2 warm-ups, timed before
+> `finalize` entered the NCCL sync total. Each is marked ⚠ below.
+>
+> **From *Measurement audit — 20260905* onward** is the corrected work: a third
+> interconnect regime, 30-trial randomised runs, a unified timing basis. Where
+> the two disagree, **the later section wins** — the earlier one is kept so the
+> record shows what was believed when, not only what survived.
+>
+> Absolute GPU timings in the early sections also predate warp packing, which
+> changed the default lane mapping; see
+> [the warp-packing document](warp_packing_experiment_20260905.md).
+
 ## Where the NVLink gain went
+
+> ⚠ **Original trace analysis** (5 trials, 2 hosts, pre-warp-packing).
+> Superseded where the audit below disagrees.
 
 Measured on 2x A100 SXM (NV12), `item_full`, median of 5 trials after 2
 warm-ups:
@@ -57,6 +77,9 @@ not it.
 
 ## Which regime the collective is in
 
+> ⚠ **Original trace analysis** (5 trials, 2 hosts, pre-warp-packing).
+> Superseded where the audit below disagrees.
+
 The single most useful number in this study is not a latency — it is what
 happens to *effective bandwidth* as the payload shrinks.
 
@@ -75,6 +98,9 @@ worth its complexity.
 ---
 
 ## Why overlap is capped on *both* links
+
+> ⚠ **Original trace analysis** (5 trials, 2 hosts, pre-warp-packing).
+> Superseded where the audit below disagrees.
 
 The two measurements together also correct this project's original
 explanation of the async result. "Async targets slow interconnects" turns out
@@ -105,6 +131,9 @@ same coupling runs the other way: compression pushes comm further below
 compute, halving the ceiling (10.7% → 5.9%) and making async worse still.
 
 ## What the async result actually consists of (Nsight, both hosts)
+
+> ⚠ **Original trace analysis** (5 trials, 2 hosts, pre-warp-packing).
+> Superseded where the audit below disagrees.
 
 Wall-clock timings say async is worth +11.3% at `packed`; they cannot say
 whether that is good overlap of a small quantity or poor overlap of a large

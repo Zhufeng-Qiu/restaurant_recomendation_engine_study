@@ -1,0 +1,215 @@
+{
+  "phase": "paired",
+  "fixture": "data/fixtures/item_full",
+  "seed": 42,
+  "baseline": "legacy",
+  "candidate": "cuda:32:source",
+  "blocks": 30,
+  "block_order": [
+    "cb",
+    "bc",
+    "bc",
+    "cb",
+    "cb",
+    "bc",
+    "bc",
+    "bc",
+    "bc",
+    "cb",
+    "bc",
+    "cb",
+    "cb",
+    "cb",
+    "cb",
+    "cb",
+    "bc",
+    "bc",
+    "cb",
+    "bc",
+    "cb",
+    "cb",
+    "bc",
+    "cb",
+    "bc",
+    "bc",
+    "cb",
+    "bc",
+    "bc",
+    "cb"
+  ],
+  "rows": [
+    {
+      "first": "cb",
+      "baseline_s": 0.00472,
+      "candidate_s": 0.004916
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004727,
+      "candidate_s": 0.004903
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004728,
+      "candidate_s": 0.004902
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004732,
+      "candidate_s": 0.004903
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.00473,
+      "candidate_s": 0.004899
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.00473,
+      "candidate_s": 0.004893
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004756,
+      "candidate_s": 0.004883
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004722,
+      "candidate_s": 0.004898
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004732,
+      "candidate_s": 0.004892
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004716,
+      "candidate_s": 0.004887
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004727,
+      "candidate_s": 0.004898
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004713,
+      "candidate_s": 0.004893
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004735,
+      "candidate_s": 0.004882
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004717,
+      "candidate_s": 0.004883
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004719,
+      "candidate_s": 0.004937
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004728,
+      "candidate_s": 0.004938
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004733,
+      "candidate_s": 0.004906
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004729,
+      "candidate_s": 0.004883
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004755,
+      "candidate_s": 0.004888
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004733,
+      "candidate_s": 0.0049
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.00493,
+      "candidate_s": 0.004916
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004722,
+      "candidate_s": 0.004887
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004713,
+      "candidate_s": 0.004884
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004714,
+      "candidate_s": 0.004881
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.00472,
+      "candidate_s": 0.004888
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004717,
+      "candidate_s": 0.004659
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004714,
+      "candidate_s": 0.004886
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.00474,
+      "candidate_s": 0.004886
+    },
+    {
+      "first": "bc",
+      "baseline_s": 0.004719,
+      "candidate_s": 0.004882
+    },
+    {
+      "first": "cb",
+      "baseline_s": 0.004728,
+      "candidate_s": 0.00491
+    }
+  ],
+  "estimator": "mean of log(candidate/baseline) over blocks, exponentiated",
+  "ci_method": "1.96 x SE, normal approximation over the block log-ratios",
+  "ci_level": 0.95,
+  "effect_pct": 3.283260199990301,
+  "ci_lo_pct": 2.85694460146535,
+  "ci_hi_pct": 3.711342767097192,
+  "baseline_median_s": 0.004727500000000001,
+  "candidate_median_s": 0.004892499999999999,
+  "environment": {
+    "utc": "2026-09-05T21:18:28Z",
+    "host": "1d532d191a3e",
+    "git_sha": "ccbfe4e016455f6b00eef73ae0e946d5764dac12",
+    "git_dirty": true,
+    "legacy_sha": "df29ca1eb5823b70e5e55a33c8a8169a3f45cb69",
+    "image_digest": null,
+    "gpus": "NVIDIA A100-SXM4-80GB, GPU-c3aab2f9-3de8-2561-370e-b364095ad57d\nNVIDIA A100-SXM4-80GB, GPU-7ef491a4-26cd-0be2-0a28-30d2a4f84055",
+    "driver": "580.126.16",
+    "nvcc": "Build cuda_12.8.r12.8/compiler.35583870_0",
+    "nccl_version": "22501",
+    "topo": "\u001b[4mGPU0\tGPU1\tNIC0\tNIC1\tNIC2\tNIC3\tNIC4\tNIC5\tNIC6\tNIC7\tNIC8\tNIC9\tCPU Affinity\tNUMA Affinity\tGPU NUMA ID\u001b[0m\nGPU0\t X \tNV12\tSYS\tSYS\tSYS\tSYS\tPXB\tPXB\tNODE\tNODE\tNODE\tNODE\t64-127\t1\t\tN/A\nGPU1\tNV12\t X \tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tPXB\tPXB\tNODE\tNODE\t64-127\t1\t\tN/A\nNIC0\tSYS\tSYS\t X \tPXB\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC1\tSYS\tSYS\tPXB\t X \tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC2\tSYS\tSYS\tNODE\tNODE\t X \tPXB\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC3\tSYS\tSYS\tNODE\tNODE\tPXB\t X \tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC4\tPXB\tNODE\tSYS\tSYS\tSYS\tSYS\t X \tPXB\tNODE\tNODE\tNODE\tNODE\t\t\t\t\nNIC5\tPXB\tNODE\tSYS\tSYS\tSYS\tSYS\tPXB\t X \tNODE\tNODE\tNODE\tNODE\t\t\t\t\nNIC6\tNODE\tPXB\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\t X \tPXB\tNODE\tNODE\t\t\t\t\nNIC7\tNODE\tPXB\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tPXB\t X \tNODE\tNODE\t\t\t\t\nNIC8\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tNODE\tNODE\t X \tPIX\t\t\t\t\nNIC9\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tNODE\tNODE\tNODE\tNODE\tPIX\t X \t\t\t\t\n\nLegend:\n\n  X    = Self\n  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)\n  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node\n  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)\n  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)\n  PIX  = Connection traversing at most a single PCIe bridge\n  NV#  = Connection traversing a bonded set of # NVLinks\n\nNIC Legend:\n\n  NIC0: mlx5_0\n  NIC1: mlx5_1\n  NIC2: mlx5_2\n  NIC3: mlx5_3\n  NIC4: mlx5_4\n  NIC5: mlx5_5\n  NIC6: mlx5_6\n  NIC7: mlx5_7\n  NIC8: mlx5_8\n  NIC9: mlx5_9",
+    "p2p_r": "\u001b[4mGPU0\tGPU1\t\u001b[0m\n GPU0\tX\tOK\t\n GPU1\tOK\tX\t\n\nLegend:\n\n  X    = Self\n  OK   = Status Ok\n  CNS  = Chipset not supported\n  GNS  = GPU not supported\n  TNS  = Topology not supported\n  NS   = Not supported\n  U    = Unknown",
+    "p2p_w": "\u001b[4mGPU0\tGPU1\t\u001b[0m\n GPU0\tX\tOK\t\n GPU1\tOK\tX\t\n\nLegend:\n\n  X    = Self\n  OK   = Status Ok\n  CNS  = Chipset not supported\n  GNS  = GPU not supported\n  TNS  = Topology not supported\n  NS   = Not supported\n  U    = Unknown"
+  }
+}

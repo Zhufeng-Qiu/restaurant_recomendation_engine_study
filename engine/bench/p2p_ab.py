@@ -31,7 +31,14 @@ def run(mode, pay, p2p):
             bad += 1
         if i < WARM:
             continue
-        t = d["t_pipeline_s"] if mode == "async" else d["t_kernel_s"] + d["t_allreduce_s"]
+        # device_total_s = stats + allreduce + finalize. This used to sum only
+        # kernel + allreduce, dropping the finalize kernel and understating
+        # every sync total by ~0.5-1.5%. The fallback is for records predating
+        # the field.
+        t = (d["t_pipeline_s"] if mode == "async"
+             else d.get("device_total_s",
+                        d["t_kernel_s"] + d["t_allreduce_s"]
+                        + d.get("t_finalize_s", 0.0)))
         tot.append(t * 1e3)
         ar.append(d["t_allreduce_s"] * 1e3)
     q = st.quantiles(tot, n=4)

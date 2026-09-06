@@ -1,0 +1,621 @@
+{
+  "session": "repB",
+  "seed": 20260911,
+  "blocks": 30,
+  "utc": "2026-09-06T05:24:25Z",
+  "host": "0143896646ac",
+  "platform": "Linux-6.17.0-14-generic-x86_64-with-glibc2.39",
+  "git_sha": "174bb1c8eb6f1a8cd005caac182cbeda2f89df43",
+  "git_dirty": true,
+  "git_dirty_tracked": 0,
+  "image_digest": "sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",
+  "gpus": "NVIDIA A100-SXM4-80GB, GPU-ada69b09-3d6e-5ef1-b548-b2b910bdc2ef\nNVIDIA A100-SXM4-80GB, GPU-174ad8b7-efe9-4e14-6960-65d4ce9d5711",
+  "driver": "580.126.16",
+  "cuda_runtime": "Build cuda_12.8.r12.8/compiler.35583870_0",
+  "nccl_version": "22501",
+  "p2p_matrix": "\u001b[4mGPU0\tGPU1\t\u001b[0m\n GPU0\tX\tOK\t\n GPU1\tOK\tX\t\n\nLegend:",
+  "topo_matrix": "\u001b[4mGPU0\tGPU1\tNIC0\tNIC1\tNIC2\tNIC3\tNIC4\tNIC5\tNIC6\tNIC7\tNIC8\tNIC9\tCPU Affinity\tNUMA Affinity\tGPU NUMA ID\u001b[0m\nGPU0\t X \tNV12\tPXB\tPXB\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t0-63\t0\t\tN/A\nGPU1\tNV12\t X \tNODE\tNODE\tPXB\tPXB\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t0-63\t0\t\tN/A\nNIC0\tPXB\tNODE\t X \tPXB\tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC1\tPXB\tNODE\tPXB\t X \tNODE\tNODE\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS\t\t\t\t\nNIC2\tNODE\tPXB\tNODE\tNODE\t X \tPXB\tSYS\tSYS\tSYS\tSYS\tSYS\tSYS",
+  "cmd": "python3 engine/bench/repro_session.py 20260911 repB",
+  "block_order": [
+    "f64",
+    "packed",
+    "f64",
+    "packed",
+    "packed",
+    "packed",
+    "packed",
+    "f64",
+    "packed",
+    "packed",
+    "packed",
+    "f64",
+    "f64",
+    "packed",
+    "f64",
+    "packed",
+    "f64",
+    "f64",
+    "packed",
+    "f64",
+    "f64",
+    "packed",
+    "f64",
+    "packed",
+    "f64",
+    "f64",
+    "f64",
+    "f64",
+    "packed",
+    "packed"
+  ],
+  "validated_every_trial": true,
+  "validation_max_abs_diff": 0.0,
+  "validation_per_trial": [
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "f64",
+      "mode": "sync",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    },
+    {
+      "payload": "packed",
+      "mode": "async",
+      "max_abs_diff": 0.0
+    }
+  ],
+  "estimator": "mean of log(T_packed/T_f64) over blocks, exponentiated",
+  "ci_method": "1.96 x SE, normal approximation over the 30 block log-ratios",
+  "ci_level": 0.95,
+  "compression_pct": -6.987396252454092,
+  "ci_lo": -17.614779832976268,
+  "ci_hi": 5.010879844208471,
+  "median_f64_ms": 3.4555000000000002,
+  "median_packed_ms": 3.2144999999999997,
+  "async_packed_median_ms": 3.7279999999999998,
+  "async_packed_iqr_pct": 9.495708154506419,
+  "async_packed_s": [
+    0.004111,
+    0.003431,
+    0.003749,
+    0.003674,
+    0.003462,
+    0.003881,
+    0.003939,
+    0.003663,
+    0.003707,
+    0.004036,
+    0.003945,
+    0.003565
+  ],
+  "rows": [
+    {
+      "first": "f64",
+      "f64": 0.003458,
+      "packed": 0.003218
+    },
+    {
+      "first": "packed",
+      "f64": 0.00335,
+      "packed": 0.003247
+    },
+    {
+      "first": "f64",
+      "f64": 0.003466,
+      "packed": 0.003202
+    },
+    {
+      "first": "packed",
+      "f64": 0.003463,
+      "packed": 0.003143
+    },
+    {
+      "first": "packed",
+      "f64": 0.011707,
+      "packed": 0.003328
+    },
+    {
+      "first": "packed",
+      "f64": 0.003612,
+      "packed": 0.003242
+    },
+    {
+      "first": "packed",
+      "f64": 0.003611,
+      "packed": 0.003185
+    },
+    {
+      "first": "f64",
+      "f64": 0.003407,
+      "packed": 0.003185
+    },
+    {
+      "first": "packed",
+      "f64": 0.003499,
+      "packed": 0.0032
+    },
+    {
+      "first": "packed",
+      "f64": 0.003643,
+      "packed": 0.003253
+    },
+    {
+      "first": "packed",
+      "f64": 0.003459,
+      "packed": 0.00325
+    },
+    {
+      "first": "f64",
+      "f64": 0.003498,
+      "packed": 0.003258
+    },
+    {
+      "first": "f64",
+      "f64": 0.003416,
+      "packed": 0.003237
+    },
+    {
+      "first": "packed",
+      "f64": 0.003442,
+      "packed": 0.003296
+    },
+    {
+      "first": "f64",
+      "f64": 0.003429,
+      "packed": 0.003287
+    },
+    {
+      "first": "packed",
+      "f64": 0.003466,
+      "packed": 0.003178
+    },
+    {
+      "first": "f64",
+      "f64": 0.003526,
+      "packed": 0.003129
+    },
+    {
+      "first": "f64",
+      "f64": 0.003401,
+      "packed": 0.003194
+    },
+    {
+      "first": "packed",
+      "f64": 0.003469,
+      "packed": 0.003148
+    },
+    {
+      "first": "f64",
+      "f64": 0.003371,
+      "packed": 0.003107
+    },
+    {
+      "first": "f64",
+      "f64": 0.003377,
+      "packed": 0.003187
+    },
+    {
+      "first": "packed",
+      "f64": 0.00376,
+      "packed": 0.003221
+    },
+    {
+      "first": "f64",
+      "f64": 0.003437,
+      "packed": 0.012709
+    },
+    {
+      "first": "packed",
+      "f64": 0.003444,
+      "packed": 0.003181
+    },
+    {
+      "first": "f64",
+      "f64": 0.003437,
+      "packed": 0.003232
+    },
+    {
+      "first": "f64",
+      "f64": 0.003634,
+      "packed": 0.003261
+    },
+    {
+      "first": "f64",
+      "f64": 0.003391,
+      "packed": 0.003104
+    },
+    {
+      "first": "f64",
+      "f64": 0.003361,
+      "packed": 0.003232
+    },
+    {
+      "first": "packed",
+      "f64": 0.003453,
+      "packed": 0.003211
+    },
+    {
+      "first": "packed",
+      "f64": 0.003331,
+      "packed": 0.003145
+    }
+  ]
+}

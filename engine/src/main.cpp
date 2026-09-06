@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <functional>
@@ -68,7 +69,10 @@ namespace {
 
 int run(int argc, char** argv) {
   if (argc < 2) {
-    std::fprintf(stderr, "usage: %s <fixture_dir> [--backend serial] [--validate] [--out f]\n",
+    std::fprintf(stderr, "usage: %s <fixture_dir> [--backend serial] [--validate] [--out f]\n"
+                 "       [--group 1|2|4|8|16|32] [--pair-order source|bylen]\n"
+                 "       [--hoist on|off] [--plan-metrics on|off]\n"
+                 "       [--pre-timing-delay-ms N]\n",
                  argv[0]);
     return 2;
   }
@@ -80,8 +84,63 @@ int run(int argc, char** argv) {
     if (!std::strcmp(argv[a], "--backend") && a + 1 < argc) backend_name = argv[++a];
     else if (!std::strcmp(argv[a], "--out") && a + 1 < argc) out_path = argv[++a];
     else if (!std::strcmp(argv[a], "--validate")) validate = true;
+#if defined(ENGINE_HAVE_CUDA)
+    // Lane mapping (warp packing). Accepted only where a GPU backend exists,
+    // so a CPU-only build rejects them instead of silently ignoring them and
+    // reporting a mapping it never ran.
+    else if (!std::strcmp(argv[a], "--group") && a + 1 < argc) {
+      const int g = std::atoi(argv[++a]);
+      if (g < 1 || g > 32 || (g & (g - 1)) != 0) {
+        std::fprintf(stderr, "--group must be 1, 2, 4, 8, 16 or 32\n");
+        return 2;
+      }
+      engine::cuda_map_options().group = g;
+    }
+    else if (!std::strcmp(argv[a], "--pre-timing-delay-ms") && a + 1 < argc) {
+#if !defined(ENGINE_PROFILING)
+      std::fprintf(stderr, "--pre-timing-delay-ms needs a profiling build "
+                           "(-DENGINE_PROFILING=ON)\n");
+      return 2;
+#endif
+      const int d = std::atoi(argv[++a]);
+      if (d < 0 || d > 60000) {
+        std::fprintf(stderr, "--pre-timing-delay-ms must be in [0, 60000]\n");
+        return 2;
+      }
+      engine::cuda_map_options().pre_timing_delay_ms = d;
+    }
+    else if (!std::strcmp(argv[a], "--plan-metrics") && a + 1 < argc) {
+      const std::string v = argv[++a];
+      if (v == "on") engine::cuda_map_options().plan_metrics = true;
+      else if (v == "off") engine::cuda_map_options().plan_metrics = false;
+      else { std::fprintf(stderr, "--plan-metrics must be on or off\n"); return 2; }
+    }
+    else if (!std::strcmp(argv[a], "--hoist") && a + 1 < argc) {
+      const std::string v = argv[++a];
+      if (v == "on") engine::cuda_map_options().hoist = true;
+      else if (v == "off") engine::cuda_map_options().hoist = false;
+      else { std::fprintf(stderr, "--hoist must be on or off\n"); return 2; }
+    }
+    else if (!std::strcmp(argv[a], "--pair-order") && a + 1 < argc) {
+      const std::string v = argv[++a];
+      if (v == "source") engine::cuda_map_options().order = engine::PairOrder::kSource;
+      else if (v == "bylen") engine::cuda_map_options().order = engine::PairOrder::kByShortLen;
+      else { std::fprintf(stderr, "--pair-order must be source or bylen\n"); return 2; }
+    }
+#endif
     else { std::fprintf(stderr, "unknown arg %s\n", argv[a]); return 2; }
   }
+
+#if defined(ENGINE_HAVE_CUDA)
+  // Only the cuda backend reads the lane mapping. Accepting these flags for a
+  // CPU backend and ignoring them would report a mapping that never ran.
+  if (backend_name != "cuda" && !engine::cuda_map_options().is_default()) {
+    std::fprintf(stderr,
+                 "--group/--pair-order/--hoist apply to --backend cuda, not '%s'\n",
+                 backend_name.c_str());
+    return 2;
+  }
+#endif
 
   auto reg = backends();
   auto it = reg.find(backend_name);
@@ -120,18 +179,28 @@ int run(int argc, char** argv) {
   // Unified timing schema (README, 2026-09-05). For serial/openmp the whole
   // kernel is one fused pass -- finalization happens inside evaluate_pair --
   // so stats carries it and finalize is 0 rather than unmeasured. The cuda
-  // backend prints its own stage breakdown and its own device/one-shot totals
-  // on the cuda_detail line, so they are omitted here to avoid overwriting it.
+  // backend prints its stage breakdown on the cuda_detail line, so that is
+  // omitted here to avoid overwriting it; cold_data_path_s is assembled here
+  // because t_load belongs to this function and the stages to the backend.
   const bool cuda_owns_totals = (backend_name == "cuda");
+  // Guarded because the declaration lives behind the same switch. A non-CUDA
+  // build cannot reach the true branch anyway -- the registry lookup above
+  // rejects --backend cuda first -- but the reference still has to compile.
+  double cuda_cold = t_load + t_compute;
+#if defined(ENGINE_HAVE_CUDA)
+  if (cuda_owns_totals)
+    cuda_cold = engine::cuda_last_timings().cold_data_path(t_load);
+#endif
   if (cuda_owns_totals) {
     std::printf(
         "{\"fixture\":\"%s\",\"backend\":\"%s\",\"n_entities\":%lld,\"nnz\":%lld,"
         "\"n_pairs\":%lld,\"t_load_s\":%.6f,\"t_compute_s\":%.6f,"
+        "\"cold_data_path_s\":%.6f,"
         "\"pairs_per_s\":%.0f,\"validated\":%s,\"max_abs_diff\":%.3e,"
         "\"tol_failures\":%d,\"emitted\":%lld}\n",
         dir.c_str(), backend_name.c_str(),
         static_cast<long long>(fx.n_entities()), static_cast<long long>(fx.nnz()),
-        static_cast<long long>(fx.n_pairs()), t_load, t_compute,
+        static_cast<long long>(fx.n_pairs()), t_load, t_compute, cuda_cold,
         fx.n_pairs() / (t_compute > 0 ? t_compute : 1e-9),
         validate ? "true" : "false", max_diff, failures,
         static_cast<long long>(emitted));

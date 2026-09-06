@@ -514,10 +514,13 @@ Steps 1–2 of the corrected plan, plus the nccl-tests baseline. One host
 
 **Randomisation changed the noise picture, but not where expected.** With
 configurations interleaved, `sync` and single-GPU rows tighten to 0.22–1.12%
-IQR. The async 2-GPU rows stay at **13–16%**. So that spread is not thermal or
-temporal drift being mistaken for a configuration effect. (It later reproduced
-across three independent pods as well — 16.3% / 16.4% / 15.6% — which is what
-justifies calling it a property of the pipeline rather than of a session.)
+IQR. The async 2-GPU rows stay at **13–16%**. Interleaving rules out a simple
+ordering effect — a spread that came from draining one configuration before the
+next would have collapsed — but not every temporal or thermal mechanism. The
+spread **persists under randomised interleaving and across these hosts**
+(16.3% / 16.4% / 15.6% on three independent pods); its magnitude remains
+protocol- and host-dependent, and later runs on the current default show
+10.9–11.2%.
 
 **The headline speedups were always steady-state.** Every backend now reports
 `device_total = stats + allreduce + finalize` and, alongside it, a cold-path
@@ -628,9 +631,10 @@ and the randomised headline matrix's −5.11% sits in the same range. The
 compression number is reproducible.
 
 The async noise reproduces too: 16.3%, 16.4%, 15.6% IQR on `async packed`
-across the three sessions. Persisting under randomised interleaving *and*
-across independent pods is enough to call it a property of the pipeline rather
-than of any one session.
+across the three sessions. It **persists under randomised interleaving and
+across these hosts**, so it is not an artefact of one session; its magnitude
+remains protocol- and host-dependent, and is not established as a property of
+the pipeline as such.
 
 **The nccl-tests baseline, redone properly** — exact byte counts, matching
 dtypes, in-place column (the engine's collective is `ncclAllReduce(slot, slot,
@@ -705,28 +709,46 @@ claim about the platform.
 
 ### Still open
 
+*Scope: these are open **for the host class and protocol used in this
+document** — 2x A100-SXM4-80GB, 5- or 30-trial runs on the pre-warp-packing
+default. Several were closed by later work; where that is so, it says which.*
+
 Rewritten 2026-09-05 after the baseline campaign closed. Entries removed
 because they are done: the `PHB` host, the nccl-tests redo, the cross-session
 replication, and the finalize labelling. The async-spread entry is gone for a
-different reason: the 13–16% IQR reproduced across three independent pods
-(16.3% / 16.4% / 15.6%), so it is a property of the pipeline, recorded in the
-audit document, not an open question.
+different reason: the IQR reproduced across three independent pods (16.3% /
+15.6% / 16.4% here; 10.9–11.2% in later runs on the current default), so it is
+**reproducible under this protocol and host class**, not an open question. It
+is not established as a property of the pipeline as such: the magnitude is
+protocol- and host-dependent, and the later figure is the one to quote.
 
-- **Warp packing is the only unimplemented optimisation.** Mechanism gate
-  passed; implementation gate untested because no packing kernel exists.
-  Ceiling 14.42% of scan time at one GPU, 25.32% at two — measured in
-  *Steps 3 and 7* above.
+- **Warp packing is implemented and measured** (2026-09-05, after this audit
+  was written): see
+  [docs/warp_packing_experiment_20260905.md](warp_packing_experiment_20260905.md).
+  It works, and **the lane-slot model in this document is not why**. The prize
+  quoted here — 14.42% at one GPU, 25.32% at two, 19.22% after the shared-order
+  constraint — was directionally right and quantitatively short: measured
+  critical lane slots fell 18.3% at two GPUs, close to the model, while stats
+  time fell far more. The `lane_full` fixture settles it — its lane slots vary
+  by 0.02% across group sizes and its stats time still drops 13.5%.
+  A replacement hypothesis (four redundant `lower_bound` searches per thread)
+  was implemented as a hoist and **measured at +0.15% [−0.08, +0.38] — no
+  effect**, so it is not that either. A cost proportional to the thread count
+  is real and remains unattributed. The numbers in this section are what the
+  model predicted, not what the hardware did.
 - **The AllReduce is 1.2–2.5x off the library's own ceiling**, and the gap
   widens as the link slows and the payload shrinks — 2.48x at `packed` on the
   host-staged link, where `all_reduce_perf` moves the same 18.75 MB in 7.47 ms
   against this engine's 18.56 ms. That is a larger prize than warp packing and
   nothing in this project has looked at it.
-- **Provenance is not closed.** The NVLink headline matrix predates the
-  provenance fields entirely (no `git_sha`); the PHB run records the public
-  clone's SHA with `git_dirty=true`, because the engine tree is rsynced over
-  the clone rather than pushed; and **no result file in this repository
-  records an `image_digest`**. No dirty patch or binary hash was kept, so
-  identical source across the three regimes is intended, not evidenced.
+- **Provenance is not closed *for the three-regime experiments in this
+  document*.** The NVLink headline matrix here predates the provenance fields
+  (no `git_sha`); the PHB run records the public clone's SHA with
+  `git_dirty=true` because the engine tree was rsynced over it; and none of
+  these runs records an `image_digest`. That limitation is specific to this
+  campaign — later work records `git_sha`, a tracked-vs-untracked dirty split
+  and a real `image_digest`, and the headline was re-measured on a clean
+  checkout. See the warp-packing document.
   The three replication sessions (`../results/bench/repro_s*.json`) carry seed,
   block count and results but no host, SHA, image or timestamp —
   `../engine/bench/repro_session.py` records those now, but s1–s3 predate it and
