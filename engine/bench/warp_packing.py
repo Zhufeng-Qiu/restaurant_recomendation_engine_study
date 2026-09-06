@@ -109,8 +109,11 @@ def run_once(argv):
         raise RuntimeError(f"no JSON from {' '.join(argv)}")
     # Correctness is a precondition for a timing, not a separate report: a
     # fast wrong answer is not a data point.
-    rec["t_process_wall_s"] = wall     # the true CLI one-shot; everything the
-                                       # binary reports excludes process launch
+    # Wall clock around the process: launch, linking and the CUDA driver's
+    # first touch, none of which the binary can time. These runs pass
+    # --validate, so it is a VALIDATED CLI wall time, not a production one-shot.
+    rec["t_process_wall_s"] = wall
+    rec["t_process_wall_includes_validate"] = True
     if rec.get("tol_failures", 0) != 0:
         raise RuntimeError(f"tol_failures={rec['tol_failures']} from {' '.join(argv)}")
     return rec

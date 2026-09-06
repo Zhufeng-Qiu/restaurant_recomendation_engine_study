@@ -55,10 +55,11 @@ def main():
     print()
     print("| Backend | Median | Speedup vs same-machine serial |")
     print("| --- | --- | --- |")
+    missing = [c for c, _ in ROWS if c not in by]
     for cfg, label in ROWS:
         r = by.get(cfg)
         if r is None:
-            print(f"| {label} | (absent from this run) | |")
+            print(f"| {label} | **ABSENT FROM THIS RUN** | |")
             continue
         ms = r["median_s"] * 1e3
         basis = r.get("timing_basis", "?")
@@ -77,6 +78,14 @@ def main():
     bad = [r["config"] for r in d["results"]
            if r.get("timing_identity_ok") is False]
     print(f"\ntiming identity failures: {bad or 'none'}")
+    # A headline with a hole is not a headline. cuda_1gpu once dropped out at
+    # warm-up and this generator still exited 0, so the table could have been
+    # published with a row reading "(absent from this run)".
+    if missing or bad:
+        print(f"\nREFUSING to emit a headline: "
+              + (f"missing rows {missing} " if missing else "")
+              + (f"timing identity failures {bad}" if bad else ""))
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

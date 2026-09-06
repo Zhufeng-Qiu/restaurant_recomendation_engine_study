@@ -22,6 +22,7 @@ target_link_libraries(engine_serial PUBLIC engine_common)
 
 add_executable(pearson_engine src/main.cpp)
 target_link_libraries(pearson_engine PRIVATE engine_serial)
+engine_strict_formats(pearson_engine)
 
 if(ENGINE_OPENMP)
   find_package(OpenMP REQUIRED)
@@ -35,19 +36,24 @@ if(ENGINE_MPI)
   find_package(MPI REQUIRED COMPONENTS CXX)
   add_executable(pearson_engine_mpi src/mpi/mpi_main.cpp)
   target_link_libraries(pearson_engine_mpi PRIVATE engine_common MPI::MPI_CXX)
+  engine_strict_formats(pearson_engine_mpi)
 endif()
 
 # printf format/argument mismatches are how two JSON fields shipped as
-# "(null)" and broke a benchmark configuration mid-run. Make them fatal rather
-# than a warning nobody reads in a 400-line build log.
-set(ENGINE_FORMAT_FLAGS -Wall -Wformat=2 -Werror=format -Werror=format-extra-args)
+# "(null)" and broke a benchmark configuration mid-run. Fatal, not a warning
+# nobody reads in a 400-line build log. Applied to every target that prints
+# JSON, which is all of them -- the CUDA ones need it via -Xcompiler.
+function(engine_strict_formats target)
+  target_compile_options(${target} PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wformat=2;-Werror=format;-Werror=format-extra-args>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Wall,-Wformat=2,-Werror=format,-Werror=format-extra-args>)
+endfunction()
 
 if(ENGINE_CUDA)
   enable_language(CUDA)
   set(CMAKE_CUDA_STANDARD 17)
   add_library(engine_cuda src/cuda/cuda_backend.cu)
-  target_compile_options(engine_cuda PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Wall,-Wformat=2,-Werror=format>)
+  engine_strict_formats(engine_cuda)
   target_include_directories(engine_cuda PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   target_link_libraries(pearson_engine PRIVATE engine_cuda)
   target_compile_definitions(pearson_engine PRIVATE ENGINE_HAVE_CUDA)
@@ -59,8 +65,7 @@ if(ENGINE_NCCL)
   find_library(NCCL_LIB nccl REQUIRED)
   find_path(NCCL_INC nccl.h REQUIRED)
   add_executable(pearson_engine_nccl src/nccl/nccl_main.cu)
-  target_compile_options(pearson_engine_nccl PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Wall,-Wformat=2,-Werror=format>)
+  engine_strict_formats(pearson_engine_nccl)
   target_include_directories(pearson_engine_nccl PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src ${NCCL_INC})
   target_link_libraries(pearson_engine_nccl PRIVATE ${NCCL_LIB})
@@ -97,6 +102,10 @@ add_test(NAME pair_plan COMMAND pair_plan_test)
 # 30-round matrix had finished measuring and before anything was written.
 find_program(PYTHON3 python3)
 if(PYTHON3)
+  foreach(_check check_output check_sanitizer)
+    add_test(NAME bench_${_check}_selftest
+             COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/bench/${_check}.py --selftest)
+  endforeach()
   add_test(NAME bench_timing_selftest
            COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/bench/run_bench.py --selftest)
 endif()

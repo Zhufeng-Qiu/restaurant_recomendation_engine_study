@@ -266,8 +266,12 @@ the needle.** Both techniques target the same regime, and NVLink is not it.
 To test the converse, the identical binary was run on 2x A100 80GB **PCIe**
 (`PHB` topology, P2P reported `NS` — so NCCL stages through host memory
 rather than moving GPU-to-GPU). Same GPU generation, same memory class, same
-CUDA 12.8 and NCCL 2.25.1, same SHA-verified sources: the interconnect is
-close to the only variable. All 18 correctness gates pass bit-exact here too,
+CUDA 12.8 and NCCL 2.25.1, same SHA-verified sources. That controls the
+software and narrows the hardware, but it does not make the interconnect the
+only variable: these are two different physical machines, with different CPUs,
+memory and neighbours, and one binary running on both does not cancel that.
+Read the comparison as descriptive — two regimes, measured — not as an
+isolated effect of the link. All 18 correctness gates pass bit-exact here too,
 which is what the contract promised — the partition is over the rating
 dimension, so the answer cannot depend on the link.
 

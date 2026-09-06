@@ -40,17 +40,30 @@ MANIFEST="$OUT/session_manifest_${TAG}.txt"
 # Only logs this session plausibly wrote: /tmp on a shared or reused host can
 # hold anything, and sweeping it wholesale drags unrelated files into the
 # repository (it already did once, locally).
+COPIED=""
 for f in /tmp/headline.log /tmp/final.log /tmp/verify.log /tmp/sess.log /tmp/build.log; do
   [ -e "$f" ] || continue
-  cp -n "$f" "$OUT/session_${TAG}_$(basename "$f")" 2>/dev/null || true
+  dst="$OUT/session_${TAG}_$(basename "$f")"
+  # NOT `|| true`: a log that silently fails to copy is a log lost with the pod,
+  # which is the failure this script exists to prevent.
+  cp "$f" "$dst"
+  COPIED="$COPIED $(basename "$dst")"
 done
 
+# Only this session's artifacts. Archiving the whole of results/bench/ bundles
+# every historical run and makes "the archive" useless as a session record.
 ARCHIVE="$OUT/session_${TAG}.tar.gz"
-tar czf "$ARCHIVE" -C "$OUT" $(cd "$OUT" && ls | grep -v '\.tar\.gz$') 2>/dev/null || true
+FILES=$(cd "$OUT" && ls | grep -E "_${TAG}[._]|_${TAG}$" | grep -v '\.tar\.gz$' || true)
+if [ -z "$FILES" ]; then
+  echo "export: no artifacts tagged ${TAG} -- refusing to write an empty archive" >&2
+  exit 1
+fi
+tar czf "$ARCHIVE" -C "$OUT" $FILES
 
 echo "manifest: $MANIFEST"
 echo "archive:  $ARCHIVE  ($(du -h "$ARCHIVE" | cut -f1))"
 echo "contents: $(tar tzf "$ARCHIVE" | wc -l | tr -d ' ') files"
+echo "logs:    ${COPIED:- (none found)}"
 echo
 echo "Retrieve before terminating the pod:"
 echo "  rsync -az <pod>:$(pwd)/results/bench/ ./results/bench/"

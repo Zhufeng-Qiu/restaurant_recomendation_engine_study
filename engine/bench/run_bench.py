@@ -228,8 +228,8 @@ def selftest():
 
     # --- the failure modes that cost an hour of GPU time -------------------
     import tempfile, time as _time
-    good = ('echo \'{"n_pairs":1,"tol_failures":0,"device_total_s":0.1,'
-            '"timing_basis":"device_total"}\'')
+    good = ('echo \'{"n_pairs":1,"tol_failures":0,"max_abs_diff":0.0,'
+            '"device_total_s":0.1,"timing_basis":"device_total"}\'')
 
     t0 = _time.time()
     try:
@@ -252,6 +252,14 @@ def selftest():
 
     check(run_once(["/bin/sh", "-c", good], {})["n_pairs"] == 1,
           "a valid record still parses")
+    # A record with a summary line but no timing field -- what a vanished
+    # cuda_detail line looks like -- must fail here, not after thirty rounds.
+    try:
+        run_once(["/bin/sh", "-c",
+                  'echo \'{"n_pairs":1,"tol_failures":0,"max_abs_diff":0.0}\''], {})
+        check(False, "a record with no timing field raises")
+    except RuntimeError as exc:
+        check("one of" in str(exc), "a record with no timing field is rejected")
 
     d = tempfile.mkdtemp()
     ck = os.path.join(d, "ck.json")
@@ -362,7 +370,11 @@ def environment():
 # A trial that prints no usable JSON is a failed trial, not an empty one.
 # Returning {} let a broken configuration travel all the way to the summary,
 # where it crashed an hour of measurement instead of one trial.
-REQUIRED_FIELDS = ("n_pairs", "tol_failures")
+# Everything the summariser will later need. Requiring only n_pairs and
+# tol_failures let a run whose entire cuda_detail line vanished complete all
+# thirty rounds and fail at the end for want of a timing field.
+REQUIRED_FIELDS = ("n_pairs", "tol_failures", "max_abs_diff")
+REQUIRED_TIMING = ("device_total_s", "t_pipeline_s", "t_compute_s")
 
 
 class TrialTimeout(RuntimeError):
@@ -408,8 +420,15 @@ def run_once(cmd, env_extra, timeout=None):
             d = json.loads(line)
             rec.update(d.pop("cuda_detail", {}))
             rec.update(d)
+    # Named for what it is: these invocations pass --validate, so the wall
+    # clock includes the golden comparison as well as launch, linking and the
+    # CUDA driver's first touch. It is a validated-CLI wall time, not the
+    # latency of a production one-shot, which would not validate.
     rec["t_process_wall_s"] = time.perf_counter() - t_process0
+    rec["t_process_wall_includes_validate"] = True
     missing = [f for f in REQUIRED_FIELDS if f not in rec]
+    if not any(f in rec for f in REQUIRED_TIMING):
+        missing.append(f"one of {REQUIRED_TIMING}")
     if missing:
         raise RuntimeError(f"{' '.join(cmd)} produced no usable record "
                            f"(missing {missing}); stdout was:\n{out[-800:]}")

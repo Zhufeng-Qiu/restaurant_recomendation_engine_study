@@ -91,27 +91,25 @@ for fx in item_tiny item_full_lane_full item_full_lane_tail item_full user_full;
 done
 
 # Every mapping must produce output in ORIGINAL pair order, not slot order.
-say "every emitted line is valid JSON" | tee -a "$LADDER"
-# The ladder used to parse only `tail -1`, so a malformed cuda_detail line
-# shipped undetected and failed a benchmark configuration an hour later.
-for spec in "pearson_engine data/fixtures/item_full --backend cuda --validate" \
-            "pearson_engine data/fixtures/item_full --backend cuda --validate --plan-metrics on" \
-            "pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode sync --payload packed --validate" \
-            "pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode sync --payload packed --validate --plan-metrics on" \
-            "pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode async --payload packed --validate"; do
-  set -- $spec
+say "output schema (exact line counts, required fields)" | tee -a "$LADDER"
+# engine/bench/check_output.py enforces the protocol: cuda prints exactly two
+# JSON lines (cuda_detail then summary), nccl exactly one, no non-JSON output,
+# and every field the harness later reads is present and correctly typed. The
+# previous inline check accepted "at least one JSON line" and ignored
+# everything else, which a binary that cannot execute also satisfies.
+for spec in "cuda|pearson_engine data/fixtures/item_full --backend cuda --validate" \
+            "cuda|pearson_engine data/fixtures/item_full --backend cuda --validate --plan-metrics on" \
+            "cuda|pearson_engine data/fixtures/item_tiny --backend cuda --validate --group 32 --pair-order bylen --hoist on" \
+            "nccl|pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode sync --payload packed --validate" \
+            "nccl|pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode sync --payload packed --validate --plan-metrics on" \
+            "nccl|pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode async --payload packed --validate"; do
+  kind=${spec%%|*}; rest=${spec#*|}
+  set -- $rest
   bin=$1; shift
-  if ./engine/build/"$bin" "$@" 2>/dev/null | python3 -c "
-import json,sys
-n=0
-for line in sys.stdin:
-    line=line.strip()
-    if line.startswith('{'):
-        json.loads(line); n+=1
-sys.exit(0 if n else 1)"; then
-    echo "json  $bin ${*} -> all lines parse" | tee -a "$LADDER"
+  if ./engine/build/"$bin" "$@" 2>&1 | python3 engine/bench/check_output.py "$kind" >>"$LADDER" 2>&1; then
+    echo "schema $kind $bin ${*} -> ok" | tee -a "$LADDER"
   else
-    echo "json  $bin ${*} -> MALFORMED JSON" | tee -a "$LADDER"; fail=1
+    echo "schema $kind $bin ${*} -> SCHEMA VIOLATION" | tee -a "$LADDER"; fail=1
   fi
 done
 
@@ -224,13 +222,10 @@ if command -v compute-sanitizer >/dev/null; then
     out=$(compute-sanitizer --tool memcheck ./engine/build/pearson_engine_nccl \
           "data/fixtures/$1" --gpus "$2" --mode "$3" --chunk "$4" --payload packed \
           --validate 2>&1 || true)
-    mem=$(printf '%s' "$out" | grep -cE "Invalid __(global|shared|local)__ (read|write)|misaligned|Leaked" || true)
-    if [ "$mem" -eq 0 ]; then
-      echo "memcheck $1 $3 chunk=$4: no memory errors" | tee -a "$LADDER"
+    if printf '%s' "$out" | python3 engine/bench/check_sanitizer.py --allow-nccl-peer >>"$LADDER" 2>&1; then
+      echo "memcheck $1 $3 chunk=$4: clean (sanitizer completed, target validated)" | tee -a "$LADDER"
     else
-      echo "memcheck $1 $3 chunk=$4: $mem MEMORY ERRORS" | tee -a "$LADDER"
-      printf '%s\n' "$out" | grep -E "Invalid|misaligned" | head -6 | tee -a "$LADDER"
-      fail=1
+      echo "memcheck $1 $3 chunk=$4: NOT CLEAN" | tee -a "$LADDER"; fail=1
     fi
   done
 fi
@@ -239,11 +234,14 @@ say "compute-sanitizer (memcheck, small fixture, both ends of G)" | tee -a "$LAD
 if command -v compute-sanitizer >/dev/null; then
   for g in $LANE_GROUPS; do
     for o in source bylen; do
-      out=$(compute-sanitizer --tool memcheck --error-exitcode 9 \
+      out=$(compute-sanitizer --tool memcheck \
             ./engine/build/pearson_engine data/fixtures/item_tiny --backend cuda \
-            --validate --group "$g" --pair-order "$o" --hoist on 2>&1 | tail -3) && r=clean || { r=ERRORS; fail=1; }
-      echo "memcheck cuda g=$g order=$o hoist=on: $r" | tee -a "$LADDER"
-      [ "$r" = clean ] || echo "$out" | tee -a "$LADDER"
+            --validate --group "$g" --pair-order "$o" --hoist on 2>&1 || true)
+      if printf '%s' "$out" | python3 engine/bench/check_sanitizer.py >>"$LADDER" 2>&1; then
+        echo "memcheck cuda g=$g order=$o hoist=on: clean" | tee -a "$LADDER"
+      else
+        echo "memcheck cuda g=$g order=$o hoist=on: NOT CLEAN" | tee -a "$LADDER"; fail=1
+      fi
     done
   done
   # NCCL's own bootstrap threads call cudaGetLastError while peer access is
@@ -258,14 +256,11 @@ if command -v compute-sanitizer >/dev/null; then
           ./engine/build/pearson_engine_nccl data/fixtures/item_tiny --gpus 2 \
           --mode sync --payload packed --validate --group "$g" \
           --pair-order bylen 2>&1 || true)
-    mem=$(printf '%s' "$out" | grep -cE "Invalid __(global|shared|local)__ (read|write)|Invalid managed|misaligned|Leaked" || true)
     peer=$(printf '%s' "$out" | grep -c "cudaErrorPeerAccessAlreadyEnabled" || true)
-    if [ "$mem" -eq 0 ]; then
-      echo "memcheck nccl2 g=$g: no memory errors (${peer}x NCCL peer-access 704)" | tee -a "$LADDER"
+    if printf '%s' "$out" | python3 engine/bench/check_sanitizer.py --allow-nccl-peer >>"$LADDER" 2>&1; then
+      echo "memcheck nccl2 g=$g: clean (${peer}x allow-listed NCCL 704)" | tee -a "$LADDER"
     else
-      echo "memcheck nccl2 g=$g: $mem MEMORY ERRORS" | tee -a "$LADDER"
-      printf '%s\n' "$out" | grep -E "Invalid|misaligned|Leaked" | head -10 | tee -a "$LADDER"
-      fail=1
+      echo "memcheck nccl2 g=$g: NOT CLEAN" | tee -a "$LADDER"; fail=1
     fi
   done
 else

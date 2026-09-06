@@ -52,7 +52,13 @@ def timed(cmd, warm, rep, pick):
 
 
 def pick_nccl(d):
-    return d["t_pipeline_s"] if d.get("mode") == "async" else d["t_kernel_s"] + d["t_allreduce_s"]
+        # device_total_s = stats + allreduce + finalize. This used to sum only
+    # kernel + allreduce, dropping the finalize kernel and understating every
+    # sync total by ~0.5-1.5%. Fall back to the old sum only for records that
+    # predate the field.
+    return (d["t_pipeline_s"] if d.get("mode") == "async"
+            else d.get("device_total_s",
+                       d["t_kernel_s"] + d["t_allreduce_s"] + d.get("t_finalize_s", 0.0)))
 
 
 def pick_cuda(d):
