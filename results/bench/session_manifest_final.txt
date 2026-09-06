@@ -1,0 +1,16 @@
+# session manifest final
+utc=2026-09-06T04:22:20Z
+host=1de96d158d48
+git_sha=f4c5a612bd052dd57c96d532f0f33a70206cb7b5
+git_dirty_tracked=0
+git_dirty_untracked=12
+image_digest=sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35
+
+# tracked files modified, if any:
+  (none)
+
+# full diff of tracked changes:
+
+# gpus:
+NVIDIA A100-SXM4-80GB, GPU-d80d776d-db5b-6da8-e520-eedebe31abcb, 580.126.16
+NVIDIA A100-SXM4-80GB, GPU-9158cc7d-b83f-a3c4-37c1-f57866682ce7, 580.126.16

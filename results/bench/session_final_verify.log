@@ -1,0 +1,359 @@
+
+=== environment ===
+
+=== legacy worktree (pre-packing baseline) ===
+Preparing worktree (detached HEAD df29ca1)
+HEAD is now at df29ca1 Merge pull request #2 from Zhufeng-Qiu/measurement-auditition-20260905
+
+=== release build (this is what every timing comes from) ===
+    Start 7: bench_timing_selftest
+7/8 Test #7: bench_timing_selftest ............   Passed    1.06 sec
+    Start 8: payload_domain
+8/8 Test #8: payload_domain ...................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 8
+
+Total Test time (real) =   5.08 sec
+
+=== register / spill report (separate build; NOT used for timing) ===
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compiling entry function '_ZN11engine_cuda21pair_stats_kernel_i32ILi4ELb1EEEvPKlPKiPKdS4_S4_liiPi' for 'sm_80'
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compiling entry function '_ZN11engine_cuda21pair_stats_kernel_i32ILi2ELb1EEEvPKlPKiPKdS4_S4_liiPi' for 'sm_80'
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compiling entry function '_ZN11engine_cuda21pair_stats_kernel_i32ILi1ELb1EEEvPKlPKiPKdS4_S4_liiPi' for 'sm_80'
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 37 registers, used 0 barriers, 416 bytes cmem[0]
+ptxas info    : Compiling entry function '_ZN11engine_cuda22finalize_kernel_packedEPKmPKilPd' for 'sm_80'
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 26 registers, used 0 barriers, 384 bytes cmem[0]
+ptxas info    : Compiling entry function '_ZN11engine_cuda19finalize_kernel_i32EPKiS1_lPd' for 'sm_80'
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 25 registers, used 0 barriers, 384 bytes cmem[0]
+ptxas info    : Compiling entry function '_ZN11engine_cuda15finalize_kernelEPKdPKilPd' for 'sm_80'
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 25 registers, used 0 barriers, 384 bytes cmem[0]
+
+=== lane-band fixtures (derived; gitignored) ===
+
+=== CORRECTNESS LADDER ===
+cuda  item_tiny g=1 order=source hoist=off -> 0 0.0
+cuda  item_tiny g=1 order=source hoist=on -> 0 0.0
+cuda  item_tiny g=1 order=bylen hoist=off -> 0 0.0
+cuda  item_tiny g=1 order=bylen hoist=on -> 0 0.0
+cuda  item_tiny g=2 order=source hoist=off -> 0 0.0
+cuda  item_tiny g=2 order=source hoist=on -> 0 0.0
+cuda  item_tiny g=2 order=bylen hoist=off -> 0 0.0
+cuda  item_tiny g=2 order=bylen hoist=on -> 0 0.0
+cuda  item_tiny g=4 order=source hoist=off -> 0 0.0
+cuda  item_tiny g=4 order=source hoist=on -> 0 0.0
+cuda  item_tiny g=4 order=bylen hoist=off -> 0 0.0
+cuda  item_tiny g=4 order=bylen hoist=on -> 0 0.0
+cuda  item_tiny g=8 order=source hoist=off -> 0 0.0
+cuda  item_tiny g=8 order=source hoist=on -> 0 0.0
+cuda  item_tiny g=8 order=bylen hoist=off -> 0 0.0
+cuda  item_tiny g=8 order=bylen hoist=on -> 0 0.0
+cuda  item_tiny g=16 order=source hoist=off -> 0 0.0
+cuda  item_tiny g=16 order=source hoist=on -> 0 0.0
+cuda  item_tiny g=16 order=bylen hoist=off -> 0 0.0
+cuda  item_tiny g=16 order=bylen hoist=on -> 0 0.0
+cuda  item_tiny g=32 order=source hoist=off -> 0 0.0
+cuda  item_tiny g=32 order=source hoist=on -> 0 0.0
+cuda  item_tiny g=32 order=bylen hoist=off -> 0 0.0
+cuda  item_tiny g=32 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_full g=1 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_full g=1 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_full g=1 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_full g=1 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_full g=2 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_full g=2 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_full g=2 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_full g=2 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_full g=4 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_full g=4 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_full g=4 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_full g=4 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_full g=8 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_full g=8 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_full g=8 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_full g=8 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_full g=16 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_full g=16 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_full g=16 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_full g=16 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_full g=32 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_full g=32 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_full g=32 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_full g=32 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=1 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=1 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=1 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=1 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=2 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=2 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=2 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=2 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=4 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=4 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=4 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=4 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=8 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=8 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=8 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=8 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=16 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=16 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=16 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=16 order=bylen hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=32 order=source hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=32 order=source hoist=on -> 0 0.0
+cuda  item_full_lane_tail g=32 order=bylen hoist=off -> 0 0.0
+cuda  item_full_lane_tail g=32 order=bylen hoist=on -> 0 0.0
+cuda  item_full g=1 order=source hoist=off -> 0 0.0
+cuda  item_full g=1 order=source hoist=on -> 0 0.0
+cuda  item_full g=1 order=bylen hoist=off -> 0 0.0
+cuda  item_full g=1 order=bylen hoist=on -> 0 0.0
+cuda  item_full g=2 order=source hoist=off -> 0 0.0
+cuda  item_full g=2 order=source hoist=on -> 0 0.0
+cuda  item_full g=2 order=bylen hoist=off -> 0 0.0
+cuda  item_full g=2 order=bylen hoist=on -> 0 0.0
+cuda  item_full g=4 order=source hoist=off -> 0 0.0
+cuda  item_full g=4 order=source hoist=on -> 0 0.0
+cuda  item_full g=4 order=bylen hoist=off -> 0 0.0
+cuda  item_full g=4 order=bylen hoist=on -> 0 0.0
+cuda  item_full g=8 order=source hoist=off -> 0 0.0
+cuda  item_full g=8 order=source hoist=on -> 0 0.0
+cuda  item_full g=8 order=bylen hoist=off -> 0 0.0
+cuda  item_full g=8 order=bylen hoist=on -> 0 0.0
+cuda  item_full g=16 order=source hoist=off -> 0 0.0
+cuda  item_full g=16 order=source hoist=on -> 0 0.0
+cuda  item_full g=16 order=bylen hoist=off -> 0 0.0
+cuda  item_full g=16 order=bylen hoist=on -> 0 0.0
+cuda  item_full g=32 order=source hoist=off -> 0 0.0
+cuda  item_full g=32 order=source hoist=on -> 0 0.0
+cuda  item_full g=32 order=bylen hoist=off -> 0 0.0
+cuda  item_full g=32 order=bylen hoist=on -> 0 0.0
+cuda  user_full g=1 order=source hoist=off -> 0 0.0
+cuda  user_full g=1 order=source hoist=on -> 0 0.0
+cuda  user_full g=1 order=bylen hoist=off -> 0 0.0
+cuda  user_full g=1 order=bylen hoist=on -> 0 0.0
+cuda  user_full g=2 order=source hoist=off -> 0 0.0
+cuda  user_full g=2 order=source hoist=on -> 0 0.0
+cuda  user_full g=2 order=bylen hoist=off -> 0 0.0
+cuda  user_full g=2 order=bylen hoist=on -> 0 0.0
+cuda  user_full g=4 order=source hoist=off -> 0 0.0
+cuda  user_full g=4 order=source hoist=on -> 0 0.0
+cuda  user_full g=4 order=bylen hoist=off -> 0 0.0
+cuda  user_full g=4 order=bylen hoist=on -> 0 0.0
+cuda  user_full g=8 order=source hoist=off -> 0 0.0
+cuda  user_full g=8 order=source hoist=on -> 0 0.0
+cuda  user_full g=8 order=bylen hoist=off -> 0 0.0
+cuda  user_full g=8 order=bylen hoist=on -> 0 0.0
+cuda  user_full g=16 order=source hoist=off -> 0 0.0
+cuda  user_full g=16 order=source hoist=on -> 0 0.0
+cuda  user_full g=16 order=bylen hoist=off -> 0 0.0
+cuda  user_full g=16 order=bylen hoist=on -> 0 0.0
+cuda  user_full g=32 order=source hoist=off -> 0 0.0
+cuda  user_full g=32 order=source hoist=on -> 0 0.0
+cuda  user_full g=32 order=bylen hoist=off -> 0 0.0
+cuda  user_full g=32 order=bylen hoist=on -> 0 0.0
+
+=== output schema (exact line counts, required fields) ===
+schema cuda pearson_engine data/fixtures/item_full --backend cuda --validate -> ok
+schema cuda pearson_engine data/fixtures/item_full --backend cuda --validate --plan-metrics on -> ok
+schema cuda pearson_engine data/fixtures/item_tiny --backend cuda --validate --group 32 --pair-order bylen --hoist on -> ok
+schema nccl pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode sync --payload packed --validate -> ok
+schema nccl pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode sync --payload packed --validate --plan-metrics on -> ok
+schema nccl pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode async --payload packed --validate -> ok
+
+=== output permutation check ===
+  g=1 order=source hoist=off vs g32/source: identical
+  g=1 order=source hoist=on vs g32/source: identical
+  g=1 order=bylen hoist=off vs g32/source: identical
+  g=1 order=bylen hoist=on vs g32/source: identical
+  g=2 order=source hoist=off vs g32/source: identical
+  g=2 order=source hoist=on vs g32/source: identical
+  g=2 order=bylen hoist=off vs g32/source: identical
+  g=2 order=bylen hoist=on vs g32/source: identical
+  g=4 order=source hoist=off vs g32/source: identical
+  g=4 order=source hoist=on vs g32/source: identical
+  g=4 order=bylen hoist=off vs g32/source: identical
+  g=4 order=bylen hoist=on vs g32/source: identical
+  g=8 order=source hoist=off vs g32/source: identical
+  g=8 order=source hoist=on vs g32/source: identical
+  g=8 order=bylen hoist=off vs g32/source: identical
+  g=8 order=bylen hoist=on vs g32/source: identical
+  g=16 order=source hoist=off vs g32/source: identical
+  g=16 order=source hoist=on vs g32/source: identical
+  g=16 order=bylen hoist=off vs g32/source: identical
+  g=16 order=bylen hoist=on vs g32/source: identical
+  g=32 order=source hoist=off vs g32/source: identical
+  g=32 order=source hoist=on vs g32/source: identical
+  g=32 order=bylen hoist=off vs g32/source: identical
+  g=32 order=bylen hoist=on vs g32/source: identical
+
+=== NCCL correctness ===
+nccl1 f64 g=1 order=source -> tol_failures=0
+nccl1 f64 g=1 order=bylen -> tol_failures=0
+nccl1 f64 g=2 order=source -> tol_failures=0
+nccl1 f64 g=2 order=bylen -> tol_failures=0
+nccl1 f64 g=4 order=source -> tol_failures=0
+nccl1 f64 g=4 order=bylen -> tol_failures=0
+nccl1 f64 g=8 order=source -> tol_failures=0
+nccl1 f64 g=8 order=bylen -> tol_failures=0
+nccl1 f64 g=16 order=source -> tol_failures=0
+nccl1 f64 g=16 order=bylen -> tol_failures=0
+nccl1 f64 g=32 order=source -> tol_failures=0
+nccl1 f64 g=32 order=bylen -> tol_failures=0
+nccl1 i32 g=1 order=source -> tol_failures=0
+nccl1 i32 g=1 order=bylen -> tol_failures=0
+nccl1 i32 g=2 order=source -> tol_failures=0
+nccl1 i32 g=2 order=bylen -> tol_failures=0
+nccl1 i32 g=4 order=source -> tol_failures=0
+nccl1 i32 g=4 order=bylen -> tol_failures=0
+nccl1 i32 g=8 order=source -> tol_failures=0
+nccl1 i32 g=8 order=bylen -> tol_failures=0
+nccl1 i32 g=16 order=source -> tol_failures=0
+nccl1 i32 g=16 order=bylen -> tol_failures=0
+nccl1 i32 g=32 order=source -> tol_failures=0
+nccl1 i32 g=32 order=bylen -> tol_failures=0
+nccl1 packed g=1 order=source -> tol_failures=0
+nccl1 packed g=1 order=bylen -> tol_failures=0
+nccl1 packed g=2 order=source -> tol_failures=0
+nccl1 packed g=2 order=bylen -> tol_failures=0
+nccl1 packed g=4 order=source -> tol_failures=0
+nccl1 packed g=4 order=bylen -> tol_failures=0
+nccl1 packed g=8 order=source -> tol_failures=0
+nccl1 packed g=8 order=bylen -> tol_failures=0
+nccl1 packed g=16 order=source -> tol_failures=0
+nccl1 packed g=16 order=bylen -> tol_failures=0
+nccl1 packed g=32 order=source -> tol_failures=0
+nccl1 packed g=32 order=bylen -> tol_failures=0
+nccl2 f64 g=1 order=source -> tol_failures=0
+nccl2 f64 g=1 order=bylen -> tol_failures=0
+nccl2 f64 g=2 order=source -> tol_failures=0
+nccl2 f64 g=2 order=bylen -> tol_failures=0
+nccl2 f64 g=4 order=source -> tol_failures=0
+nccl2 f64 g=4 order=bylen -> tol_failures=0
+nccl2 f64 g=8 order=source -> tol_failures=0
+nccl2 f64 g=8 order=bylen -> tol_failures=0
+nccl2 f64 g=16 order=source -> tol_failures=0
+nccl2 f64 g=16 order=bylen -> tol_failures=0
+nccl2 f64 g=32 order=source -> tol_failures=0
+nccl2 f64 g=32 order=bylen -> tol_failures=0
+nccl2 i32 g=1 order=source -> tol_failures=0
+nccl2 i32 g=1 order=bylen -> tol_failures=0
+nccl2 i32 g=2 order=source -> tol_failures=0
+nccl2 i32 g=2 order=bylen -> tol_failures=0
+nccl2 i32 g=4 order=source -> tol_failures=0
+nccl2 i32 g=4 order=bylen -> tol_failures=0
+nccl2 i32 g=8 order=source -> tol_failures=0
+nccl2 i32 g=8 order=bylen -> tol_failures=0
+nccl2 i32 g=16 order=source -> tol_failures=0
+nccl2 i32 g=16 order=bylen -> tol_failures=0
+nccl2 i32 g=32 order=source -> tol_failures=0
+nccl2 i32 g=32 order=bylen -> tol_failures=0
+nccl2 packed g=1 order=source -> tol_failures=0
+nccl2 packed g=1 order=bylen -> tol_failures=0
+nccl2 packed g=2 order=source -> tol_failures=0
+nccl2 packed g=2 order=bylen -> tol_failures=0
+nccl2 packed g=4 order=source -> tol_failures=0
+nccl2 packed g=4 order=bylen -> tol_failures=0
+nccl2 packed g=8 order=source -> tol_failures=0
+nccl2 packed g=8 order=bylen -> tol_failures=0
+nccl2 packed g=16 order=source -> tol_failures=0
+nccl2 packed g=16 order=bylen -> tol_failures=0
+nccl2 packed g=32 order=source -> tol_failures=0
+nccl2 packed g=32 order=bylen -> tol_failures=0
+nccl1 item_full f64 g=32 order=source -> 0 0.0
+nccl1 item_full f64 g=8 order=bylen -> 0 0.0
+nccl1 item_full f64 g=4 order=bylen -> 0 0.0
+nccl1 item_full f64 g=1 order=bylen -> 0 0.0
+nccl1 item_full packed g=32 order=source -> 0 0.0
+nccl1 item_full packed g=8 order=bylen -> 0 0.0
+nccl1 item_full packed g=4 order=bylen -> 0 0.0
+nccl1 item_full packed g=1 order=bylen -> 0 0.0
+nccl2 item_full f64 g=32 order=source -> 0 0.0
+nccl2 item_full f64 g=8 order=bylen -> 0 0.0
+nccl2 item_full f64 g=4 order=bylen -> 0 0.0
+nccl2 item_full f64 g=1 order=bylen -> 0 0.0
+nccl2 item_full packed g=32 order=source -> 0 0.0
+nccl2 item_full packed g=8 order=bylen -> 0 0.0
+nccl2 item_full packed g=4 order=bylen -> 0 0.0
+nccl2 item_full packed g=1 order=bylen -> 0 0.0
+
+=== async correctness (chunk boundaries, both finalize streams) ===
+async chunk=16384 fs=comm g=32 order=source -> tol_failures=0
+async chunk=16384 fs=comm g=8 order=bylen -> tol_failures=0
+async chunk=16384 fs=separate g=32 order=source -> tol_failures=0
+async chunk=16384 fs=separate g=8 order=bylen -> tol_failures=0
+async chunk=262144 fs=comm g=32 order=source -> tol_failures=0
+async chunk=262144 fs=comm g=8 order=bylen -> tol_failures=0
+async chunk=262144 fs=separate g=32 order=source -> tol_failures=0
+async chunk=262144 fs=separate g=8 order=bylen -> tol_failures=0
+async chunk=100003 fs=comm g=32 order=source -> tol_failures=0
+async chunk=100003 fs=comm g=8 order=bylen -> tol_failures=0
+async chunk=100003 fs=separate g=32 order=source -> tol_failures=0
+async chunk=100003 fs=separate g=8 order=bylen -> tol_failures=0
+
+=== CLI rejection checks ===
+  rejected: --group 3
+  rejected: --group 0
+  rejected: --group 33
+  rejected: --pair-order sideways
+  rejected: --hoist maybe
+  rejected: --hoist
+  rejected: --mode fast
+  rejected: --gpus 0
+  rejected: --gpus 99
+  rejected: --chunk 0
+  rejected: --bogus
+  rejected: --group
+  rejected: sync + --finalize-stream separate
+
+=== tiny fixtures and small chunks (the out-of-bounds boundary) ===
+tiny  domain/ok gpus=1 f64 -> tol_failures=0
+tiny  domain/ok gpus=1 packed -> tol_failures=0
+tiny  domain/ok gpus=2 f64 -> tol_failures=0
+tiny  domain/ok gpus=2 packed -> tol_failures=0
+tiny  item_tiny gpus=1 f64 -> tol_failures=0
+tiny  item_tiny gpus=1 packed -> tol_failures=0
+tiny  item_tiny gpus=2 f64 -> tol_failures=0
+tiny  item_tiny gpus=2 packed -> tol_failures=0
+tiny  async chunk=1 -> tol_failures=0
+tiny  async chunk=7 -> tol_failures=0
+tiny  async chunk=256 -> tol_failures=0
+tiny  async chunk=511 -> tol_failures=0
+tiny  async chunk=512 -> tol_failures=0
+
+=== compute-sanitizer on the boundary cases ===
+memcheck domain/ok sync chunk=262144: clean (sanitizer completed, target validated)
+memcheck item_tiny async chunk=7: clean (sanitizer completed, target validated)
+memcheck item_tiny async chunk=511: clean (sanitizer completed, target validated)
+
+=== compute-sanitizer (memcheck, small fixture, both ends of G) ===
+memcheck cuda g=1 order=source hoist=on: clean
+memcheck cuda g=1 order=bylen hoist=on: clean
+memcheck cuda g=2 order=source hoist=on: clean
+memcheck cuda g=2 order=bylen hoist=on: clean
+memcheck cuda g=4 order=source hoist=on: clean
+memcheck cuda g=4 order=bylen hoist=on: clean
+memcheck cuda g=8 order=source hoist=on: clean
+memcheck cuda g=8 order=bylen hoist=on: clean
+memcheck cuda g=16 order=source hoist=on: clean
+memcheck cuda g=16 order=bylen hoist=on: clean
+memcheck cuda g=32 order=source hoist=on: clean
+memcheck cuda g=32 order=bylen hoist=on: clean
+memcheck nccl2 g=1: clean (94x allow-listed NCCL 704)
+memcheck nccl2 g=2: clean (94x allow-listed NCCL 704)
+memcheck nccl2 g=4: clean (94x allow-listed NCCL 704)
+memcheck nccl2 g=8: clean (94x allow-listed NCCL 704)
+memcheck nccl2 g=16: clean (94x allow-listed NCCL 704)
+memcheck nccl2 g=32: clean (94x allow-listed NCCL 704)
+
+CORRECTNESS LADDER PASSED
+build report: results/bench/warp_packing_build_20260906_033440.txt
+ladder:       results/bench/warp_packing_correctness_20260906_033440.txt
