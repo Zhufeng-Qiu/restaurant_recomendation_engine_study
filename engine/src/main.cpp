@@ -97,6 +97,11 @@ int run(int argc, char** argv) {
       engine::cuda_map_options().group = g;
     }
     else if (!std::strcmp(argv[a], "--pre-timing-delay-ms") && a + 1 < argc) {
+#if !defined(ENGINE_PROFILING)
+      std::fprintf(stderr, "--pre-timing-delay-ms needs a profiling build "
+                           "(-DENGINE_PROFILING=ON)\n");
+      return 2;
+#endif
       const int d = std::atoi(argv[++a]);
       if (d < 0 || d > 60000) {
         std::fprintf(stderr, "--pre-timing-delay-ms must be in [0, 60000]\n");

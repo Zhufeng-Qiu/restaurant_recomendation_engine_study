@@ -272,8 +272,13 @@ int run(int argc, char** argv) {
     else if (!std::strcmp(argv[a], "--group")) group = std::atoi(need_value(a++, "--group"));
     else if (!std::strcmp(argv[a], "--pair-order")) order_arg = need_value(a++, "--pair-order");
     else if (!std::strcmp(argv[a], "--hoist")) hoist_arg = need_value(a++, "--hoist");
-    else if (!std::strcmp(argv[a], "--pre-timing-delay-ms"))
+    else if (!std::strcmp(argv[a], "--pre-timing-delay-ms")) {
+#if !defined(ENGINE_PROFILING)
+      throw std::runtime_error("--pre-timing-delay-ms needs a profiling build "
+                               "(-DENGINE_PROFILING=ON)");
+#endif
       pre_timing_delay_ms = std::atoi(need_value(a++, "--pre-timing-delay-ms"));
+    }
     else if (!std::strcmp(argv[a], "--plan-metrics")) {
       const std::string v = need_value(a++, "--plan-metrics");
       if (v != "on" && v != "off")
@@ -402,16 +407,23 @@ int run(int argc, char** argv) {
   const double diag_end = wall();
   const double t_plan_metrics = diag_end - diag_begin;
 
-  // Idle time, and nothing else, at exactly the point the diagnostics occupied.
+#if defined(ENGINE_PROFILING)
+  // Profiling build only -- see the note in cuda_backend.cu. Leaving an NVML
+  // call on the default path would contradict the finding it was added to
+  // investigate.
+  //
+  // NOTE ON WHAT THIS SAMPLES: it runs before allocation, H2D and the warm-up
+  // collective, so it is the state at the START OF SETUP, not at the start of
+  // the stats phase. It cannot rule out a device-state change that develops
+  // during setup.
   if (pre_timing_delay_ms > 0)
     std::this_thread::sleep_for(std::chrono::milliseconds(pre_timing_delay_ms));
-  // Device state as the timed region opens: if the diagnostics were buying a
-  // re-boost, the clocks here should say so.
   char gpu_state[2][256];
   for (int g = 0; g < n_gpus && g < 2; ++g)
     engine_cuda::gpu_state_json(gpu_state[g], sizeof gpu_state[g],
                                 engine_cuda::read_gpu_state(g));
   for (int g = n_gpus; g < 2; ++g) snprintf(gpu_state[g], 8, "null");
+#endif
 
   const double t1 = wall();
   for (int g = 0; g < n_gpus; ++g) {
@@ -757,8 +769,10 @@ int run(int argc, char** argv) {
       "\"t_plan_s\":%.6f,\"t_plan_metrics_s\":%.6f,"
       "\"plan_order_basis\":\"global_full_dims\","
       "\"plan_metrics_computed\":%s,"
+#if defined(ENGINE_PROFILING)
       "\"pre_timing_delay_ms\":%d,"
-      "\"gpu_state_at_timing_start\":[%s,%s],"
+      "\"gpu_state_at_setup_start\":[%s,%s],"
+#endif
       "\"stage_windows_disjoint\":%s,"
       "\"plan_per_device\":%s,"
       "\"plan_critical_lane_slots\":%lld,"
@@ -787,7 +801,9 @@ int run(int argc, char** argv) {
       group, order_arg.c_str(), hoist ? "true" : "false",
       plan.build_seconds, t_plan_metrics,
       plan_metrics_on ? "true" : "false",
+#if defined(ENGINE_PROFILING)
       pre_timing_delay_ms, gpu_state[0], gpu_state[1],
+#endif
       stage_windows_disjoint ? "true" : "false",
       per_device.c_str(),
       static_cast<long long>(critical_slots),

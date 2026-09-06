@@ -147,7 +147,11 @@ def time_of(rec):
 TRIAL_FIELDS = ("device_total_s", "t_plan_s", "t_plan_metrics_s", "t_h2d_s",
                 "t_setup_s", "t_d2h_s", "cold_data_path_s", "t_process_wall_s",
                 "t_stats_s", "t_allreduce_s", "t_finalize_s", "max_abs_diff",
-                "pre_timing_delay_ms")
+                "pre_timing_delay_ms",
+                # Per trial, not per arm: keeping only the last sample threw
+                # away 11 of 12 and made a one-observation clock reading look
+                # like a property of the arm.
+                "gpu_state_at_setup_start", "gpu_state_at_timing_start")
 
 
 def trial_of(rec):
@@ -237,7 +241,12 @@ def screen(args):
             "t_plan_metrics_s": (summarise(ts, "t_plan_metrics_s") or {}).get("median"),
             "cold_data_path_s": (summarise(ts, "cold_data_path_s") or {}).get("median"),
             "occupancy": rec.get("occupancy"),
-            "gpu_state_at_timing_start": rec.get("gpu_state_at_timing_start"),
+            # Every sample, plus the arm's setting. The single retained
+            # sample previously here could not show whether device state varied
+            # across the arm's trials at all.
+            "gpu_state_samples": [t.get("gpu_state_at_setup_start")
+                                  or t.get("gpu_state_at_timing_start")
+                                  for t in ts],
             "pre_timing_delay_ms": rec.get("pre_timing_delay_ms"),
             "max_abs_diff": rec.get("max_abs_diff"),
             "plan_lane_slots": rec.get("plan_lane_slots"),

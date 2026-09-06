@@ -4,12 +4,16 @@ The one optimisation [the measurement audit](measurement_audit_20260905.md)
 left unimplemented. It works — and it works for a reason the audit's own model
 did not predict, which is the more useful half of this document.
 
-**One-line answer.** Giving a pair four lanes instead of thirty-two, with pairs
-sorted by shorter-slice length, cuts single-GPU `device_total` by
-**−34.68% [−34.98, −34.37]** against the pre-packing binary and two-GPU NCCL
-`packed` by **−47.62% [−47.99, −47.24]**. The lane-tail waste the audit
-predicted recovering accounts for well under half of that; the rest tracks the
-*thread count*, a cost neither model counted.
+**One-line answer.** Four lanes per pair instead of thirty-two is the shipped
+default and is worth **−11.43% [−11.84, −11.02]** on one GPU against the
+pre-packing binary and **−29.43% [−35.68, −22.58]** on two. Sorting the pairs
+as well (`--pair-order bylen`, opt-in) adds **−16.39% [−22.79, −9.46]** on two
+GPUs. The two-GPU figures are same-host, same-session, with the plan
+diagnostics off on both arms — the only form of the comparison that describes
+the shipped path; earlier and larger numbers for it were measured with those
+diagnostics running (§7b). The lane-tail waste the audit predicted recovering
+accounts for well under half of the gain; the rest tracks the *thread count*, a
+cost neither model counted.
 
 Two limits on that sentence, both load-bearing. It is **steady state only** —
 on the cold path packing loses, because building the sorted plan costs about
@@ -24,7 +28,10 @@ Three sessions on different pods, all EPYC 7742 with 2x A100-SXM4-80GB
 the hoist arm, the corrected cold path and a headline re-run, and reproduced
 session 1's primary result; session 3 re-ran the ladder, the headline and the
 compression A/B on a **clean checkout** after the harness and NCCL timing
-fixes, and reproduced session 2's headline within 1.8% on every row. Raw per-trial data, run order and seeds are in
+fixes. Sessions 4–6 re-measured with the plan diagnostics off, which changed
+the two-GPU numbers materially (§7b) — so session 3 agreeing with session 2
+shows only that two runs *with* the diagnostics agree, not that the headline
+reproduced. Raw per-trial data, run order and seeds are in
 `results/bench/warp_packing_*`; each section says which session it is from.
 
 **Provenance, stated exactly.** *(Session 1.)* Engine source at `ccbfe4e`; the legacy baseline
@@ -212,7 +219,11 @@ log-ratios and describes this session.
 | `cuda:4:bylen` | `legacy` | **−34.68%** | [−34.98, −34.37] |
 | `cuda:32:source` | `legacy` | **+3.28%** | [+2.86, +3.71] |
 | `cuda:4:bylen` | `cuda:8:bylen` | −3.35% | [−3.59, −3.11] |
-| `nccl2:4:bylen:packed` | `nccl2:32:source:packed` | **−47.62%** | [−47.99, −47.24] |
+| `nccl2:4:bylen:packed` | `nccl2:32:source:packed` | −47.62% ⚠ | [−47.99, −47.24] |
+
+⚠ measured with the plan diagnostics running on both arms; superseded by the
+pause-free pair in §7b (`G32/source` → `G4/source` −29.43%, then `G4/source` →
+`G4/bylen` −16.39%).
 | `nccl1:4:bylen:packed` | `nccl1:32:source:packed` | −35.41% | [−36.88, −33.90] |
 
 **Session 2**, a different pod (`0fd9…`, GPUs `5749bb50` / `7826451f`), after
@@ -381,10 +392,24 @@ Paired, 30 blocks, per stage:
 | `cold_data_path` | 24.534 ms | 127.101 ms | **+372.62%** | [+327.31, +422.73] |
 
 Sorting the pairs costs about a hundred milliseconds against a kernel of about
-three. **Break-even is roughly 57 queries** — 102.6 ms of extra planning
-divided by 1.80 ms saved per query — so `bylen` belongs to a resident engine
+three. **Break-even is roughly 57 queries on one GPU** — 102.6 ms of extra
+planning over 1.80 ms saved per query — so `bylen` belongs to a resident engine
 and not to a single invocation of this binary. The earlier "28 queries" was
 correct arithmetic on a baseline inflated by its own diagnostics.
+
+**On two GPUs it is far worse, and the CUDA number does not carry over.** The
+same-session pause-free A/B (§7b) gives, for `G4/source` → `G4/bylen` on NCCL:
+
+| stage | baseline | candidate | effect | 95% CI |
+| --- | --- | --- | --- | --- |
+| `device_total` | 2.988 ms | 2.499 ms | −16.39% | [−22.79, −9.46] |
+| `t_plan` | 1.884 ms | 96.521 ms | +4986% | [+4803, +5174] |
+| `cold_data_path` | 683.5 ms | 783.3 ms | **+16.19%** | [+12.02, +20.51] |
+
+99.8 ms of extra planning against 0.388 ms saved per query is **about 257
+queries** to break even — four and a half times the single-GPU figure, because
+the per-query saving is smaller in absolute terms while the plan costs the
+same. Quoting "57" for a two-GPU deployment would be wrong.
 
 The `t_finalize` row is the scatter, and it is a genuine stage regression: it
 is simply small.
@@ -461,7 +486,7 @@ re-boost. That reading was mine, and it is wrong. `--pre-timing-delay-ms`
 inserts a *pure sleep* at exactly the point the diagnostics occupied, with
 `--plan-metrics off`, so idle time can be varied on its own:
 
-| NCCL 2 GPU arm | median | `t_stats` | SM clock | mem clock | power | temp | throttle |
+| NCCL 2 GPU arm | median | `t_stats` | SM clock † | mem clock † | power † | temp † | throttle † |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | baseline, no delay | 3.2190 ms | 2.9220 | 1155 MHz | 1593 MHz | 84.7 W | 32 °C | 0 |
 | `delay100` | 3.1945 | 2.9030 | 1155 | 1593 | 65.4 W | 31 | 0 |
@@ -469,12 +494,21 @@ inserts a *pure sleep* at exactly the point the diagnostics occupied, with
 | `delay500` | 3.1545 | 2.8600 | 1155 | 1593 | 83.3 W | 32 | 0 |
 | **`metrics`** (478 ms of real work) | **2.6465** | **2.3555** | 1155 | 1593 | 65.7 W | 31 | 0 |
 
-Half a second of pure idle buys −2.00%. The diagnostics buy −17.79%. **Idle
-time accounts for about 11% of the effect and the remaining 89% comes from the
-work itself.** And the NVML sample at the instant the timed region opens is
-identical in every arm — same SM clock, same memory clock, no throttle reason
-set — so there is no re-boost to appeal to. The CUDA control is flat across the
-same delay ladder (spread 0.93%).
+† **What the NVML columns are, exactly.** One sample per arm, taken *before*
+allocation, H2D and the warm-up collective — so it is the state at the start of
+**setup**, not at the start of the stats phase — and the harness kept only the
+last of the arm's 12 trials, discarding the other 11. That is enough to say
+"the retained samples show no clock or throttle difference between arms" and
+not enough to say the GPUs were in identical states throughout, or that device
+state is ruled out. The harness now keeps every sample; these runs predate
+that.
+
+Half a second of pure idle moves the median by −2.00%; the diagnostics move it
+by −17.79%. Stating that as "idle explains 11%" would be a causal decomposition
+the design does not support — the two arms differ in more than the length of
+the gap. What it does support is the comparison itself: **a pure wait, even at
+500 ms, does not reproduce what the diagnostics do.** The CUDA control is flat
+across the same ladder (spread 0.93%).
 
 ### What it looks like instead
 
@@ -492,14 +526,20 @@ and lets its core drop into a deep idle state; 478 ms of binary searches and a
 sort keeps it hot, so the launches and the synchronize that follow are quicker
 to get moving.
 
-That is the leading explanation and it is *not* established: it predicts a
-difference in CPU frequency or C-state residency that was not measured here.
-What IS established is negative and sufficient for the write-up — the GPUs are
-not the cause, and **a good part of NCCL's reported `t_stats` is host overhead
-rather than kernel time**, which makes it sensitive to what the host was doing
-beforehand. Timing the NCCL stats phase with CUDA events per device, the way
-the single-GPU backend already does, would remove the sensitivity. That is not
-done here.
+**This is a candidate, not a conclusion.** It predicts a difference in CPU
+frequency or C-state residency that was not measured, and the device-state
+sampling above is too thin to exclude a GPU-side contribution. What the data
+does establish is narrower: a pure wait does not reproduce the effect, the
+effect appears only in the backend whose stats measurement contains host time,
+and it does not appear in the one that uses device events. That is consistent
+with **part of NCCL's reported `t_stats` being host launch and synchronize
+overhead rather than kernel time** — which would also make it sensitive to what
+the host did beforehand.
+
+Settling it needs one change, not another campaign: time the NCCL stats phase
+with per-device CUDA events, as the single-GPU backend already does. If the
+sensitivity disappears, the mechanism is confirmed and the measurement is
+better regardless. **It is left as an open mechanism.**
 
 **What this invalidates and what it does not.** Every paired A/B in this
 document compares two arms inside one session under identical conditions, so
@@ -554,12 +594,14 @@ Against the gates fixed before the numbers were seen:
 * **Hoist gate — the mechanism hypothesis failed.** +0.15% [−0.08, +0.38];
   see §6. The group-size result is unaffected, which is why a default could be
   frozen anyway.
-* **Two-GPU gate — passed on `device_total` (−47.62%), with one stage
-  regressing.** AllReduce stayed stable (0.229–0.251 ms, no trend in `G`), but
-  finalize rose 0.049 → 0.073 ms, about +49%, because it now scatters through
-  `order`. The stats collapse from 3.784 to 1.847 ms covers it many times over,
-  which is why `device_total` improves — but "no regression in any stage" would
-  have been false, and this document said it.
+* **Two-GPU gate — passed, with one stage regressing.** Restated on the
+  pause-free same-session A/B: `G32/source` → `G4/source` is **−29.43%
+  [−35.68, −22.58]** on `device_total`, AllReduce flat (−0.46%, interval
+  spanning zero), the gain entirely in stats (−31.53%). Finalize regresses
+  **+40.99% [+32.96, +49.51]** because it scatters through `order` — small
+  against the stats gain, but "no regression in any stage" would have been
+  false, and this document said it. The earlier −47.62% for this gate was
+  measured with the plan diagnostics running on both arms and is superseded.
 * **Default-path gate — NOT passed as written.** The instrumented default is
   3.28% slower than legacy, above the 1% threshold.
 
