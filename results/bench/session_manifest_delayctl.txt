@@ -1,0 +1,16 @@
+# session manifest delayctl
+utc=2026-09-06T09:15:04Z
+host=85cf31f78d7d
+git_sha=a262644a8b9d51962c93177db648351c8e5b7a19
+git_dirty_tracked=0
+git_dirty_untracked=5
+image_digest=sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35
+
+# tracked files modified, if any:
+  (none)
+
+# full diff of tracked changes:
+
+# gpus:
+NVIDIA A100-SXM4-80GB, GPU-afdc6868-d363-22e1-813f-a18627d22450, 580.126.16
+NVIDIA A100-SXM4-80GB, GPU-b644d07c-5960-012c-5ec5-b2f137c11432, 580.126.16

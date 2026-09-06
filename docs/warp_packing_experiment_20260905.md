@@ -451,18 +451,77 @@ blocks (`results/bench/warp_packing_metrics_pause_*.json`):
 | of which AllReduce | +0.37% | [-0.50, +1.25] |
 | **CUDA 1 GPU, same test (control)** | +1.36% | [-1.64, +4.44] |
 
-The two-GPU effect is entirely in the stats kernel, the collective does not
-move, and the single-GPU control is null. Two A100s in one chassis draw twice
-the power, so an idle gap between invocations matters there and not on one
-card: this is a duty-cycle effect, and a benchmark that runs its configurations
-back to back is the honest one.
+The two-GPU effect is entirely in the stats measurement, the collective does not
+move, and the single-GPU control is null.
+
+### It is not a duty-cycle effect. The pure-delay control says so.
+
+The obvious reading was that the diagnostics gave the GPUs ~490 ms to idle and
+re-boost. That reading was mine, and it is wrong. `--pre-timing-delay-ms`
+inserts a *pure sleep* at exactly the point the diagnostics occupied, with
+`--plan-metrics off`, so idle time can be varied on its own:
+
+| NCCL 2 GPU arm | median | `t_stats` | SM clock | mem clock | power | temp | throttle |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline, no delay | 3.2190 ms | 2.9220 | 1155 MHz | 1593 MHz | 84.7 W | 32 °C | 0 |
+| `delay100` | 3.1945 | 2.9030 | 1155 | 1593 | 65.4 W | 31 | 0 |
+| `delay250` | 3.1935 | 2.8945 | 1155 | 1593 | 66.0 W | 31 | 0 |
+| `delay500` | 3.1545 | 2.8600 | 1155 | 1593 | 83.3 W | 32 | 0 |
+| **`metrics`** (478 ms of real work) | **2.6465** | **2.3555** | 1155 | 1593 | 65.7 W | 31 | 0 |
+
+Half a second of pure idle buys −2.00%. The diagnostics buy −17.79%. **Idle
+time accounts for about 11% of the effect and the remaining 89% comes from the
+work itself.** And the NVML sample at the instant the timed region opens is
+identical in every arm — same SM clock, same memory clock, no throttle reason
+set — so there is no re-boost to appeal to. The CUDA control is flat across the
+same delay ladder (spread 0.93%).
+
+### What it looks like instead
+
+The two backends time their stats differently, and only one of them moved:
+
+    nccl   t_kernel = wall() around cudaSetDevice + launch + cudaStreamSynchronize
+    cuda   t_stats  = cudaEventElapsedTime(ev0, ev1)
+
+NCCL's figure is **host wall clock** and therefore includes launch and
+synchronization overhead; CUDA's is a device-event measurement and excludes it.
+That is exactly the split the data shows: the arm whose measurement contains
+host time moved, the arm whose measurement does not stayed put, and the GPUs
+themselves were in the same state throughout. A sleep parks the calling thread
+and lets its core drop into a deep idle state; 478 ms of binary searches and a
+sort keeps it hot, so the launches and the synchronize that follow are quicker
+to get moving.
+
+That is the leading explanation and it is *not* established: it predicts a
+difference in CPU frequency or C-state residency that was not measured here.
+What IS established is negative and sufficient for the write-up — the GPUs are
+not the cause, and **a good part of NCCL's reported `t_stats` is host overhead
+rather than kernel time**, which makes it sensitive to what the host was doing
+beforehand. Timing the NCCL stats phase with CUDA events per device, the way
+the single-GPU backend already does, would remove the sensitivity. That is not
+done here.
 
 **What this invalidates and what it does not.** Every paired A/B in this
-document compares two arms inside one session under identical pause conditions,
-so none of them move. What moved is the absolute headline: the intermediate
-2.66 ms figure was flattered, and the correct pause-free comparison is
-pre-packing 3.977 ms against 3.170 ms today -- **-20.3%**, not the -33% the
-intermediate runs implied.
+document compares two arms inside one session under identical conditions, so
+none of them move. What moved is the absolute headline: the intermediate
+2.66 ms figure was measured with the diagnostics running and is not comparable
+to a run without them.
+
+**Pause-free, same-host, same-session paired A/Bs** were run so the causal
+claim does not have to rest on cross-host, cross-version arithmetic. 30 blocks
+each, `--plan-metrics off` on both arms:
+
+| | effect | 95% CI |
+| --- | --- | --- |
+| NCCL 2 GPU, `G32/source` → `G4/source` | **−29.43%** | [−35.68, −22.58] |
+| NCCL 2 GPU, `G4/source` → `G4/bylen` | **−16.39%** | [−22.79, −9.46] |
+
+Both intervals exclude zero and both are wider than the earlier equivalents,
+because this session was noisier (arm IQRs of 2.6–7.3% against the usual
+1–2%). These are the numbers to quote for "what warp packing does to NCCL on
+the current production path"; the earlier −47.62% was measured with the
+diagnostics present on both arms and is not comparable to a pause-free
+deployment.
 
 ## 8. What the per-device reporting changed
 
