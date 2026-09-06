@@ -37,7 +37,10 @@ MANIFEST="$OUT/session_manifest_${TAG}.txt"
 
 # Copy loose logs into the results tree so one rsync of results/bench/ is
 # sufficient. /tmp is what gets lost when a pod is terminated.
-for f in /tmp/*.log; do
+# Only logs this session plausibly wrote: /tmp on a shared or reused host can
+# hold anything, and sweeping it wholesale drags unrelated files into the
+# repository (it already did once, locally).
+for f in /tmp/headline.log /tmp/final.log /tmp/verify.log /tmp/sess.log /tmp/build.log; do
   [ -e "$f" ] || continue
   cp -n "$f" "$OUT/session_${TAG}_$(basename "$f")" 2>/dev/null || true
 done
