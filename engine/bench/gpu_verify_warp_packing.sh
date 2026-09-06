@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
-# Warp-packing GPU session: build, correctness ladder, resource capture, then
-# the experiments. Run from the repository root on a 2x GPU host.
+# Warp packing: build, correctness ladder, resource capture, artifact export.
+#
+# WHAT THIS DOES NOT DO: run any benchmark. It was once called
+# gpu_session_warp_packing.sh, which read as though it drove the whole session;
+# it does not. Screening and paired A/Bs are driven separately by
+# engine/bench/warp_packing.py, and the headline matrix by
+# engine/bench/run_bench.py, because which arms to run is a decision per
+# experiment and not a property of the host.
+#
+# Run from the repository root on a 2x GPU host.
 #
 # Phases are separate on purpose:
 #   * the ptxas/-lineinfo build exists only to report register usage. Every
@@ -203,5 +211,32 @@ if [ "$fail" -ne 0 ]; then
   exit 1
 fi
 echo "CORRECTNESS LADDER PASSED" | tee -a "$LADDER"
+# --------------------------------------------------------------------------
+# Collect everything a pod is holding into one archive, because a terminated
+# pod takes its /tmp with it. The last session lost its run log that way: the
+# JSON survived only because it lived under results/.
+say "artifact export"
+MANIFEST="results/bench/session_manifest_${TS}.txt"
+{
+  echo "# session manifest ${TS}"
+  echo "git_sha=$(git rev-parse HEAD)"
+  echo "git_dirty_tracked=$(git status --porcelain | grep -vc '^??' || true)"
+  echo "git_dirty_untracked=$(git status --porcelain | grep -c '^??' || true)"
+  echo "image_digest=${BENCH_IMAGE_DIGEST:-unset}"
+  echo
+  echo "# uncommitted changes to tracked files, in full:"
+  git diff
+} > "$MANIFEST" 2>&1
+
+ARCHIVE="results/bench/session_${TS}.tar.gz"
+tar czf "$ARCHIVE" \
+    results/bench/*_"${TS}".* \
+    $(ls /tmp/*.log 2>/dev/null || true) \
+    2>/dev/null || true
+echo "manifest: $MANIFEST"
+echo "archive:  $ARCHIVE"
+echo "Retrieve BOTH before terminating the pod:"
+echo "  rsync -az <pod>:$(pwd)/results/bench/ ./results/bench/"
+
 echo "build report: $BUILDLOG"
 echo "ladder:       $LADDER"

@@ -17,19 +17,27 @@ thirty times the kernel it accelerates (§7). And this is **warp packing v1**:
 `G=4` is optimal for a kernel that still repeats its slice-bound search in
 every lane, and would very likely move if that search were hoisted (§6).
 
-Everything below is from one session on an EPYC 7742 with 2x A100-SXM4-80GB
+Two sessions on different pods, both EPYC 7742 with 2x A100-SXM4-80GB
 (NV12): nvcc 12.8.93, NCCL 2.25.1, driver 580.126.16, `sm_80`,
-`CMAKE_BUILD_TYPE=Release`. Raw per-trial data, run order and seeds are in
-`results/bench/warp_packing_*`.
+`CMAKE_BUILD_TYPE=Release`. Session 1 established the effect; session 2 added
+the hoist arm, the corrected cold path and the headline re-run, and reproduced
+session 1's primary result. Raw per-trial data, run order and seeds are in
+`results/bench/warp_packing_*`; each section says which session it is from.
 
-**Provenance, stated exactly.** Engine source at `ccbfe4e`; the legacy baseline
+**Provenance, stated exactly.** *(Session 1.)* Engine source at `ccbfe4e`; the legacy baseline
 binary from `df29ca1`, built in a detached worktree. The runs record
-`git_dirty=true`: the session script `engine/bench/gpu_session_warp_packing.sh`
+`git_dirty=true`: the session script `engine/bench/gpu_verify_warp_packing.sh`
 was patched twice mid-session (a `GROUPS` name collision with the bash builtin,
 and the sanitizer classification in §2). No file under `engine/src` was touched
 after `ccbfe4e`, so the measured binaries correspond to that commit — but that
 is a statement about what was edited, not something the records prove on their
-own. `image_digest` is null, as it is for every result in this repository.
+own. `image_digest` is null for session 1. Session 2 records
+`sha256:0a360022e8de…` and runs at `1abc477`, but is likewise a **dirty patched
+run**: `engine/bench/run_bench.py` was patched in place to its `7a07c8d`
+content mid-session, after the first headline attempt crashed in the
+summariser. No `engine/src` file differs between those commits, so the binaries
+are `1abc477`'s — but neither session meets a clean-frozen-SHA standard, and
+both are labelled provisional on that ground.
 
 ---
 
@@ -38,8 +46,9 @@ own. `image_digest` is null, as it is for every result in this repository.
 `pair_stats_kernel` is templated on a group size `G ∈ {1,2,4,8,16,32}`. `G`
 lanes cooperate on one pair, a warp carries `32/G` pairs, and the pair each
 group works on comes from a plan array. `--group` and `--pair-order` select the
-mapping on both the CUDA and NCCL binaries; the defaults (`32`, `source`) are
-the pre-existing mapping.
+mapping on both binaries. During the experiments the defaults were the
+pre-existing mapping (`32`, `source`); since commit `1abc477` the default is
+`4`, `source` — see §9.
 
 Two structural consequences:
 
@@ -57,13 +66,18 @@ Two structural consequences:
 The ladder runs first and the session aborts if it fails
 (`results/bench/warp_packing_correctness_20260905_210121.txt`).
 
+Counts below are session 2's ladder, at the frozen SHA, which sweeps the hoist
+setting as well (`results/bench/warp_packing_correctness_20260905_222641.txt`).
+Session 1's ladder was the same shape without that arm: 60 / 88 / 12 / 12.
+
 | check | count | result |
 | --- | --- | --- |
-| CUDA validate: 5 fixtures x 6 groups x 2 orders | 60 | `tol_failures=0`, `max_abs_diff=0.000e+00` |
+| CUDA validate: 5 fixtures x 6 groups x 2 orders x 2 hoist | 120 | `tol_failures=0`, `max_abs_diff=0.000e+00` |
 | NCCL sync: 1 and 2 GPUs, f64/i32/packed, all groups and orders | 88 | `tol_failures=0` |
 | Async: chunks 16384 / 262144 / 100003 x `comm`/`separate` x 2 mappings | 12 | `tol_failures=0` |
-| Output byte-compared against the `g32/source` reference | 12 | 12 identical |
-| CLI rejections (bad group, order, mode, gpus, chunk, unknown flag, missing value, sync+separate) | 11 | 11 rejected, 0 accepted |
+| Output byte-compared against the `g32/source` reference | 24 | 24 identical |
+| **correctness checks total** | **244** | |
+| CLI rejections (bad group, order, hoist, mode, gpus, chunk, unknown flag, missing value, sync+separate) | 13 | 13 rejected, 0 accepted |
 | `compute-sanitizer memcheck`, CUDA, every group and order | 12 | no errors |
 | `compute-sanitizer memcheck`, NCCL 2 GPU, every group | 6 | no **memory** errors |
 
@@ -368,6 +382,19 @@ correct arithmetic on a baseline inflated by its own diagnostics.
 The `t_finalize` row is the scatter, and it is a genuine stage regression: it
 is simply small.
 
+> ⚠ **The cold-path rows above are CUDA's, and only CUDA's.** NCCL had a second
+> instance of the same defect that outlived the first fix: its `t_setup` window
+> opened before the plan diagnostics and closed after them, so
+> `t_plan_metrics_s` was inside `t_setup` and therefore inside
+> `cold_data_path_s` — while the comment beside it said the opposite, and
+> `run_bench`'s re-summation could not see it because both sides of that check
+> read the same inflated `t_setup`. Every NCCL `cold_data_path_s` measured
+> before commit `efa24ea` is inflated by roughly its `t_plan_metrics_s` and is
+> not published here. `device_total` and every paired result are unaffected.
+> The binaries now emit `stage_windows_disjoint` from the recorded window
+> boundaries, so the property is checkable from the record instead of asserted
+> in prose.
+
 **The way out is not to choose between the two bases.** `--group 4` without the
 sort improves steady state *and* leaves the cold path alone, because it builds
 no sorted order:
@@ -474,6 +501,11 @@ communication share the compression result depends on.
   still differ.
 * **The `G=1` coalescing explanation** remains inference from residuals, for
   the same reason.
+* **NCCL cold path, unmeasured.** Fixed in `efa24ea` but not re-run; every
+  NCCL cold-path number in hand predates the fix.
+* **Neither session is a clean frozen SHA.** Both patched a harness file in
+  place mid-session. The engine sources match the recorded commit in both
+  cases, but a strict publication wants a re-measurement on a clean checkout.
 * **Two sessions, one host class.** The primary effect reproduced on two
   independent pods (−36.78%, −36.18%), both 2x A100-SXM4-80GB with NV12. No
   other GPU, interconnect or CUDA version has seen this code.

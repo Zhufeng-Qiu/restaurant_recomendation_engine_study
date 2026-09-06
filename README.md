@@ -148,13 +148,19 @@ Key takeaways:
 <details>
 <summary>Provenance of these numbers</summary>
 
-`results/bench/bench_20260906_002051.json`, commit `1abc477`, image digest
+`results/bench/bench_20260906_002051.json`, image digest
 `sha256:0a360022e8de…` (the tag's manifest at pull time — evidence of the image
-asked for, not proof of the running layer). The record's `git_dirty` is `true`
-because the pod carried untracked build directories and result files; **no
-tracked file was modified**, verified separately with
-`git status --porcelain | grep -v '^??'` returning nothing. Reproducing it
-means checking out `1abc477` and running
+asked for, not proof of the running layer).
+
+⚠ **This is a dirty patched run, not a clean frozen SHA.** The record says
+`git_sha=1abc477, git_dirty=true`. The pod was at `1abc477` with
+`engine/bench/run_bench.py` patched in place to its `7a07c8d` content, because
+the first attempt crashed in the summariser and the fix had to land before the
+matrix could be re-run. Nothing under `engine/src` differs between those two
+commits — the measured binaries are `1abc477`'s — so the numbers are not
+invalidated by it, but the run does not meet this project's own provenance
+standard and is labelled provisional until re-measured on a clean checkout.
+Reproducing it means checking out `7a07c8d` or later and running
 
 ```
 engine/bench/run_bench.py --repeats 30 --warmups 3 --gpu --seed 20260906 \
@@ -162,7 +168,10 @@ engine/bench/run_bench.py --repeats 30 --warmups 3 --gpu --seed 20260906 \
 ```
 
 on an EPYC 7742 with 2x A100-SXM4-80GB (NV12). No configuration failed the
-harness's cold-path identity check.
+harness's cold-path identity check — though that check could not, at the time,
+see that NCCL's `cold_data_path_s` included its own plan diagnostics, so the
+**NCCL cold-path figures from this run are inflated and are not published
+here**. `device_total` and every paired result are unaffected.
 
 </details>
 
@@ -455,9 +464,10 @@ costs ~100 ms of sorting against a ~3 ms kernel, so it **pays back after about
 57 queries** and is opt-in rather than default: a resident engine wants it, a
 single CLI invocation does not.
 
-172 correctness checks pass bit-exact before anything is timed — every payload,
-1/2/3 ranks, every group size, ordering and hoist setting, output
-byte-identical to the baseline's, no memory errors under `compute-sanitizer`.
+244 correctness checks pass bit-exact before anything is timed — every
+payload, 1/2/3 ranks, every group size, ordering and hoist setting, with output
+byte-identical to the baseline's — plus 13 CLI rejections and 18
+`compute-sanitizer` runs with no memory errors.
 All paired results are 30 balanced crossover blocks with recorded seeds, and
 the primary effect reproduced on two independent pods (−36.78%, −36.18%).
 
