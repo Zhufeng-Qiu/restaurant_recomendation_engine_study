@@ -39,8 +39,8 @@ so read them as regimes rather than one variable swapped — but toggling P2P on
 a *single* host moves the same way with everything else fixed, which is what
 makes the trend more than a coincidence of hardware.
 
-**Compressing a collective pays in proportion to what the collective costs** —
-and the "not otherwise" half is the part usually left out.
+**Compression tends to pay more as the collective occupies more of the
+iteration** — and the "not otherwise" half is the part usually left out.
 
 ## Layout
 
@@ -92,9 +92,10 @@ End-to-end RMSE 0.8652 against the archived Spark model's 0.8657.
 
 ![Compression gain against communication share, three regimes](results/figures/compression_regimes.png)
 
-Three hosts under a comparable protocol — same sources and timing contract,
-but no build hash was kept, so an identical binary is intended rather than
-evidenced. Communication shares of 11% / 75% / 93% buy 5.1% / 25.2% / 55.4%.
+Three hosts under a comparable protocol — intended same sources and a shared
+timing contract, but no build hash was kept, so an identical binary is intended
+rather than evidenced. Communication shares of 11% / 75% / 93% buy 5.1% /
+25.2% / 55.4%.
 Separate machines, so read the trend as descriptive.
 The joined red pair is the controlled version — one host, `NCCL_P2P_DISABLE`
 toggled, nothing else moved — and it shifts the same way, which is what turns
@@ -119,7 +120,7 @@ the previous mapping, with no cold-path penalty. The sort adds another −16.39%
 
 ## Findings and limitations
 
-- **Compression pays only when the collective is the bottleneck.** 7.7% on
+- **Compression pays only when the collective is the bottleneck.** About 7% on
   NVLink, 55% on a host-staged PCIe link. Lossless by construction, so the
   bit-exact contract survives it untouched. The three hosts ran comparable
   builds, not a verified identical one.

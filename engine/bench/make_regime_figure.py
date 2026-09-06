@@ -67,8 +67,8 @@ def main():
 
     ax.set_xlabel("AllReduce as a share of the iteration, `f64` (%)")
     ax.set_ylabel("what 3x lossless compression buys (%)")
-    ax.set_title("Compression pays in proportion to what the collective costs,\n"
-                 "not according to the link's name")
+    ax.set_title("Compression tends to pay more as the collective occupies\n"
+                 "more of the iteration — not according to the link's name")
     ax.grid(alpha=.3)
     ax.set_xlim(0, 100)
     ax.set_ylim(-4, 64)
