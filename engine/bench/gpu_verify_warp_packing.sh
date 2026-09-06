@@ -254,32 +254,7 @@ if [ "$fail" -ne 0 ]; then
   exit 1
 fi
 echo "CORRECTNESS LADDER PASSED" | tee -a "$LADDER"
-# --------------------------------------------------------------------------
-# Collect everything a pod is holding into one archive, because a terminated
-# pod takes its /tmp with it. The last session lost its run log that way: the
-# JSON survived only because it lived under results/.
-say "artifact export"
-MANIFEST="results/bench/session_manifest_${TS}.txt"
-{
-  echo "# session manifest ${TS}"
-  echo "git_sha=$(git rev-parse HEAD)"
-  echo "git_dirty_tracked=$(git status --porcelain | grep -vc '^??' || true)"
-  echo "git_dirty_untracked=$(git status --porcelain | grep -c '^??' || true)"
-  echo "image_digest=${BENCH_IMAGE_DIGEST:-unset}"
-  echo
-  echo "# uncommitted changes to tracked files, in full:"
-  git diff
-} > "$MANIFEST" 2>&1
-
-ARCHIVE="results/bench/session_${TS}.tar.gz"
-tar czf "$ARCHIVE" \
-    results/bench/*_"${TS}".* \
-    $(ls /tmp/*.log 2>/dev/null || true) \
-    2>/dev/null || true
-echo "manifest: $MANIFEST"
-echo "archive:  $ARCHIVE"
-echo "Retrieve BOTH before terminating the pod:"
-echo "  rsync -az <pod>:$(pwd)/results/bench/ ./results/bench/"
-
+# Artifacts are exported by engine/bench/export_session.sh, run LAST -- after
+# the benchmarks, not here. This script finishes before any benchmark exists.
 echo "build report: $BUILDLOG"
 echo "ladder:       $LADDER"
