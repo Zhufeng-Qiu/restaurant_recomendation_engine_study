@@ -514,10 +514,13 @@ Steps 1–2 of the corrected plan, plus the nccl-tests baseline. One host
 
 **Randomisation changed the noise picture, but not where expected.** With
 configurations interleaved, `sync` and single-GPU rows tighten to 0.22–1.12%
-IQR. The async 2-GPU rows stay at **13–16%**. So that spread is not thermal or
-temporal drift being mistaken for a configuration effect. (It later reproduced
-across three independent pods as well — 16.3% / 16.4% / 15.6% — which is what
-justifies calling it a property of the pipeline rather than of a session.)
+IQR. The async 2-GPU rows stay at **13–16%**. Interleaving rules out a simple
+ordering effect — a spread that came from draining one configuration before the
+next would have collapsed — but not every temporal or thermal mechanism. The
+spread **persists under randomised interleaving and across these hosts**
+(16.3% / 16.4% / 15.6% on three independent pods); its magnitude remains
+protocol- and host-dependent, and later runs on the current default show
+10.9–11.2%.
 
 **The headline speedups were always steady-state.** Every backend now reports
 `device_total = stats + allreduce + finalize` and, alongside it, a cold-path
@@ -628,9 +631,10 @@ and the randomised headline matrix's −5.11% sits in the same range. The
 compression number is reproducible.
 
 The async noise reproduces too: 16.3%, 16.4%, 15.6% IQR on `async packed`
-across the three sessions. Persisting under randomised interleaving *and*
-across independent pods is enough to call it a property of the pipeline rather
-than of any one session.
+across the three sessions. It **persists under randomised interleaving and
+across these hosts**, so it is not an artefact of one session; its magnitude
+remains protocol- and host-dependent, and is not established as a property of
+the pipeline as such.
 
 **The nccl-tests baseline, redone properly** — exact byte counts, matching
 dtypes, in-place column (the engine's collective is `ncclAllReduce(slot, slot,

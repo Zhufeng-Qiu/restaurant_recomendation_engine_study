@@ -1,21 +1,21 @@
 """Compression gain against how much of the iteration is communication.
 
-The old interconnect figure plotted two hosts side by side and was captioned as
-three regimes -- it never contained the `PHB` point at all. More importantly, a
-bar chart of two hosts invites the reading "the link causes this", which the
-data cannot support: those are different physical machines measured at
-different times.
+The figure this replaces plotted two hosts as bars and was captioned as three
+regimes -- it never contained the `PHB` point at all, and a two-bar chart
+invites "the link causes this", which separate machines measured at different
+times cannot support.
 
-Plotting the gain against the *communication share* says what is actually
-supported. The three cross-host points are descriptive, and they line up. The
-two joined points are the controlled version -- one host, `NCCL_P2P_DISABLE`
-toggled, everything else fixed -- and they move the same way, which is the
-evidence that the trend is about the share and not about which machine it was.
+Every point below is read from its own result file rather than transcribed,
+because the previous version hard-coded an archived 5-trial pair (91.1%, 55.5%)
+that later work had already superseded (93.3%, 55.41%).
 
-Sources: docs/measurement_audit_20260905.md (three-regime table),
-docs/analysis.md (within-host P2P A/B), results/bench/repro_finalsha.json.
+The y-axis is one consistent statistic: the ratio of the two medians in the
+same run. Two of the points also have a paired estimate with a CI, noted in the
+caption; mixing the two estimators on one axis is how the numbers drifted last
+time.
 """
 
+import json
 import os
 
 import matplotlib
@@ -24,64 +24,75 @@ import matplotlib.pyplot as plt
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# (communication share %, compression gain %, label)
-CROSS = [(11.6, 4.7, "NVLink NV12"),
-         (76.0, 23.5, "PCIe SYS, P2P ok"),
-         (91.1, 55.5, "PCIe PHB, no P2P")]
-# same host, one variable moved: NCCL_P2P_DISABLE on/off
-P2P = [(75.4, 25.2, "P2P on"), (79.9, 33.2, "P2P off")]
-# the current default, after warp packing made the compute half smaller
-NOW = (9.1, 7.70, "NVLink NV12,\ncurrent default")
+
+def bench_point(name):
+    d = json.load(open(os.path.join(ROOT, "results/bench", name)))
+    by = {r["config"]: r for r in d["results"] if "median_s" in r}
+    f, p = by["nccl_sync_g2_f64"], by["nccl_sync_g2_packed"]
+    return (f["median_allreduce_s"] / f["median_s"] * 100,
+            (1 - p["median_s"] / f["median_s"]) * 100)
+
+
+def p2p_point(suffix):
+    d = json.load(open(os.path.join(ROOT, "results/bench/p2p_ab.json")))
+    f, p = d[f"sync_f64_{suffix}"], d[f"sync_packed_{suffix}"]
+    return (f["allreduce_ms"] / f["median_ms"] * 100,
+            (1 - p["median_ms"] / f["median_ms"]) * 100)
 
 
 def main():
-    fig, ax = plt.subplots(figsize=(8.2, 5.4))
+    nv_old = bench_point("bench_20260905_064736.json")     # NVLink, pre-packing
+    nv_now = bench_point("bench_20260906_044118.json")     # NVLink, current default
+    phb = bench_point("bench_20260905_082024.json")        # PCIe PHB, no P2P
+    on, off = p2p_point("p2pon"), p2p_point("p2poff")      # one host, flag toggled
 
-    xs = [p[0] for p in CROSS]
-    ys = [p[1] for p in CROSS]
+    fig, ax = plt.subplots(figsize=(8.4, 5.6))
+
+    xs, ys = zip(nv_old, on, phb)
     ax.plot(xs, ys, "o", ms=11, color="#1f77b4", zorder=3,
-            label="three hosts, one binary (descriptive)")
-    offsets = {"NVLink NV12": (2, -20), "PCIe SYS, P2P ok": (-8, -20),
-               "PCIe PHB, no P2P": (0, 14)}
-    for x, y, lab in CROSS:
-        dx, dy = offsets[lab]
-        ax.annotate(lab, (x, y), xytext=(dx, dy), textcoords="offset points",
+            label="three hosts, comparable protocol (descriptive)")
+    for (x, y), lab, off_xy in ((nv_old, "NVLink NV12", (4, -20)),
+                                (on, "PCIe SYS, P2P available", (-6, -22)),
+                                (phb, "PCIe PHB, no P2P", (0, 14))):
+        ax.annotate(lab, (x, y), xytext=off_xy, textcoords="offset points",
                     ha="center", fontsize=9, color="#1f77b4")
 
-    px = [p[0] for p in P2P]
-    py = [p[1] for p in P2P]
-    ax.plot(px, py, "s-", ms=8, color="#d62728", zorder=4,
-            label="one host, P2P toggled (controlled)")
-    ax.annotate("NCCL_P2P_DISABLE\non one machine", (px[1], py[1]),
-                xytext=(14, -6), textcoords="offset points", fontsize=9,
-                color="#d62728", va="top")
+    ax.plot([on[0], off[0]], [on[1], off[1]], "s-", ms=8, color="#d62728",
+            zorder=4, label="one host, NCCL_P2P_DISABLE toggled (controlled)")
+    ax.annotate("P2P off", (off[0], off[1]), xytext=(12, -2),
+                textcoords="offset points", fontsize=9, color="#d62728")
 
-    ax.plot([NOW[0]], [NOW[1]], "^", ms=12, color="#2ca02c", zorder=5,
-            label="NVLink after warp packing")
-    ax.annotate(NOW[2], (NOW[0], NOW[1]), xytext=(8, 12),
-                textcoords="offset points", fontsize=9, color="#2ca02c")
+    ax.plot([nv_now[0]], [nv_now[1]], "^", ms=12, color="#2ca02c", zorder=5,
+            label="NVLink, current default (after warp packing)")
 
-    ax.set_xlabel("AllReduce as a share of the iteration (%)")
+    ax.set_xlabel("AllReduce as a share of the iteration, `f64` (%)")
     ax.set_ylabel("what 3x lossless compression buys (%)")
-    ax.set_title("Compression pays in proportion to how much of the iteration\n"
-                 "is communication — not according to the link's name")
+    ax.set_title("Compression pays in proportion to what the collective costs,\n"
+                 "not according to the link's name")
     ax.grid(alpha=.3)
     ax.set_xlim(0, 100)
     ax.set_ylim(-4, 64)
-    ax.legend(loc="upper left", fontsize=9)
+    ax.legend(loc="upper left", fontsize=8.5)
     ax.text(0.5, -0.155,
-            "Cross-host points are different physical machines measured at "
-            "different times: read them as regimes, not as a swept variable.\n"
-            "The joined pair is the same host with one flag changed, and it "
-            "moves the same way. NVLink points differ because warp packing\n"
-            "shrank the compute half, which raises communication's share.",
-            transform=ax.transAxes, ha="center", va="top", fontsize=8.5,
+            "Ratio of medians within each run. The three blue points are "
+            "different physical machines run under a comparable protocol — not\n"
+            "a verified identical binary, since those runs kept no build hash — "
+            "so read them as regimes, not a swept variable. The joined pair is\n"
+            "one host with a single flag changed and moves the same way. Paired "
+            "estimates exist for two: NVLink −4.96% (3 sessions), PHB −51.67%\n"
+            "[−54.61, −48.55]; they agree in sign and magnitude with the "
+            "median ratios plotted.",
+            transform=ax.transAxes, ha="center", va="top", fontsize=8,
             color="#444444")
 
-    fig.tight_layout(rect=[0, 0.11, 1, 1])
+    fig.tight_layout(rect=[0, 0.14, 1, 1])
     out = os.path.join(ROOT, "results/figures/compression_regimes.png")
     fig.savefig(out, dpi=110)
     print("wrote:", os.path.relpath(out, ROOT))
+    for lab, pt in (("NVLink pre-packing", nv_old), ("NVLink current", nv_now),
+                    ("PCIe SYS P2P on", on), ("PCIe SYS P2P off", off),
+                    ("PCIe PHB no P2P", phb)):
+        print(f"  {lab:<22s} share {pt[0]:5.1f}%   compression {pt[1]:5.2f}%")
 
 
 if __name__ == "__main__":

@@ -33,10 +33,10 @@ is over the rating dimension, `pack(a) + pack(b) == pack(a + b)` — NCCL never
 sees the uncompressed form.
 
 What that 3x is worth **tracks how much of the iteration is communication**:
-9% of the iteration on NVLink buys 7.7%; 91% on a host-staged PCIe link buys
-55%. Those are different physical machines measured at different times, so read
-them as two regimes rather than one variable swapped — but toggling P2P on a
-*single* host moves the same way with everything else fixed, which is what
+where the AllReduce is 13% of the iteration it buys ~7%; where it is 93% it
+buys ~55%. Those are different physical machines measured at different times,
+so read them as regimes rather than one variable swapped — but toggling P2P on
+a *single* host moves the same way with everything else fixed, which is what
 makes the trend more than a coincidence of hardware.
 
 **Compressing a collective pays in proportion to what the collective costs** —
@@ -92,8 +92,10 @@ End-to-end RMSE 0.8652 against the archived Spark model's 0.8657.
 
 ![Compression gain against communication share, three regimes](results/figures/compression_regimes.png)
 
-Three hosts, one binary: 11.6% / 76% / 91% communication buys 4.7% / 23.5% /
-55.5%. Those are separate machines, so the line through them is descriptive.
+Three hosts under a comparable protocol — same sources and timing contract,
+but no build hash was kept, so an identical binary is intended rather than
+evidenced. Communication shares of 11% / 75% / 93% buy 5.1% / 25.2% / 55.4%.
+Separate machines, so read the trend as descriptive.
 The joined red pair is the controlled version — one host, `NCCL_P2P_DISABLE`
 toggled, nothing else moved — and it shifts the same way, which is what turns
 "these three hosts happened to line up" into a trend worth stating.
@@ -118,8 +120,9 @@ the previous mapping, with no cold-path penalty. The sort adds another −16.39%
 ## Findings and limitations
 
 - **Compression pays only when the collective is the bottleneck.** 7.7% on
-  NVLink, 55% on PCIe, same binary. Lossless by construction, so the bit-exact
-  contract survives it untouched.
+  NVLink, 55% on a host-staged PCIe link. Lossless by construction, so the
+  bit-exact contract survives it untouched. The three hosts ran comparable
+  builds, not a verified identical one.
 - **Async overlap loses on a fast link**, and this corrects the project's
   original hypothesis. Overlap's ceiling is `min(compute, comm)/total`: it pays
   when the two are comparable, not when communication is large.
@@ -165,7 +168,7 @@ export, benchmark sweeps, RMSE — is in
 | Date | What changed | Where |
 | --- | --- | --- |
 | 2026-08-28 | Baseline: serial / OpenMP / MPI / CUDA / NCCL behind one frozen contract. Lossless 3x payload compression, reduced in place. | — |
-| 2026-08-29 | Compression measured on NVLink and PCIe. **The verdict reverses with the link** — the project's central finding. | [analysis](docs/analysis.md) |
+| 2026-08-29 | Compression measured on NVLink and PCIe: a single-digit gain on one, ~55% on the other. *Initial reading — "the link decides" — later refined to communication share, and the cross-host comparison downgraded to descriptive.* | [analysis](docs/analysis.md) |
 | 2026-09-04 | Async PCIe penalty traced to finalize occupying the communication stream. Timing contract unified; run order randomised; every figure redrawn at 30 trials. | [audit](docs/measurement_audit_20260905.md) |
 | 2026-09-05 | **Measurement audit.** Several published numbers did not mean what they said: the headline mixed two machines, NCCL sync excluded its finalize kernel, "sixteen bits" was 85. Headline rebuilt on one machine, one timing basis. | [audit](docs/measurement_audit_20260905.md) |
 | 2026-09-05 | **Warp packing implemented** — a sub-warp per pair instead of a warp. Default becomes `--group 4 --pair-order source`. The lane-slot model that motivated it does not explain it. | [warp packing](docs/warp_packing_experiment_20260905.md) |
