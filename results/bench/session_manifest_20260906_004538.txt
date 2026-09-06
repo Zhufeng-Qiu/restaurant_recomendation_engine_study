@@ -1,0 +1,7 @@
+# session manifest 20260906_004538
+git_sha=cfb8993a8eb2254513c65f9f35098a7803c538db
+git_dirty_tracked=0
+git_dirty_untracked=6
+image_digest=sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35
+
+# uncommitted changes to tracked files, in full:

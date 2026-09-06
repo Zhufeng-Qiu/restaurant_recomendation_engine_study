@@ -43,7 +43,11 @@ def main():
     print(f"source: {os.path.relpath(path, ROOT)}")
     print(f"seed:   {d.get('seed')}   repeats: {d.get('repeats')}   "
           f"warmups: {d.get('warmups')}")
-    print(f"git:    {env.get('git_sha')} dirty={env.get('git_dirty')}")
+    tracked = env.get("git_dirty_tracked")
+    dirty = (f"tracked-clean (untracked artifacts only)" if tracked == 0
+             else f"{tracked} tracked file(s) modified" if tracked
+             else f"dirty={env.get('git_dirty')} (tracked/untracked not split)")
+    print(f"git:    {env.get('git_sha')}  {dirty}")
     print(f"image:  {env.get('image_digest')}")
     print(f"cpu:    {env.get('cpu')}")
     for g in (env.get("gpus") or []):

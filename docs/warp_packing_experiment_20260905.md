@@ -17,11 +17,13 @@ thirty times the kernel it accelerates (§7). And this is **warp packing v1**:
 `G=4` is optimal for a kernel that still repeats its slice-bound search in
 every lane, and would very likely move if that search were hoisted (§6).
 
-Two sessions on different pods, both EPYC 7742 with 2x A100-SXM4-80GB
+Three sessions on different pods, all EPYC 7742 with 2x A100-SXM4-80GB
 (NV12): nvcc 12.8.93, NCCL 2.25.1, driver 580.126.16, `sm_80`,
 `CMAKE_BUILD_TYPE=Release`. Session 1 established the effect; session 2 added
-the hoist arm, the corrected cold path and the headline re-run, and reproduced
-session 1's primary result. Raw per-trial data, run order and seeds are in
+the hoist arm, the corrected cold path and a headline re-run, and reproduced
+session 1's primary result; session 3 re-ran the ladder, the headline and the
+compression A/B on a **clean checkout** after the harness and NCCL timing
+fixes, and reproduced session 2's headline within 1.8% on every row. Raw per-trial data, run order and seeds are in
 `results/bench/warp_packing_*`; each section says which session it is from.
 
 **Provenance, stated exactly.** *(Session 1.)* Engine source at `ccbfe4e`; the legacy baseline
@@ -36,8 +38,12 @@ own. `image_digest` is null for session 1. Session 2 records
 run**: `engine/bench/run_bench.py` was patched in place to its `7a07c8d`
 content mid-session, after the first headline attempt crashed in the
 summariser. No `engine/src` file differs between those commits, so the binaries
-are `1abc477`'s — but neither session meets a clean-frozen-SHA standard, and
-both are labelled provisional on that ground.
+are `1abc477`'s — but that does not meet a clean-frozen-SHA standard.
+
+**Session 3 is the clean one.** A fresh pod at `cfb8993`, nothing patched in
+place, `git_dirty_tracked = 0` verified before the build and again after it,
+`image_digest` recorded. Its headline supersedes session 2's; where this
+document still quotes session 1 or 2 numbers, it says so.
 
 ---
 
@@ -382,7 +388,8 @@ correct arithmetic on a baseline inflated by its own diagnostics.
 The `t_finalize` row is the scatter, and it is a genuine stage regression: it
 is simply small.
 
-> ⚠ **The cold-path rows above are CUDA's, and only CUDA's.** NCCL had a second
+> ⚠ **The cold-path rows above are CUDA's, and only CUDA's**, and they predate
+> the NCCL fix described here. NCCL had a second
 > instance of the same defect that outlived the first fix: its `t_setup` window
 > opened before the plan diagnostics and closed after them, so
 > `t_plan_metrics_s` was inside `t_setup` and therefore inside
@@ -393,7 +400,9 @@ is simply small.
 > not published here. `device_total` and every paired result are unaffected.
 > The binaries now emit `stage_windows_disjoint` from the recorded window
 > boundaries, so the property is checkable from the record instead of asserted
-> in prose.
+> in prose. Session 3 confirms the size of it: `t_setup` for
+> `nccl_sync_g2_packed` falls 651.97 → 198.52 ms and the reported cold path
+> 1536.01 → 856.55 ms, with `stage_windows_disjoint: true` on every record.
 
 **The way out is not to choose between the two bases.** `--group 4` without the
 sort improves steady state *and* leaves the cold path alone, because it builds
@@ -501,11 +510,12 @@ communication share the compression result depends on.
   still differ.
 * **The `G=1` coalescing explanation** remains inference from residuals, for
   the same reason.
-* **NCCL cold path, unmeasured.** Fixed in `efa24ea` but not re-run; every
-  NCCL cold-path number in hand predates the fix.
-* **Neither session is a clean frozen SHA.** Both patched a harness file in
-  place mid-session. The engine sources match the recorded commit in both
-  cases, but a strict publication wants a re-measurement on a clean checkout.
-* **Two sessions, one host class.** The primary effect reproduced on two
-  independent pods (−36.78%, −36.18%), both 2x A100-SXM4-80GB with NV12. No
-  other GPU, interconnect or CUDA version has seen this code.
+* **The CUDA cold-path table in §7 has not been re-measured** on the clean SHA.
+  Its defect was NCCL's, not CUDA's, so the numbers should be unchanged — but
+  "should be" is not "was".
+* **Three sessions, one host class.** The primary effect reproduced on two
+  independent pods (−36.78%, −36.18%); the headline reproduced on a third
+  (every row within 1.8%, `CUDA 1 GPU` identical to three decimals); the
+  compression effect on the new default reproduced across two (−9.38%
+  [−10.10, −8.66] and −8.78% [−9.40, −8.16]). All are 2x A100-SXM4-80GB with
+  NV12. No other GPU, interconnect or CUDA version has seen this code.

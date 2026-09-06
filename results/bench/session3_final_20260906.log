@@ -1,0 +1,77 @@
+round-robin order, seed=20260906, 30 rounds x 37 configs after 3 warm-ups
+  ... round 1/30 done (37 live configs)
+  ... round 2/30 done (37 live configs)
+  ... round 3/30 done (37 live configs)
+  ... round 4/30 done (37 live configs)
+  ... round 5/30 done (37 live configs)
+  ... round 6/30 done (37 live configs)
+  ... round 7/30 done (37 live configs)
+  ... round 8/30 done (37 live configs)
+  ... round 9/30 done (37 live configs)
+  ... round 10/30 done (37 live configs)
+  ... round 11/30 done (37 live configs)
+  ... round 12/30 done (37 live configs)
+  ... round 13/30 done (37 live configs)
+  ... round 14/30 done (37 live configs)
+  ... round 15/30 done (37 live configs)
+  ... round 16/30 done (37 live configs)
+  ... round 17/30 done (37 live configs)
+  ... round 18/30 done (37 live configs)
+  ... round 19/30 done (37 live configs)
+  ... round 20/30 done (37 live configs)
+  ... round 21/30 done (37 live configs)
+  ... round 22/30 done (37 live configs)
+  ... round 23/30 done (37 live configs)
+  ... round 24/30 done (37 live configs)
+  ... round 25/30 done (37 live configs)
+  ... round 26/30 done (37 live configs)
+  ... round 27/30 done (37 live configs)
+  ... round 28/30 done (37 live configs)
+  ... round 29/30 done (37 live configs)
+  ... round 30/30 done (37 live configs)
+serial                     median=1.3234s stdev=0.0092s max_diff=0.0e+00
+openmp_t1_static           median=1.2666s stdev=0.0071s max_diff=0.0e+00
+openmp_t1_dynamic          median=1.2627s stdev=0.0109s max_diff=0.0e+00
+openmp_t2_static           median=0.6402s stdev=0.0036s max_diff=0.0e+00
+openmp_t2_dynamic          median=0.6377s stdev=0.0039s max_diff=0.0e+00
+openmp_t4_static           median=0.3273s stdev=0.0023s max_diff=0.0e+00
+openmp_t4_dynamic          median=0.3242s stdev=0.0022s max_diff=0.0e+00
+openmp_t8_static           median=0.1700s stdev=0.0014s max_diff=0.0e+00
+openmp_t8_dynamic          median=0.1651s stdev=0.0010s max_diff=0.0e+00
+openmp_t16_static          median=0.0898s stdev=0.0016s max_diff=0.0e+00
+openmp_t16_dynamic         median=0.0860s stdev=0.0010s max_diff=0.0e+00
+mpi_r1                     median=1.4335s stdev=0.0128s max_diff=0.0e+00
+mpi_r2                     median=0.8061s stdev=0.0065s max_diff=0.0e+00
+mpi_r4                     median=0.5066s stdev=0.0074s max_diff=0.0e+00
+mpi_r8                     median=0.3543s stdev=0.0090s max_diff=0.0e+00
+mpi_r16                    median=0.2783s stdev=0.0078s max_diff=0.0e+00
+mpi_r24                    median=0.2992s stdev=0.0060s max_diff=0.0e+00
+mpi_r32                    median=0.2872s stdev=0.0103s max_diff=0.0e+00
+cuda_1gpu                  median=0.0042s stdev=0.0001s max_diff=0.0e+00
+nccl_sync_g1_f64           median=0.0044s stdev=0.0021s max_diff=0.0e+00
+nccl_sync_g2_f64           median=0.0029s stdev=0.0001s max_diff=0.0e+00
+nccl_async_g1_f64          median=0.0052s stdev=0.0016s max_diff=0.0e+00
+nccl_async_g1_f64_sep      median=0.0050s stdev=0.0003s max_diff=0.0e+00
+nccl_async_g2_f64          median=0.0035s stdev=0.0002s max_diff=0.0e+00
+nccl_async_g2_f64_sep      median=0.0034s stdev=0.0002s max_diff=0.0e+00
+nccl_sync_g1_i32           median=0.0044s stdev=0.0011s max_diff=0.0e+00
+nccl_sync_g2_i32           median=0.0027s stdev=0.0001s max_diff=0.0e+00
+nccl_async_g1_i32          median=0.0051s stdev=0.0018s max_diff=0.0e+00
+nccl_async_g1_i32_sep      median=0.0051s stdev=0.0019s max_diff=0.0e+00
+nccl_async_g2_i32          median=0.0035s stdev=0.0002s max_diff=0.0e+00
+nccl_async_g2_i32_sep      median=0.0032s stdev=0.0002s max_diff=0.0e+00
+nccl_sync_g1_packed        median=0.0044s stdev=0.0009s max_diff=0.0e+00
+nccl_sync_g2_packed        median=0.0027s stdev=0.0000s max_diff=0.0e+00
+nccl_async_g1_packed       median=0.0051s stdev=0.0003s max_diff=0.0e+00
+nccl_async_g1_packed_sep   median=0.0051s stdev=0.0002s max_diff=0.0e+00
+nccl_async_g2_packed       median=0.0035s stdev=0.0002s max_diff=0.0e+00
+nccl_async_g2_packed_sep   median=0.0032s stdev=0.0002s max_diff=0.0e+00
+
+wrote /workspace/rre/results/bench/bench_20260906_005516.json
+wrote /workspace/rre/results/bench/bench_20260906_005516.csv
+/workspace/rre/engine/bench/repro_session.py:43: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "utc":__import__("datetime").datetime.utcnow().isoformat(timespec="seconds")+"Z",
+  session=cleansha seed=20260907
+  f64=2.9160 ms  packed=2.6575 ms
+  compression = -8.78%   95% CI [-9.40%, -8.16%]
+  async packed: median=3.150 ms  IQR=9.6%
