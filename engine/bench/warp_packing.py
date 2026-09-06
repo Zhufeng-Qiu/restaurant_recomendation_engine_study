@@ -63,10 +63,18 @@ LEGACY = os.path.join(ROOT, "engine", "build-legacy", "pearson_engine")
 def parse_arm(spec, legacy_bin):
     """SPEC -> (label, argv-builder). Rejects anything it cannot run exactly."""
     parts = spec.split(":")
-    hoist = "off"
-    if parts[-1] in ("hoist", "nohoist"):
-        hoist = "on" if parts[-1] == "hoist" else "off"
-        parts = parts[:-1]
+    hoist, metrics = "off", "off"
+    while parts[-1] in ("hoist", "nohoist", "metrics", "nometrics"):
+        tok = parts.pop()
+        if tok in ("hoist", "nohoist"):
+            hoist = "on" if tok == "hoist" else "off"
+        else:
+            # Plan diagnostics. Not a mapping choice: it exists as an arm
+            # because switching it off removed ~490 ms of host work between
+            # ncclCommInitAll and the timed region, and the two-GPU sync time
+            # moved 15% when it did. Whether that pause was doing something is
+            # a measurable question, not a matter of opinion.
+            metrics = "on" if tok == "metrics" else "off"
     kind = parts[0]
     if kind == "legacy":
         return spec, lambda fx: [legacy_bin, fx, "--backend", "cuda", "--validate"]
@@ -76,7 +84,7 @@ def parse_arm(spec, legacy_bin):
         g, order = parts[1], parts[2]
         return spec, lambda fx: [ENGINE, fx, "--backend", "cuda", "--validate",
                                  "--group", g, "--pair-order", order,
-                                 "--hoist", hoist]
+                                 "--hoist", hoist, "--plan-metrics", metrics]
     if kind.startswith("nccl"):
         gpus = kind[4:] or "2"
         if len(parts) not in (4, 5):
@@ -86,7 +94,7 @@ def parse_arm(spec, legacy_bin):
         return spec, lambda fx: [ENGINE_NCCL, fx, "--gpus", gpus, "--mode", mode,
                                  "--payload", payload, "--validate",
                                  "--group", g, "--pair-order", order,
-                                 "--hoist", hoist]
+                                 "--hoist", hoist, "--plan-metrics", metrics]
     raise SystemExit(f"unknown arm: {spec}")
 
 

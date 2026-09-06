@@ -1,0 +1,97 @@
+round-robin order, seed=20260906, 30 rounds x 37 configs after 3 warm-ups
+  ... round 1/30 done (37 live configs)
+  ... round 2/30 done (37 live configs)
+  ... round 3/30 done (37 live configs)
+  ... round 4/30 done (37 live configs)
+  ... round 5/30 done (37 live configs)
+  ... round 6/30 done (37 live configs)
+  ... round 7/30 done (37 live configs)
+  ... round 8/30 done (37 live configs)
+  ... round 9/30 done (37 live configs)
+  ... round 10/30 done (37 live configs)
+  ... round 11/30 done (37 live configs)
+  ... round 12/30 done (37 live configs)
+  ... round 13/30 done (37 live configs)
+  ... round 14/30 done (37 live configs)
+  ... round 15/30 done (37 live configs)
+  ... round 16/30 done (37 live configs)
+  ... round 17/30 done (37 live configs)
+  ... round 18/30 done (37 live configs)
+  ... round 19/30 done (37 live configs)
+  ... round 20/30 done (37 live configs)
+  ... round 21/30 done (37 live configs)
+  ... round 22/30 done (37 live configs)
+  ... round 23/30 done (37 live configs)
+  ... round 24/30 done (37 live configs)
+  ... round 25/30 done (37 live configs)
+  ... round 26/30 done (37 live configs)
+  ... round 27/30 done (37 live configs)
+  ... round 28/30 done (37 live configs)
+  ... round 29/30 done (37 live configs)
+  ... round 30/30 done (37 live configs)
+serial                     median=1.2506s stdev=0.0063s max_diff=0.0e+00
+openmp_t1_static           median=1.3834s stdev=0.0064s max_diff=0.0e+00
+openmp_t1_dynamic          median=1.3848s stdev=0.0068s max_diff=0.0e+00
+openmp_t2_static           median=0.6992s stdev=0.0028s max_diff=0.0e+00
+openmp_t2_dynamic          median=0.7002s stdev=0.0025s max_diff=0.0e+00
+openmp_t4_static           median=0.3579s stdev=0.0018s max_diff=0.0e+00
+openmp_t4_dynamic          median=0.3536s stdev=0.0016s max_diff=0.0e+00
+openmp_t8_static           median=0.1850s stdev=0.0019s max_diff=0.0e+00
+openmp_t8_dynamic          median=0.1806s stdev=0.0013s max_diff=0.0e+00
+openmp_t16_static          median=0.0982s stdev=0.0018s max_diff=0.0e+00
+openmp_t16_dynamic         median=0.0944s stdev=0.0011s max_diff=0.0e+00
+mpi_r1                     median=1.4138s stdev=0.0087s max_diff=0.0e+00
+mpi_r2                     median=0.7989s stdev=0.0143s max_diff=0.0e+00
+mpi_r4                     median=0.5075s stdev=0.0059s max_diff=0.0e+00
+mpi_r8                     median=0.3507s stdev=0.0040s max_diff=0.0e+00
+mpi_r16                    median=0.2779s stdev=0.0034s max_diff=0.0e+00
+mpi_r24                    median=0.3023s stdev=0.0043s max_diff=0.0e+00
+mpi_r32                    median=0.3187s stdev=0.0162s max_diff=0.0e+00
+cuda_1gpu                  median=0.0042s stdev=0.0000s max_diff=0.0e+00
+nccl_sync_g1_f64           median=0.0046s stdev=0.0001s max_diff=0.0e+00
+nccl_sync_g2_f64           median=0.0034s stdev=0.0001s max_diff=0.0e+00
+nccl_async_g1_f64          median=0.0053s stdev=0.0001s max_diff=0.0e+00
+nccl_async_g1_f64_sep      median=0.0053s stdev=0.0011s max_diff=0.0e+00
+nccl_async_g2_f64          median=0.0039s stdev=0.0002s max_diff=0.0e+00
+nccl_async_g2_f64_sep      median=0.0042s stdev=0.0003s max_diff=0.0e+00
+nccl_sync_g1_i32           median=0.0046s stdev=0.0001s max_diff=0.0e+00
+nccl_sync_g2_i32           median=0.0032s stdev=0.0001s max_diff=0.0e+00
+nccl_async_g1_i32          median=0.0053s stdev=0.0001s max_diff=0.0e+00
+nccl_async_g1_i32_sep      median=0.0053s stdev=0.0001s max_diff=0.0e+00
+nccl_async_g2_i32          median=0.0038s stdev=0.0003s max_diff=0.0e+00
+nccl_async_g2_i32_sep      median=0.0039s stdev=0.0002s max_diff=0.0e+00
+nccl_sync_g1_packed        median=0.0046s stdev=0.0015s max_diff=0.0e+00
+nccl_sync_g2_packed        median=0.0032s stdev=0.0016s max_diff=0.0e+00
+nccl_async_g1_packed       median=0.0053s stdev=0.0001s max_diff=0.0e+00
+nccl_async_g1_packed_sep   median=0.0053s stdev=0.0015s max_diff=0.0e+00
+nccl_async_g2_packed       median=0.0039s stdev=0.0002s max_diff=0.0e+00
+nccl_async_g2_packed_sep   median=0.0037s stdev=0.0015s max_diff=0.0e+00
+
+wrote /workspace/rre/results/bench/bench_20260906_044505.json
+wrote /workspace/rre/results/bench/bench_20260906_044505.csv
+source: results/bench/bench_20260906_044505.json
+seed:   20260906   repeats: 30   warmups: 3
+git:    174bb1c8eb6f1a8cd005caac182cbeda2f89df43  tracked-clean (untracked artifacts only)
+image:  sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35
+cpu:    AMD EPYC 7742 64-Core Processor
+gpu:    NVIDIA A100-SXM4-80GB, GPU-ada69b09-3d6e-5ef1-b548-b2b910bdc2ef, 580.126.16
+gpu:    NVIDIA A100-SXM4-80GB, GPU-174ad8b7-efe9-4e14-6960-65d4ce9d5711, 580.126.16
+
+| Backend | Median | Speedup vs same-machine serial |
+| --- | --- | --- |
+| Serial C++ (oracle) | 1250.637 ms | 1.00x |
+| OpenMP 16t dynamic | 94.393 ms | 13.25x |
+| MPI 16 ranks | 277.937 ms | 4.50x |
+| CUDA 1 GPU | 4.173 ms | 299.70x |
+| **NCCL sync `packed`, 2 GPU** | 3.202 ms | 390.64x |
+| NCCL async `packed`, 2 GPU | 3.855 ms | 324.46x |
+
+caption span: 1250.6 ms to 3.2 ms
+  serial                   IQR  1.01%  basis=device_total  group=None order=None
+  openmp_t16_dynamic       IQR  2.01%  basis=device_total  group=None order=None
+  mpi_r16                  IQR  1.66%  basis=device_total  group=None order=None
+  cuda_1gpu                IQR  1.19%  basis=device_total  group=4 order=source
+  nccl_sync_g2_packed      IQR  2.37%  basis=device_total  group=4 order=source
+  nccl_async_g2_packed     IQR 10.05%  basis=pipeline_total  group=4 order=source
+
+timing identity failures: none

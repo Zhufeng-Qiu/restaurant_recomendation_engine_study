@@ -1,0 +1,6 @@
+/workspace/rre/engine/bench/repro_session.py:43: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "utc":__import__("datetime").datetime.utcnow().isoformat(timespec="seconds")+"Z",
+  session=repB seed=20260911
+  f64=3.4555 ms  packed=3.2145 ms
+  compression = -6.99%   95% CI [-17.61%, +5.01%]
+  async packed: median=3.728 ms  IQR=9.5%
