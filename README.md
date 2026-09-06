@@ -156,6 +156,18 @@ With GPUs (`-DENGINE_CUDA=ON -DENGINE_NCCL=ON`):
 export, benchmark sweeps, RMSE — is in
 **[docs/reproduction.md](docs/reproduction.md)**.
 
+## Updates
+
+| Date | What changed | Where |
+| --- | --- | --- |
+| 2026-08-28 | Baseline: serial / OpenMP / MPI / CUDA / NCCL behind one frozen contract. Lossless 3x payload compression, reduced in place. | — |
+| 2026-08-29 | Compression measured on NVLink and PCIe. **The verdict reverses with the link** — the project's central finding. | [analysis](docs/analysis.md) |
+| 2026-09-04 | Async PCIe penalty traced to finalize occupying the communication stream. Timing contract unified; run order randomised; every figure redrawn at 30 trials. | [audit](docs/measurement_audit_20260905.md) |
+| 2026-09-05 | **Measurement audit.** Several published numbers did not mean what they said: the headline mixed two machines, NCCL sync excluded its finalize kernel, "sixteen bits" was 85. Headline rebuilt on one machine, one timing basis. | [audit](docs/measurement_audit_20260905.md) |
+| 2026-09-05 | **Warp packing implemented** — a sub-warp per pair instead of a warp. Default becomes `--group 4 --pair-order source`. The lane-slot model that motivated it does not explain it. | [warp packing](docs/warp_packing_experiment_20260905.md) |
+| 2026-09-06 | Headline re-measured on a clean SHA and **replicated on three independent hosts** (5.3% spread). A 16% shift traced to ~490 ms of diagnostic host work before the timed region; a pure-delay control refuted the explanation I first gave for it. Mechanism left open. | [warp packing §7b](docs/warp_packing_experiment_20260905.md) |
+| 2026-09-06 | README cut from 481 to 168 lines; reproduction steps split out; warp packing given a figure. | [reproduction](docs/reproduction.md) |
+
 ## Documents
 
 | | |
