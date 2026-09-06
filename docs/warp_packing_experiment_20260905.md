@@ -421,6 +421,49 @@ Both cold-path intervals span zero: there is no penalty to find. That
 configuration dominates the phase-3 mapping on every basis measured, which is
 what makes it the default rather than a trade.
 
+## 7b. A 490 ms pause that was flattering every two-GPU number
+
+The lane-plan diagnostics were computed unconditionally until they became
+opt-in (§7). They ran between `ncclCommInitAll` and the timed region, and on
+`item_full` they cost about 490 ms of host-side work. Switching them off did
+not just stop them being counted -- it removed that gap, and the two-GPU sync
+time rose from 2.66 ms to 3.17 ms.
+
+That looked at first like a code regression or host noise. It is neither, and
+the separation is clean across six host-sessions:
+
+| run | nccl sync `packed` 2 GPU | `t_plan_metrics_s` | pause |
+| --- | --- | --- | --- |
+| pre-packing `12e9917` | 3.977 ms | -- (no plan existed) | no |
+| `1abc477` | 2.672 ms | 490.4 ms | **yes** |
+| `cfb8993` | 2.657 ms | 492.5 ms | **yes** |
+| `f4c5a61` | 3.069 ms | 0 | no |
+| `174bb1c` host A | 3.170 ms | 0 | no |
+| `174bb1c` host B | 3.202 ms | 0 | no |
+
+And it is measured rather than inferred. Putting the pause back, paired, 30
+blocks (`results/bench/warp_packing_metrics_pause_*.json`):
+
+| | effect | 95% CI |
+| --- | --- | --- |
+| NCCL 2 GPU, `--plan-metrics on` vs `off` | **-15.37%** | [-16.17, -14.57] |
+| of which `t_stats` | -16.92% | [-17.76, -16.07] |
+| of which AllReduce | +0.37% | [-0.50, +1.25] |
+| **CUDA 1 GPU, same test (control)** | +1.36% | [-1.64, +4.44] |
+
+The two-GPU effect is entirely in the stats kernel, the collective does not
+move, and the single-GPU control is null. Two A100s in one chassis draw twice
+the power, so an idle gap between invocations matters there and not on one
+card: this is a duty-cycle effect, and a benchmark that runs its configurations
+back to back is the honest one.
+
+**What this invalidates and what it does not.** Every paired A/B in this
+document compares two arms inside one session under identical pause conditions,
+so none of them move. What moved is the absolute headline: the intermediate
+2.66 ms figure was flattered, and the correct pause-free comparison is
+pre-packing 3.977 ms against 3.170 ms today -- **-20.3%**, not the -33% the
+intermediate runs implied.
+
 ## 8. What the per-device reporting changed
 
 The full-dimension plan's utilisation is not what a GPU executes, and on
@@ -514,9 +557,14 @@ communication share the compression result depends on.
 * **The CUDA cold-path table in §7 has not been re-measured** on the clean SHA.
   Its defect was NCCL's, not CUDA's, so the numbers should be unchanged — but
   "should be" is not "was".
-* **Three sessions, one host class.** The primary effect reproduced on two
-  independent pods (−36.78%, −36.18%); the headline reproduced on a third
-  (every row within 1.8%, `CUDA 1 GPU` identical to three decimals); the
-  compression effect on the new default reproduced across two (−9.38%
-  [−10.10, −8.66] and −8.78% [−9.40, −8.16]). All are 2x A100-SXM4-80GB with
-  NV12. No other GPU, interconnect or CUDA version has seen this code.
+* **Six host-sessions, one host class.** The mapping effect reproduced on two
+  independent pods (−36.78%, −36.18%). The final pause-free headline reproduced
+  on three hosts with distinct GPU UUIDs, spread 5.3% on the headline speedup —
+  which is the honest error bar, and larger than any single run's IQR. The
+  compression effect on the final default reproduced on three (−7.70%, −9.47%,
+  −6.99%), though the last two have intervals wide enough that only the sign is
+  established. All are 2x A100-SXM4-80GB with NV12. No other GPU, interconnect
+  or CUDA version has seen this code.
+* **The earlier "replicated within 1.8%" claim was luck.** Two sessions
+  agreeing is not replication; a third disagreed by 15.5%, and §7b explains
+  why.
