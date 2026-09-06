@@ -32,16 +32,15 @@ are 1–5 stars: 85 bits of content in 384 bits of wire format. So 56 MB of
 is over the rating dimension, `pack(a) + pack(b) == pack(a + b)` — NCCL never
 sees the uncompressed form.
 
-Whether that 3x is worth anything depends entirely on the link, and that is the
-finding:
+What that 3x is worth **tracks how much of the iteration is communication**:
+9% of the iteration on NVLink buys 7.7%; 91% on a host-staged PCIe link buys
+55%. Those are different physical machines measured at different times, so read
+them as two regimes rather than one variable swapped — but toggling P2P on a
+*single* host moves the same way with everything else fixed, which is what
+makes the trend more than a coincidence of hardware.
 
-| | NVLink (NV12) | PCIe (PHB, no P2P) |
-| --- | --- | --- |
-| Communication is… | 9% of the iteration | 91% of the iteration |
-| …so compressing 3x buys | **7.7%** | **55%** |
-
-**Compressing a collective pays when the collective is the bottleneck, and not
-otherwise** — and the second half is the part usually left out.
+**Compressing a collective pays in proportion to what the collective costs** —
+and the "not otherwise" half is the part usually left out.
 
 ## Layout
 
@@ -89,17 +88,22 @@ CPU rows, **5.3% on the headline speedup** (411.3x / 395.3x / 390.6x) — larger
 than any single run's IQR, and the honest error bar.
 End-to-end RMSE 0.8652 against the archived Spark model's 0.8657.
 
-### Compression, across three interconnect regimes
+### Compression against communication share
 
-![NVLink vs PCIe payload comparison](results/figures/interconnect_comparison.png)
+![Compression gain against communication share, three regimes](results/figures/compression_regimes.png)
 
-The same binary on a host where the collective is 91% of the iteration instead
-of 9%. Every verdict reverses: compression goes from a single-digit gain to
-−55%, async overlap changes sign, and the best configuration moves from sync to
-async. The deciding factor is not the interconnect's name but whether the
-collective is **bandwidth-bound** — effective bandwidth stays flat under
-payload reduction on PCIe (~1.5 GB/s, saturated) and falls on NVLink
-(119 → 76 GB/s), so only the former converts saved bytes into saved time.
+Three hosts, one binary: 11.6% / 76% / 91% communication buys 4.7% / 23.5% /
+55.5%. Those are separate machines, so the line through them is descriptive.
+The joined red pair is the controlled version — one host, `NCCL_P2P_DISABLE`
+toggled, nothing else moved — and it shifts the same way, which is what turns
+"these three hosts happened to line up" into a trend worth stating.
+
+The mechanism is whether the collective is **bandwidth-bound**: effective
+bandwidth stays flat under payload reduction on PCIe (~1.5 GB/s, saturated) and
+falls on NVLink (119 → 76 GB/s), so only the former converts saved bytes into
+saved time. On the slow link async overlap also turns positive and the best
+configuration moves from sync to async. *All PCIe figures predate warp
+packing.*
 
 ### Warp packing
 

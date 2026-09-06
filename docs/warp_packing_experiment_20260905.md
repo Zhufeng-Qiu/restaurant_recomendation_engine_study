@@ -219,12 +219,12 @@ log-ratios and describes this session.
 | `cuda:4:bylen` | `legacy` | **−34.68%** | [−34.98, −34.37] |
 | `cuda:32:source` | `legacy` | **+3.28%** | [+2.86, +3.71] |
 | `cuda:4:bylen` | `cuda:8:bylen` | −3.35% | [−3.59, −3.11] |
-| `nccl2:4:bylen:packed` | `nccl2:32:source:packed` | −47.62% ⚠ | [−47.99, −47.24] |
+| `nccl2:4:bylen:packed` ⚠ | `nccl2:32:source:packed` | −47.62% | [−47.99, −47.24] |
+| `nccl1:4:bylen:packed` ⚠ | `nccl1:32:source:packed` | −35.41% | [−36.88, −33.90] |
 
-⚠ measured with the plan diagnostics running on both arms; superseded by the
-pause-free pair in §7b (`G32/source` → `G4/source` −29.43%, then `G4/source` →
-`G4/bylen` −16.39%).
-| `nccl1:4:bylen:packed` | `nccl1:32:source:packed` | −35.41% | [−36.88, −33.90] |
+⚠ Measured with the plan diagnostics running on both arms. Superseded by the
+pause-free pairs in §7b: `G32/source` → `G4/source` −29.43% [−35.68, −22.58],
+then `G4/source` → `G4/bylen` −16.39% [−22.79, −9.46].
 
 **Session 2**, a different pod (`0fd9…`, GPUs `5749bb50` / `7826451f`), after
 the planner and harness fixes:
@@ -320,11 +320,13 @@ is **consistent with a loss of coalescing** when each lane walks its own row —
 consistent with, not demonstrated; that too would need a memory-transaction
 count, and `ncu` is unavailable.
 
-So the mechanism ledger is: a large term proportional to `G` (redundant slice
-searches), a smaller genuine lane-tail term (visible as `lane_tail` gaining
-18.9% in stats against `lane_full`'s 13.5%, at the same `G=8`), and a
-memory-behaviour penalty that ends the descent at `G=4`. `G=4` is where those three meet on this hardware and this
-workload; nothing here says 4 is universal.
+So the mechanism ledger is: a large term proportional to `G`, **of unknown
+composition** — the redundant slice searches were the obvious candidate and the
+hoist A/B below refutes them; a smaller genuine lane-tail term (visible as
+`lane_tail` gaining 18.9% in stats against `lane_full`'s 13.5%, at the same
+`G=8`); and a memory-behaviour penalty that ends the descent at `G=4`. `G=4` is
+where those three meet on this hardware and this workload; nothing here says 4
+is universal.
 
 ### The hypothesis, tested and rejected
 
@@ -392,24 +394,30 @@ Paired, 30 blocks, per stage:
 | `cold_data_path` | 24.534 ms | 127.101 ms | **+372.62%** | [+327.31, +422.73] |
 
 Sorting the pairs costs about a hundred milliseconds against a kernel of about
-three. **Break-even is roughly 57 queries on one GPU** — 102.6 ms of extra
-planning over 1.80 ms saved per query — so `bylen` belongs to a resident engine
-and not to a single invocation of this binary. The earlier "28 queries" was
-correct arithmetic on a baseline inflated by its own diagnostics.
+three. Comparing like with like — both arms at `G=4`, so only the ordering
+differs — the sort saves 1.011 ms per query and costs 99.37 ms once:
+**break-even is about 98 queries on one GPU**. So `bylen` belongs to a resident
+engine and not to a single invocation of this binary.
+
+Earlier figures here were arithmetic on the wrong pair. "57 queries" compared
+`bylen`-at-`G=4` against `source`-at-`G=32`, which folds the group-size change
+into the sort's payback; "28 queries" did the same against a baseline inflated
+by its own diagnostics.
 
 **On two GPUs it is far worse, and the CUDA number does not carry over.** The
 same-session pause-free A/B (§7b) gives, for `G4/source` → `G4/bylen` on NCCL:
 
 | stage | baseline | candidate | effect | 95% CI |
 | --- | --- | --- | --- | --- |
-| `device_total` | 2.988 ms | 2.499 ms | −16.39% | [−22.79, −9.46] |
+| `device_total` | 3.2055 ms | 2.8175 ms | −16.39% | [−22.79, −9.46] |
+| `t_stats` | 2.909 ms | 2.500 ms | −18.39% | [−24.87, −11.35] |
 | `t_plan` | 1.884 ms | 96.521 ms | +4986% | [+4803, +5174] |
 | `cold_data_path` | 683.5 ms | 783.3 ms | **+16.19%** | [+12.02, +20.51] |
 
-99.8 ms of extra planning against 0.388 ms saved per query is **about 257
-queries** to break even — four and a half times the single-GPU figure, because
-the per-query saving is smaller in absolute terms while the plan costs the
-same. Quoting "57" for a two-GPU deployment would be wrong.
+94.64 ms of extra planning against 0.388 ms saved per query is **about 244
+queries** to break even — two and a half times the single-GPU figure, because
+the per-query saving is smaller in absolute terms while the plan costs about
+the same. Quoting the one-GPU number for a two-GPU deployment would be wrong.
 
 The `t_finalize` row is the scatter, and it is a genuine stage regression: it
 is simply small.
@@ -485,7 +493,10 @@ The obvious reading was that the diagnostics gave the GPUs ~490 ms to idle and
 re-boost. That reading was mine, and the control does not support it.
 `--pre-timing-delay-ms` inserts a *pure sleep* at exactly the point the
 diagnostics occupied, with `--plan-metrics off`, so idle time can be varied on
-its own:
+its own. It needs a profiling build — `cmake -S engine -B engine/build
+-DENGINE_PROFILING=ON …` — because on the default path the delay and the NVML
+sampling are compiled out entirely, and the flag is refused rather than
+ignored:
 
 | NCCL 2 GPU arm | median | `t_stats` | SM clock † | mem clock † | power † | temp † | throttle † |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -521,8 +532,9 @@ The two backends time their stats differently, and only one of them moved:
 NCCL's figure is **host wall clock** and therefore includes launch and
 synchronization overhead; CUDA's is a device-event measurement and excludes it.
 That is exactly the split the data shows: the arm whose measurement contains
-host time moved, the arm whose measurement does not stayed put, and the GPUs
-themselves were in the same state throughout. A sleep parks the calling thread
+host time moved, the arm whose measurement does not stayed put, and the
+device-state samples that were taken -- one per arm, before setup -- show no
+difference between arms. A sleep parks the calling thread
 and lets its core drop into a deep idle state; 478 ms of binary searches and a
 sort keeps it hot, so the launches and the synchronize that follow are quicker
 to get moving.
@@ -626,11 +638,13 @@ Against the gates fixed before the numbers were seen:
 * **Two-GPU gate — passed, with one stage regressing.** Restated on the
   pause-free same-session A/B: `G32/source` → `G4/source` is **−29.43%
   [−35.68, −22.58]** on `device_total`, AllReduce flat (−0.46%, interval
-  spanning zero), the gain entirely in stats (−31.53%). Finalize regresses
-  **+40.99% [+32.96, +49.51]** because it scatters through `order` — small
-  against the stats gain, but "no regression in any stage" would have been
-  false, and this document said it. The earlier −47.62% for this gate was
-  measured with the plan diagnostics running on both arms and is superseded.
+  spanning zero), the gain entirely in stats (−31.53%). **Finalize does not
+  regress on this comparison** — −3.71% [−9.64, +2.60], spanning zero — because
+  both arms scatter through `order`. The +40.99% finalize regression belongs to
+  the *other* A/B (`G4/source` → `G4/bylen`), where the permutation stops being
+  the identity; quoting it here mixed two experiments. The earlier −47.62% for
+  this gate was measured with the plan diagnostics running on both arms and is
+  superseded.
 * **Default-path gate — NOT passed as written.** The instrumented default is
   3.28% slower than legacy, above the 1% threshold.
 

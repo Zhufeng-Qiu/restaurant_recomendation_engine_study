@@ -6,25 +6,34 @@ summarised there.
 
 ## Scaling detail: OpenMP and MPI
 
-OpenMP scaling (M5, 30 trials; the 4→8t knee is the P-core/E-core boundary —
-and the measurement audit below shows that knee, not workload skew, is most of what
-dynamic scheduling buys):
+All three figures below are regenerated from
+`results/bench/bench_20260906_044118.json` — EPYC 7742 + 2x A100-SXM4-80GB,
+30 trials after 3 warm-ups, ranks swept to 32, at the current default
+(`--group 4 --pair-order source`). Regenerate with
+`engine/bench/make_figures.py <bench JSON>`.
 
 ![OpenMP speedup and efficiency](../results/figures/openmp_scaling.png)
 
-MPI scaling (EPYC 7742 pod, 30 trials, ranks to 48; peak 5.04x at 16, and the
-AllReduce share climbs to 51% by 48 ranks — the CPU-time quota and the growing
-collective are confounded there, see the [measurement audit](measurement_audit_20260905.md). On the smaller
-fixtures the collective dominates far earlier: at 9,054 pairs it is 83% and MPI
-turns net slower than serial):
+OpenMP on the EPYC's 64 physical cores behind a ~27-CPU-equivalent cgroup
+quota. Efficiency falls off well before 16 threads, and the quota — not a
+core-type boundary — is the ceiling: this host has no P-core/E-core split. An
+earlier version of this caption described an Apple M-series laptop and no
+longer matches the figure.
 
 ![MPI strong scaling and communication fraction](../results/figures/mpi_scaling.png)
 
-Collective payload compression (A100 NVLink pod, 30 trials; right panel is the
-one that matters — the collective shrinks 1.9x, but it was ~9-11% of the iteration. In the left panel the `async 2 GPU` group is the only one whose
-IQR whiskers are wide enough to see):
+MPI to 32 ranks. The AllReduce share climbs as ranks grow, and the CPU-time
+quota and the growing collective are confounded — see the
+[measurement audit](measurement_audit_20260905.md). On smaller fixtures the
+collective dominates far earlier: at 9,054 pairs it is most of the iteration
+and MPI turns net slower than serial. `item_full` OOMs beyond 32 ranks, each
+rank holding its own copy of the fixture.
 
 ![AllReduce payload comparison](../results/figures/payload_comparison.png)
+
+Payload comparison at the current default. The right panel is the one that
+matters: the collective shrinks ~1.9x, but it is a single-digit share of the
+iteration on NVLink, so the end-to-end gain is bounded by that share.
 
 Raw benchmark logs live in `results/bench/` (regenerate figures with
 `engine/bench/make_figures.py <bench.json>`). The Nsight traces behind
@@ -34,7 +43,7 @@ hosts with credentials in the environment. Everything derived from them is
 written up there.
 
 
-## Reproduction
+## Steps
 
 ### 0. Environment (macOS arm64 used for CPU phases)
 

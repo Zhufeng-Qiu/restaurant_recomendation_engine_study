@@ -44,6 +44,14 @@ pair differs from golden by more than the contract tolerance (1e-12).
 Backend toggles: `-DENGINE_OPENMP=ON`, `-DENGINE_CUDA=ON`, `-DENGINE_MPI=ON`,
 `-DENGINE_NCCL=ON` (each lands in its own phase).
 
+`-DENGINE_PROFILING=ON` additionally builds the **measurement apparatus**: the
+`--pre-timing-delay-ms` flag and NVML device-state sampling, used to
+investigate why host work before a timed region changes the result. It is OFF
+by default and compiled out entirely, because leaving an NVML call on the
+default path would perturb the very thing it exists to study — and the flags
+are refused, not ignored, in a normal build. Ordinary benchmarking does not
+need it.
+
 On macOS, Apple Clang ships no OpenMP runtime, so `-DENGINE_OPENMP=ON` fails to
 configure from a clean tree unless Homebrew's libomp is pointed at explicitly:
 
@@ -73,7 +81,7 @@ the 2026-09-06 ladder at commit `cfb8993`, which also sweeps the lane mapping):
 
 **Performance** is not duplicated here, because two copies of a benchmark table
 drift apart: the current same-machine matrix, its provenance and its figures
-live in the top-level [README](../README.md#backend-comparison), and the
+live in the top-level [README](../README.md#results), and the
 warp-packing analysis in
 [docs/warp_packing_experiment_20260905.md](../docs/warp_packing_experiment_20260905.md).
 The table that used to sit here was measured on a 2026-08-26 laptop against the

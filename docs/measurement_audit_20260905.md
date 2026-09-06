@@ -714,9 +714,9 @@ because they are done: the `PHB` host, the nccl-tests redo, the cross-session
 replication, and the finalize labelling. The async-spread entry is gone for a
 different reason: the IQR reproduced across three independent pods (16.3% /
 15.6% / 16.4% here; 10.9–11.2% in later runs on the current default), so it is
-a reproducible property of this pipeline **on this host class**, not an open
-question — but the magnitude is protocol- and host-dependent and the later
-figure is the one to quote.
+**reproducible under this protocol and host class**, not an open question. It
+is not established as a property of the pipeline as such: the magnitude is
+protocol- and host-dependent, and the later figure is the one to quote.
 
 - **Warp packing is implemented and measured** (2026-09-05, after this audit
   was written): see
