@@ -91,6 +91,30 @@ for fx in item_tiny item_full_lane_full item_full_lane_tail item_full user_full;
 done
 
 # Every mapping must produce output in ORIGINAL pair order, not slot order.
+say "every emitted line is valid JSON" | tee -a "$LADDER"
+# The ladder used to parse only `tail -1`, so a malformed cuda_detail line
+# shipped undetected and failed a benchmark configuration an hour later.
+for spec in "pearson_engine data/fixtures/item_full --backend cuda --validate" \
+            "pearson_engine data/fixtures/item_full --backend cuda --validate --plan-metrics on" \
+            "pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode sync --payload packed --validate" \
+            "pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode sync --payload packed --validate --plan-metrics on" \
+            "pearson_engine_nccl data/fixtures/item_tiny --gpus 2 --mode async --payload packed --validate"; do
+  set -- $spec
+  bin=$1; shift
+  if ./engine/build/"$bin" "$@" 2>/dev/null | python3 -c "
+import json,sys
+n=0
+for line in sys.stdin:
+    line=line.strip()
+    if line.startswith('{'):
+        json.loads(line); n+=1
+sys.exit(0 if n else 1)"; then
+    echo "json  $bin ${*} -> all lines parse" | tee -a "$LADDER"
+  else
+    echo "json  $bin ${*} -> MALFORMED JSON" | tee -a "$LADDER"; fail=1
+  fi
+done
+
 say "output permutation check" | tee -a "$LADDER"
 ./engine/build/pearson_engine data/fixtures/item_full --backend cuda \
     --group 32 --pair-order source --out /tmp/ref.bin >/dev/null

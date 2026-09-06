@@ -37,10 +37,17 @@ if(ENGINE_MPI)
   target_link_libraries(pearson_engine_mpi PRIVATE engine_common MPI::MPI_CXX)
 endif()
 
+# printf format/argument mismatches are how two JSON fields shipped as
+# "(null)" and broke a benchmark configuration mid-run. Make them fatal rather
+# than a warning nobody reads in a 400-line build log.
+set(ENGINE_FORMAT_FLAGS -Wall -Wformat=2 -Werror=format -Werror=format-extra-args)
+
 if(ENGINE_CUDA)
   enable_language(CUDA)
   set(CMAKE_CUDA_STANDARD 17)
   add_library(engine_cuda src/cuda/cuda_backend.cu)
+  target_compile_options(engine_cuda PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Wall,-Wformat=2,-Werror=format>)
   target_include_directories(engine_cuda PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   target_link_libraries(pearson_engine PRIVATE engine_cuda)
   target_compile_definitions(pearson_engine PRIVATE ENGINE_HAVE_CUDA)
@@ -52,6 +59,8 @@ if(ENGINE_NCCL)
   find_library(NCCL_LIB nccl REQUIRED)
   find_path(NCCL_INC nccl.h REQUIRED)
   add_executable(pearson_engine_nccl src/nccl/nccl_main.cu)
+  target_compile_options(pearson_engine_nccl PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Wall,-Wformat=2,-Werror=format>)
   target_include_directories(pearson_engine_nccl PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src ${NCCL_INC})
   target_link_libraries(pearson_engine_nccl PRIVATE ${NCCL_LIB})

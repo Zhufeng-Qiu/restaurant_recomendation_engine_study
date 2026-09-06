@@ -149,6 +149,7 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
       prop.name, t_h2d, t_h2d, t_stats, t_final, t_stats, t_final,
       device_total, t_d2h, map.group, pair_order_name(map.order),
       map.hoist ? "true" : "false", plan.build_seconds, t_plan_metrics,
+      map.plan_metrics ? "true" : "false",
       static_cast<long long>(plan_metrics.effective_elements),
       static_cast<long long>(plan_metrics.lane_slots),
       plan_metrics.utilisation(), occ_json);
