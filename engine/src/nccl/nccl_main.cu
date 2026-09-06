@@ -228,7 +228,7 @@ int run(int argc, char** argv) {
                  "[--chunk PAIRS] [--payload f64|i32|packed] "
                  "[--finalize-stream comm|separate] [--validate] "
                  "[--group 1|2|4|8|16|32] [--pair-order source|bylen] "
-                 "[--hoist on|off] "
+                 "[--hoist on|off] [--plan-metrics on|off] "
                  "[--out f]\n", argv[0]);
     return 2;
   }
@@ -240,6 +240,7 @@ int run(int argc, char** argv) {
                                       // (32 was the phase-3 mapping)
   std::string order_arg = "source";   // "bylen" enables warp packing
   std::string hoist_arg = "off";      // slice bounds once per group, broadcast
+  bool plan_metrics_on = false;       // diagnostics: OFF on the production path
   bool validate = false;
   // Argument parsing refuses what it cannot honour. Silently ignoring an
   // unknown flag, or a flag whose value went missing at the end of the line,
@@ -262,6 +263,12 @@ int run(int argc, char** argv) {
     else if (!std::strcmp(argv[a], "--group")) group = std::atoi(need_value(a++, "--group"));
     else if (!std::strcmp(argv[a], "--pair-order")) order_arg = need_value(a++, "--pair-order");
     else if (!std::strcmp(argv[a], "--hoist")) hoist_arg = need_value(a++, "--hoist");
+    else if (!std::strcmp(argv[a], "--plan-metrics")) {
+      const std::string v = need_value(a++, "--plan-metrics");
+      if (v != "on" && v != "off")
+        throw std::runtime_error("--plan-metrics must be on or off");
+      plan_metrics_on = (v == "on");
+    }
     else if (!std::strcmp(argv[a], "--validate")) validate = true;
     else throw std::runtime_error(std::string("unknown argument ") + argv[a]);
   }
@@ -362,10 +369,12 @@ int run(int argc, char** argv) {
   // t_plan_s: plan_pairs computed it unconditionally, so even --pair-order
   // source paid a ~50 ms length pass it never needed. Both live here now.
   const double diag_begin = wall();
-  const engine::PlanMetrics on_basis = engine::measure_plan(fx, plan, 0, n_dims);
+  engine::PlanMetrics on_basis;
   std::vector<engine::PlanMetrics> per_dev(n_gpus), per_dev_ideal(n_gpus);
   engine::PlanMetrics agg;
   int64_t critical_slots = 0;
+  if (plan_metrics_on) {
+  on_basis = engine::measure_plan(fx, plan, 0, n_dims);
   for (int g = 0; g < n_gpus; ++g) {
     const std::vector<int32_t> len =
         engine::short_lens(fx, dim_range[g].first, dim_range[g].second);
@@ -375,6 +384,7 @@ int run(int argc, char** argv) {
     agg.effective_elements += per_dev[g].effective_elements;
     agg.lane_slots += per_dev[g].lane_slots;
     critical_slots = std::max(critical_slots, per_dev[g].lane_slots);
+  }
   }
   const double diag_end = wall();
   const double t_plan_metrics = diag_end - diag_begin;
@@ -419,9 +429,16 @@ int run(int argc, char** argv) {
   }
   // Untimed warm-up collective: NCCL initializes its kernels/buffers lazily
   // on the first call, which would otherwise land inside the timed region.
+  // Clamped to the buffer that was actually allocated. It used to warm a
+  // fixed 1024 pairs regardless, which reads and writes past the end whenever
+  // the allocation is smaller: a sync run on a fixture with fewer than 1024
+  // pairs, or an async run with --chunk below 512. item_full and item_tiny
+  // (1,223 pairs) both happen to sit above the threshold, which is why it
+  // survived every ladder so far; data/fixtures/domain/ok has 3.
+  const int64_t warmup_pairs = std::min<int64_t>(1024, stats_pairs);
   NCCL_CHECK(ncclGroupStart());
   for (int g = 0; g < n_gpus; ++g) {
-    NCCL_CHECK(ncclAllReduce(devs[g].stats, devs[g].stats, epp * 1024,
+    NCCL_CHECK(ncclAllReduce(devs[g].stats, devs[g].stats, epp * warmup_pairs,
                              nccl_dtype(payload), ncclSum, comms[g],
                              devs[g].compute));
   }
@@ -715,6 +732,7 @@ int run(int argc, char** argv) {
       "\"group\":%d,\"pair_order\":\"%s\",\"hoist\":%s,"
       "\"t_plan_s\":%.6f,\"t_plan_metrics_s\":%.6f,"
       "\"plan_order_basis\":\"global_full_dims\","
+      "\"plan_metrics_computed\":%s,"
       "\"stage_windows_disjoint\":%s,"
       "\"plan_per_device\":%s,"
       "\"plan_critical_lane_slots\":%lld,"
@@ -742,6 +760,7 @@ int run(int argc, char** argv) {
       device_total, t_comm_init, cold_data_path,
       group, order_arg.c_str(), hoist ? "true" : "false",
       plan.build_seconds, t_plan_metrics,
+      plan_metrics_on ? "true" : "false",
       stage_windows_disjoint ? "true" : "false",
       per_device.c_str(),
       static_cast<long long>(critical_slots),

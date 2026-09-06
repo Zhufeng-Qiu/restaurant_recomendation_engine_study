@@ -37,6 +37,7 @@ import statistics
 import signal
 import subprocess
 import sys
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ENGINE = os.path.join(ROOT, "engine", "build", "pearson_engine")
@@ -88,6 +89,24 @@ def cold_data_path_of(trial):
         return (trial["t_load_s"] + trial["t_h2d_s"] + time_of(trial)
                 + trial.get("t_d2h_s", 0.0))
     return None
+
+
+def split_git_status(porcelain):
+    """(tracked_paths, untracked_count) from `git status --porcelain`.
+
+    Written without positional slicing because the callers strip the command's
+    output, which removes the leading space of the FIRST line only -- so a
+    fixed l[3:] eats a character from exactly one path and nothing else, which
+    is the kind of defect that survives review.
+    """
+    tracked, untracked = [], 0
+    for line in (porcelain or "").splitlines():
+        status, _, path = line.strip().partition(" ")
+        if status == "??":
+            untracked += 1
+        elif path.strip():
+            tracked.append(path.strip())
+    return tracked, untracked
 
 
 def timing_identity(trial):
@@ -193,6 +212,11 @@ def selftest():
     m = timing_identity(mpi)
     check(m is not None and not m["checked"] and m["ok"], "mpi is skipped, not failed")
     check(timing_identity({"backend": "cuda"}) is None, "no cold path -> None")
+    # The stripped-first-line trap, which ate a character from exactly one path.
+    tr, un = split_git_status(" M a/b.py\n M c/d.py\n?? e/f.txt")
+    check(tr == ["a/b.py", "c/d.py"] and un == 1, "porcelain parses with leading space")
+    tr, un = split_git_status("M  a/b.py\n M c/d.py\n?? e/f.txt")
+    check(tr == ["a/b.py", "c/d.py"] and un == 1, "porcelain parses when stripped")
     # An overlapping diagnostic window is a failure even when the arithmetic
     # is self-consistent -- which is exactly how it escaped the first time.
     nested = dict(base, cold_data_path_s=0.465, backend="nccl",
@@ -303,6 +327,15 @@ def environment():
     env["git_sha"] = _cmd(["git", "rev-parse", "HEAD"])
     dirty = _cmd(["git", "status", "--porcelain"])
     env["git_dirty"] = bool(dirty) if dirty is not None else None
+    # Split, because "dirty" alone is unreadable: a pod always carries
+    # untracked build directories and result files, and that is not the same
+    # as a modified source file. A run was once described as having no tracked
+    # modifications when it had one, because only the aggregate was recorded.
+    if dirty is not None:
+        tracked, untracked = split_git_status(dirty)
+        env["git_dirty_tracked"] = len(tracked)
+        env["git_dirty_tracked_files"] = tracked[:20]
+        env["git_dirty_untracked"] = untracked
     # Passed in by whatever launched the container; there is no reliable way to
     # read your own image digest from inside it.
     env["image_digest"] = os.environ.get("BENCH_IMAGE_DIGEST")
@@ -344,6 +377,11 @@ def run_once(cmd, env_extra, timeout=None):
     with every later trial for the same GPUs.
     """
     env = dict(os.environ, **env_extra)
+    # Wall clock around the whole process. This is the only true CLI one-shot
+    # available: process launch, dynamic linking and the CUDA driver's first
+    # touch all happen before any code inside the binary could time them, and
+    # cold_data_path_s explicitly excludes them.
+    t_process0 = time.perf_counter()
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                          text=True, env=env, start_new_session=True)
     try:
@@ -370,6 +408,7 @@ def run_once(cmd, env_extra, timeout=None):
             d = json.loads(line)
             rec.update(d.pop("cuda_detail", {}))
             rec.update(d)
+    rec["t_process_wall_s"] = time.perf_counter() - t_process0
     missing = [f for f in REQUIRED_FIELDS if f not in rec]
     if missing:
         raise RuntimeError(f"{' '.join(cmd)} produced no usable record "
@@ -389,7 +428,8 @@ def atomic_write_json(path, doc):
 
 
 def bench_round_robin(configs, warmups, repeats, seed, log=print,
-                      timeout=None, checkpoint=None, resume_from=None):
+                      timeout=None, checkpoint=None, resume_from=None,
+                      fixture=None):
     """Interleave configurations instead of draining each one in turn.
 
     Running 30 consecutive trials of `f64` and then 30 of `packed` confounds
@@ -415,6 +455,27 @@ def bench_round_robin(configs, warmups, repeats, seed, log=print,
         # the generator back where it was -- the resumed half sees the order it
         # would have seen.
         prev = json.load(open(resume_from))
+        # A checkpoint records the experiment it came from. Resuming with
+        # different parameters would silently splice two different experiments
+        # into one result file.
+        for key, now in (("seed", seed), ("repeats", repeats),
+                         ("warmups", warmups)):
+            was = prev.get(key)
+            if was is not None and was != now:
+                raise SystemExit(
+                    f"--resume refused: checkpoint has {key}={was}, this run "
+                    f"has {key}={now}. Re-run with the original value or start "
+                    f"a fresh session.")
+        was_cfgs = prev.get("all_configs")
+        now_cfgs = [c["name"] for c in configs]
+        if was_cfgs is not None and was_cfgs != now_cfgs:
+            raise SystemExit(
+                "--resume refused: the configuration set differs from the "
+                f"checkpoint ({len(was_cfgs)} vs {len(now_cfgs)} configs).")
+        was_fx = prev.get("fixture")
+        if was_fx is not None and fixture is not None and was_fx != fixture:
+            raise SystemExit(
+                f"--resume refused: checkpoint fixture {was_fx!r} != {fixture!r}")
         for name, ts in prev.get("trials_by_config", {}).items():
             if name in trials:
                 trials[name] = ts
@@ -453,7 +514,8 @@ def bench_round_robin(configs, warmups, repeats, seed, log=print,
         if checkpoint:
             atomic_write_json(checkpoint, {
                 "partial": True, "rounds_done": r + 1, "repeats": repeats,
-                "seed": seed, "warmups": warmups,
+                "seed": seed, "warmups": warmups, "fixture": fixture,
+                "all_configs": [c["name"] for c in configs],
                 "live_configs": [c["name"] for c in live],
                 "errors": errors, "trials_by_config": trials,
             })
@@ -551,7 +613,7 @@ def main():
     all_trials, errors = bench_round_robin(
         configs, args.warmups, args.repeats, seed, log=log,
         timeout=(args.timeout or None), checkpoint=ckpt,
-        resume_from=args.resume)
+        resume_from=args.resume, fixture=args.fixture)
 
     results = []
     for cfg in configs:
@@ -587,7 +649,17 @@ def main():
         }
         colds = [v for v in (cold_data_path_of(t) for t in trials) if v is not None]
         if colds:
+            # In-process, and it excludes process launch, dynamic linking and
+            # the CUDA driver's first touch -- and, since plan diagnostics are
+            # opt-in, whatever those cost when they are switched on. It is a
+            # data-path estimate, not a caller-visible latency.
+            rec["data_path_median_s"] = statistics.median(colds)
             rec["cold_data_path_median_s"] = statistics.median(colds)
+        walls = [t["t_process_wall_s"] for t in trials if "t_process_wall_s" in t]
+        if walls:
+            # The one a caller actually waits for.
+            rec["process_wall_median_s"] = statistics.median(walls)
+            rec["process_wall_min_s"] = min(walls)
         # Wrapped: this is reporting, and reporting must never be able to
         # destroy the measurement. It already did once.
         try:

@@ -129,7 +129,7 @@ artefact of one session.
 
 Key takeaways:
 
-- **316-496x over one CPU core** on the same machine, ~21-33x over the best
+- **316-498x over one CPU core** on the same machine, ~21-33x over the best
   16-thread OpenMP configuration on that machine.
 - **A second GPU now adds 1.63x**, up from 1.21x before warp packing. Only the
   rating dimension is split, so every GPU still touches every pair and the
@@ -153,7 +153,7 @@ Key takeaways:
 <details>
 <summary>Provenance of these numbers</summary>
 
-`results/bench/bench_20260906_002051.json`, image digest
+`results/bench/bench_20260906_005516.json`, image digest
 `sha256:0a360022e8de…` (the tag's manifest at pull time — evidence of the image
 asked for, not proof of the running layer).
 
@@ -330,7 +330,9 @@ bytes into saved time roughly one-for-one.
   therefore worth their complexity on commodity multi-GPU hosts and not on
   NVLink ones — a conclusion neither measurement could have reached alone.
 - `--payload i32`/`packed` are only valid inside their integer domain, and
-  `check_payload_domain()` enforces it. Neither branch fires on the shipped
+  `check_payload_domain()` enforces it. Both rejection branches are exercised
+  by `payload_domain_test` against the synthetic fixtures in
+  `data/fixtures/domain/`; neither fires on the shipped
   fixtures (all {1,2,3,4,5}-rated, worst statistic 34,075 against a 2^21-1
   field), so the gate is **not exercised** — coverable with a synthetic
   fixture, not untestable.

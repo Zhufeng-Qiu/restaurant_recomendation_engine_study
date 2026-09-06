@@ -13,9 +13,10 @@ predicted recovering accounts for well under half of that; the rest tracks the
 
 Two limits on that sentence, both load-bearing. It is **steady state only** —
 on the cold path packing loses, because building the sorted plan costs about
-thirty times the kernel it accelerates (§7). And this is **warp packing v1**:
-`G=4` is optimal for a kernel that still repeats its slice-bound search in
-every lane, and would very likely move if that search were hoisted (§6).
+thirty times the kernel it accelerates (§7). And `G=4` is optimal for *this*
+kernel on *this* hardware: hoisting the slice-bound search was expected to move
+the optimum and, when measured, did not move it at all (§6) — but nothing here
+establishes that 4 survives a different GPU generation, block size or workload.
 
 Three sessions on different pods, all EPYC 7742 with 2x A100-SXM4-80GB
 (NV12): nvcc 12.8.93, NCCL 2.25.1, driver 580.126.16, `sm_80`,

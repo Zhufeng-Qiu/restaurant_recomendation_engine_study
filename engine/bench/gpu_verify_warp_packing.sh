@@ -168,6 +168,49 @@ else
   echo "  rejected: sync + --finalize-stream separate" | tee -a "$LADDER"
 fi
 
+# The NCCL warm-up AllReduce used a fixed 1024 pairs regardless of the buffer
+# it was warming, so anything smaller was an out-of-bounds read and write. Every
+# shipped fixture is larger (item_tiny has 1,223 pairs), which is exactly why it
+# survived every ladder. domain/ok has 3.
+say "tiny fixtures and small chunks (the out-of-bounds boundary)" | tee -a "$LADDER"
+for fx in domain/ok item_tiny; do
+  [ -d "data/fixtures/$fx" ] || continue
+  for gpus in 1 2; do
+    for pl in f64 packed; do
+      line=$(./engine/build/pearson_engine_nccl "data/fixtures/$fx" --gpus "$gpus" \
+             --mode sync --payload "$pl" --validate --group 4 --pair-order source | tail -1)
+      tf=$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['tol_failures'])" "$line")
+      echo "tiny  $fx gpus=$gpus $pl -> tol_failures=$tf" | tee -a "$LADDER"
+      [ "$tf" = 0 ] || fail=1
+    done
+  done
+done
+for chunk in 1 7 256 511 512; do
+  line=$(./engine/build/pearson_engine_nccl data/fixtures/item_tiny --gpus 2 \
+         --mode async --payload packed --validate --chunk "$chunk" | tail -1)
+  tf=$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['tol_failures'])" "$line")
+  echo "tiny  async chunk=$chunk -> tol_failures=$tf" | tee -a "$LADDER"
+  [ "$tf" = 0 ] || fail=1
+done
+
+say "compute-sanitizer on the boundary cases" | tee -a "$LADDER"
+if command -v compute-sanitizer >/dev/null; then
+  for spec in "domain/ok 2 sync 262144" "item_tiny 2 async 7" "item_tiny 2 async 511"; do
+    set -- $spec
+    out=$(compute-sanitizer --tool memcheck ./engine/build/pearson_engine_nccl \
+          "data/fixtures/$1" --gpus "$2" --mode "$3" --chunk "$4" --payload packed \
+          --validate 2>&1 || true)
+    mem=$(printf '%s' "$out" | grep -cE "Invalid __(global|shared|local)__ (read|write)|misaligned|Leaked" || true)
+    if [ "$mem" -eq 0 ]; then
+      echo "memcheck $1 $3 chunk=$4: no memory errors" | tee -a "$LADDER"
+    else
+      echo "memcheck $1 $3 chunk=$4: $mem MEMORY ERRORS" | tee -a "$LADDER"
+      printf '%s\n' "$out" | grep -E "Invalid|misaligned" | head -6 | tee -a "$LADDER"
+      fail=1
+    fi
+  done
+fi
+
 say "compute-sanitizer (memcheck, small fixture, both ends of G)" | tee -a "$LADDER"
 if command -v compute-sanitizer >/dev/null; then
   for g in $LANE_GROUPS; do

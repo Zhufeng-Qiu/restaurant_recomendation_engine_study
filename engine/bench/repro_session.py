@@ -43,6 +43,9 @@ out={"session":tag,"seed":seed,"blocks":len(rows),
      "utc":__import__("datetime").datetime.utcnow().isoformat(timespec="seconds")+"Z",
      "host":socket.gethostname(),"platform":platform.platform(),
      "git_sha":sh("git rev-parse HEAD"),"git_dirty":bool(sh("git status --porcelain")),
+     # tracked vs untracked, because a pod always carries untracked artifacts
+     "git_dirty_tracked":len([l for l in (sh("git status --porcelain") or "").splitlines()
+                              if l.strip().split(" ")[0] != "??"]),
      "image_digest":os.environ.get("BENCH_IMAGE_DIGEST"),
      "gpus":sh("nvidia-smi --query-gpu=name,uuid --format=csv,noheader"),
      "driver":smi("driver_version"),

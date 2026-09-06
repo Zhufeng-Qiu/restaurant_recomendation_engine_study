@@ -53,7 +53,8 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
   const PairPlan plan = plan_pairs(fx, 0, n_dims, map.order, map.group);
   // Diagnostics, timed apart and excluded from every total.
   const auto pm0 = std::chrono::steady_clock::now();
-  const PlanMetrics plan_metrics = measure_plan(fx, plan, 0, n_dims);
+  const PlanMetrics plan_metrics =
+      map.plan_metrics ? measure_plan(fx, plan, 0, n_dims) : PlanMetrics{};
   const double t_plan_metrics =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - pm0).count();
 
@@ -142,6 +143,7 @@ void compute_cuda(const Fixture& fx, std::vector<double>& out) {
       "\"group\":%d,\"pair_order\":\"%s\",\"hoist\":%s,"
       "\"t_plan_s\":%.6f,\"t_plan_metrics_s\":%.6f,"
       "\"plan_order_basis\":\"global_full_dims\","
+      "\"plan_metrics_computed\":%s,"
       "\"plan_effective_elements\":%lld,\"plan_lane_slots\":%lld,"
       "\"plan_lane_utilisation\":%.5f,\"occupancy\":%s}}\n",
       prop.name, t_h2d, t_h2d, t_stats, t_final, t_stats, t_final,

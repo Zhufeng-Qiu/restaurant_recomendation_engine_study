@@ -44,17 +44,35 @@ pair differs from golden by more than the contract tolerance (1e-12).
 Backend toggles: `-DENGINE_OPENMP=ON`, `-DENGINE_CUDA=ON`, `-DENGINE_MPI=ON`,
 `-DENGINE_NCCL=ON` (each lands in its own phase).
 
-## Status (2026-08-26, Apple M-series 10-core laptop)
+## Status
 
-| Backend | Gate                                                | Result |
-| ------- | --------------------------------------------------- | ------ |
-| serial  | microcases + 4 fixtures vs golden                    | max abs diff 0.0; 1.44M pairs/s on item_full |
-| openmp  | bit-identical at 1/2/4/8/16 threads, static+dynamic  | pass; 0.794s -> 0.108s (7.4x at 16 threads) |
-| mpi     | invariant at 1/2/4/8 ranks vs golden and each other   | pass, bit-identical; comm fraction 2.6% (2r) -> 18.7% (8r), 56 MB AllReduce |
-| cuda    | validated on A100: bit-exact on all 4 fixtures         | stats kernel 5.0 ms on item_full (~262x serial) |
-| nccl    | validated on 2x A100 NVLink: sync + async bit-exact    | sync 4.4 ms; async 4.8 ms, 31-34% of comm overlapped (Nsight) |
-| nccl    | `--payload f64/i32/packed` x sync/async x 1/2 GPU: 18 gates | pass, all bit-exact; packed 4.2 ms (3x smaller collective, 1.9x faster AllReduce, 4.3% end to end) |
-| nccl    | same 18 gates re-run on 2x A100 PCIe (PHB, no P2P)     | pass, all bit-exact; AllReduce 78x costlier, so packed cuts the iteration 55% and async turns positive — best config 15.9 ms `async packed` |
+**Correctness gates** (unchanged in kind since 2026-08-26; the counts below are
+the 2026-09-06 ladder at commit `cfb8993`, which also sweeps the lane mapping):
+
+| Backend | Gate | Result |
+| ------- | ---- | ------ |
+| serial  | microcases + 4 fixtures vs golden | max abs diff 0.0 |
+| openmp  | bit-identical at 1/2/4/8/16 threads, static+dynamic | pass |
+| mpi     | invariant at 1/2/4/8 ranks vs golden and each other | pass, bit-identical |
+| cuda    | 5 fixtures x 6 group sizes x 2 orderings x 2 hoist settings | 120 gates, all `max_abs_diff = 0.0` |
+| cuda    | output byte-compared against the baseline mapping | 24 gates, 24 identical |
+| nccl    | 1 and 2 GPU x f64/i32/packed x every mapping | 88 gates, all bit-exact |
+| nccl    | async at chunk 16384 / 262144 / 100003 x `comm`/`separate` | 12 gates, all bit-exact |
+| cli     | invalid group/order/hoist/mode/gpus/chunk, unknown flag, missing value | 13 rejected, 0 accepted |
+| sanitizer | `compute-sanitizer memcheck`, CUDA and NCCL | no memory errors |
+
+**Performance** is not duplicated here, because two copies of a benchmark table
+drift apart: the current same-machine matrix, its provenance and its figures
+live in the top-level [README](../README.md#backend-comparison), and the
+warp-packing analysis in
+[docs/warp_packing_experiment_20260905.md](../docs/warp_packing_experiment_20260905.md).
+The table that used to sit here was measured on a 2026-08-26 laptop against the
+pre-warp-packing default and is superseded on both counts.
+
+**Defaults** are `--group 4 --pair-order source` for both GPU binaries since
+`1abc477`; `--pair-order bylen` is the resident-engine opt-in, and
+`--plan-metrics on` enables the lane-plan diagnostics, which are off by default
+because they cost far more than the kernel they describe.
 
 MPI note: contiguous dimension ranges summed in rank order reproduce the
 serial ascending-dim summation order exactly, which is why partition

@@ -28,8 +28,13 @@ struct CudaMapOptions {
   // repeating the four searches in every lane. Orthogonal to packing on
   // purpose, so the two effects can be attributed separately.
   bool hoist = false;
+  // Plan diagnostics (lengths, lane slots, utilisation) are OFF by default.
+  // Excluding them from a total while still executing them makes the total
+  // a reclassification rather than a saving; the production path does not
+  // compute them at all.
+  bool plan_metrics = false;
   bool is_default() const {
-    return group == 4 && order == PairOrder::kSource && !hoist;
+    return group == 4 && order == PairOrder::kSource && !hoist && !plan_metrics;
   }
 };
 

@@ -71,7 +71,7 @@ int run(int argc, char** argv) {
   if (argc < 2) {
     std::fprintf(stderr, "usage: %s <fixture_dir> [--backend serial] [--validate] [--out f]\n"
                  "       [--group 1|2|4|8|16|32] [--pair-order source|bylen]\n"
-                 "       [--hoist on|off]\n",
+                 "       [--hoist on|off] [--plan-metrics on|off]\n",
                  argv[0]);
     return 2;
   }
@@ -94,6 +94,12 @@ int run(int argc, char** argv) {
         return 2;
       }
       engine::cuda_map_options().group = g;
+    }
+    else if (!std::strcmp(argv[a], "--plan-metrics") && a + 1 < argc) {
+      const std::string v = argv[++a];
+      if (v == "on") engine::cuda_map_options().plan_metrics = true;
+      else if (v == "off") engine::cuda_map_options().plan_metrics = false;
+      else { std::fprintf(stderr, "--plan-metrics must be on or off\n"); return 2; }
     }
     else if (!std::strcmp(argv[a], "--hoist") && a + 1 < argc) {
       const std::string v = argv[++a];

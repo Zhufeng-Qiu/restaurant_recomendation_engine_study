@@ -92,7 +92,9 @@ def parse_arm(spec, legacy_bin):
 
 def run_once(argv):
     """One invocation -> the merged JSON record. Raises on any failure."""
+    t0 = time.perf_counter()
     p = subprocess.run(argv, capture_output=True, text=True)
+    wall = time.perf_counter() - t0
     if p.returncode != 0:
         raise RuntimeError(f"{' '.join(argv)}\n{p.stderr[-800:]}")
     rec = {}
@@ -107,6 +109,8 @@ def run_once(argv):
         raise RuntimeError(f"no JSON from {' '.join(argv)}")
     # Correctness is a precondition for a timing, not a separate report: a
     # fast wrong answer is not a data point.
+    rec["t_process_wall_s"] = wall     # the true CLI one-shot; everything the
+                                       # binary reports excludes process launch
     if rec.get("tol_failures", 0) != 0:
         raise RuntimeError(f"tol_failures={rec['tol_failures']} from {' '.join(argv)}")
     return rec
@@ -122,8 +126,8 @@ def time_of(rec):
 # cold-path figures single samples with no spread, which is how a 50 ms
 # diagnostic pass sat in the cold path unnoticed.
 TRIAL_FIELDS = ("device_total_s", "t_plan_s", "t_plan_metrics_s", "t_h2d_s",
-                "t_setup_s", "t_d2h_s", "cold_data_path_s", "t_stats_s",
-                "t_allreduce_s", "t_finalize_s", "max_abs_diff")
+                "t_setup_s", "t_d2h_s", "cold_data_path_s", "t_process_wall_s",
+                "t_stats_s", "t_allreduce_s", "t_finalize_s", "max_abs_diff")
 
 
 def trial_of(rec):
@@ -154,6 +158,8 @@ def environment():
         "host": os.uname().nodename,
         "git_sha": sh("git rev-parse HEAD"),
         "git_dirty": bool(sh("git status --porcelain")),
+        "git_dirty_tracked":len([l for l in (sh("git status --porcelain") or "").splitlines()
+                                 if l.strip().split(" ")[0] != "??"]),
         "legacy_sha": sh("git -C engine/build-legacy-src rev-parse HEAD"),
         "image_digest": os.environ.get("BENCH_IMAGE_DIGEST"),
         "gpus": sh("nvidia-smi --query-gpu=name,uuid --format=csv,noheader"),
