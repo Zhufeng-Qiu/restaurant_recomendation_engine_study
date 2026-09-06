@@ -14,6 +14,16 @@ option(ENGINE_CUDA   "Build the CUDA backend"   OFF)
 option(ENGINE_MPI    "Build the MPI backend"    OFF)
 option(ENGINE_NCCL   "Build the NCCL backends"  OFF)
 
+# printf format/argument mismatches are how two JSON fields shipped as
+# "(null)" and broke a benchmark configuration mid-run. Fatal, not a warning
+# nobody reads in a 400-line build log. Applied to every target that prints
+# JSON, which is all of them -- the CUDA ones need it via -Xcompiler.
+function(engine_strict_formats target)
+  target_compile_options(${target} PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wformat=2;-Werror=format;-Werror=format-extra-args>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Wall,-Wformat=2,-Werror=format,-Werror=format-extra-args>)
+endfunction()
+
 add_library(engine_common INTERFACE)
 target_include_directories(engine_common INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
@@ -38,16 +48,6 @@ if(ENGINE_MPI)
   target_link_libraries(pearson_engine_mpi PRIVATE engine_common MPI::MPI_CXX)
   engine_strict_formats(pearson_engine_mpi)
 endif()
-
-# printf format/argument mismatches are how two JSON fields shipped as
-# "(null)" and broke a benchmark configuration mid-run. Fatal, not a warning
-# nobody reads in a 400-line build log. Applied to every target that prints
-# JSON, which is all of them -- the CUDA ones need it via -Xcompiler.
-function(engine_strict_formats target)
-  target_compile_options(${target} PRIVATE
-    $<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wformat=2;-Werror=format;-Werror=format-extra-args>
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Wall,-Wformat=2,-Werror=format,-Werror=format-extra-args>)
-endfunction()
 
 if(ENGINE_CUDA)
   enable_language(CUDA)

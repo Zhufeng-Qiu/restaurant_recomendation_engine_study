@@ -44,6 +44,16 @@ pair differs from golden by more than the contract tolerance (1e-12).
 Backend toggles: `-DENGINE_OPENMP=ON`, `-DENGINE_CUDA=ON`, `-DENGINE_MPI=ON`,
 `-DENGINE_NCCL=ON` (each lands in its own phase).
 
+On macOS, Apple Clang ships no OpenMP runtime, so `-DENGINE_OPENMP=ON` fails to
+configure from a clean tree unless Homebrew's libomp is pointed at explicitly:
+
+```
+cmake -S engine -B engine/build -DENGINE_OPENMP=ON \
+  -DOpenMP_CXX_FLAGS="-Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include" \
+  -DOpenMP_CXX_LIB_NAMES=omp \
+  -DOpenMP_omp_LIBRARY=/opt/homebrew/opt/libomp/lib/libomp.dylib
+```
+
 ## Status
 
 **Correctness gates** (unchanged in kind since 2026-08-26; the counts below are
