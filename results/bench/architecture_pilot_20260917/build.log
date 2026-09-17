@@ -1,0 +1,24 @@
+Consolidate compiler generated dependencies of target engine_serial
+Consolidate compiler generated dependencies of target pearson_engine_nccl
+Consolidate compiler generated dependencies of target cuda_emulation_test
+Consolidate compiler generated dependencies of target engine_openmp
+Consolidate compiler generated dependencies of target engine_cuda
+Consolidate compiler generated dependencies of target result_check_test
+Consolidate compiler generated dependencies of target pair_partition_test
+Consolidate compiler generated dependencies of target timing_contract_test
+Consolidate compiler generated dependencies of target payload_domain_test
+Consolidate compiler generated dependencies of target pair_plan_test
+[  8%] Built target engine_serial
+[ 16%] Built target engine_openmp
+[ 25%] Built target result_check_test
+[ 33%] Built target pearson_engine_nccl
+[ 41%] Built target cuda_emulation_test
+[ 50%] Built target timing_contract_test
+[ 58%] Built target pair_partition_test
+[ 83%] Built target payload_domain_test
+[ 83%] Built target pair_plan_test
+[ 83%] Built target engine_cuda
+Consolidate compiler generated dependencies of target microcases_test
+Consolidate compiler generated dependencies of target pearson_engine
+[ 91%] Built target microcases_test
+[100%] Built target pearson_engine

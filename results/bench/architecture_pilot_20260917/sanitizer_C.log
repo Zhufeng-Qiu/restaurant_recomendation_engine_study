@@ -1,0 +1,2073 @@
+========= COMPUTE-SANITIZER
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc1d0b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d505]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+========= Program hit cudaErrorPeerAccessAlreadyEnabled (error 704) due to "peer access is already enabled" on CUDA API call to cudaGetLastError.
+=========     Saved host backtrace up to driver entry point at error
+=========     Host Frame: [0x4caea5]
+=========                in /lib/x86_64-linux-gnu/libcuda.so.1
+=========     Host Frame: [0x115ce0]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc098c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0xc176e]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x6d45c]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5c648]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x5fe71]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x4cf9b]
+=========                in /lib/x86_64-linux-gnu/libnccl.so.2
+=========     Host Frame: [0x94ac2]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+=========     Host Frame:clone [0x125a03]
+=========                in /lib/x86_64-linux-gnu/libc.so.6
+========= 
+{"fixture":"data/fixtures/item_tiny_n129","backend":"nccl","mode":"sync","gpus":2,"chunk":262144,"finalize_stream":"not_applicable","payload":"packed","payload_bytes_per_pair":16,"allreduce_bytes":2064,"n_pairs":129,"partition":"dim","collective_ops_per_iteration":1,"collective_input_bytes_per_rank":2064,"host_output_bytes":1032,"pair_ranges":[{"device":0,"pair_begin":0,"pair_count":129,"dim_lo":0,"dim_hi":7158},{"device":1,"pair_begin":0,"pair_count":129,"dim_lo":7158,"dim_hi":14317}],"timing_basis":"device_total","t_load_s":0.001140,"t_setup_s":0.034930,"t_stats_s":0.011465,"t_allreduce_s":0.000680,"t_finalize_s":0.000554,"t_kernel_s":0.011465,"t_pipeline_s":0.000000,"t_stats_sum_s":0.000000,"t_allreduce_sum_s":0.000000,"t_finalize_sum_s":0.000000,"device_total_s":0.012699,"t_comm_init_s":11.470800,"cold_data_path_s":11.519617,"group":4,"pair_order":"source","hoist":false,"t_plan_s":0.000002,"t_plan_metrics_s":0.000001,"plan_order_basis":"global_full_dims","plan_metrics_computed":false,"stage_windows_disjoint":true,"plan_per_device":[{"device":0,"dim_lo":0,"dim_hi":7158,"effective_elements":0,"lane_slots":0,"lane_utilisation":0.00000,"counterfactual_per_device_sorted_lane_slots":0,"counterfactual_per_device_sorted_utilisation":0.00000},{"device":1,"dim_lo":7158,"dim_hi":14317,"effective_elements":0,"lane_slots":0,"lane_utilisation":0.00000,"counterfactual_per_device_sorted_lane_slots":0,"counterfactual_per_device_sorted_utilisation":0.00000}],"plan_critical_lane_slots":0,"plan_aggregate_effective_elements":0,"plan_aggregate_lane_slots":0,"plan_aggregate_lane_utilisation":0.00000,"global_full_dimension_effective_elements":0,"global_full_dimension_lane_slots":0,"global_full_dimension_lane_utilisation":0.00000,"occupancy":{"registers_per_thread":37,"local_bytes_per_thread":0,"shared_bytes_static":0,"block_size":128,"active_blocks_per_sm":12,"active_warps_per_sm":48,"max_warps_per_sm":64,"multiprocessors":108,"theoretical_occupancy":0.7500,"blocks_if_register_limited":12,"limiter":"registers","measured":"theoretical_only_ncu_unavailable"},"t_d2h_s":0.000046,"validation_ran":true,"validation_passed":true,"max_abs_diff":0.000e+00,"tol_failures":0,"emitted":97,"emitted_golden":97,"emitted_mismatches":0,"nonfinite_output":0,"nonfinite_golden":0,"finite_compared":129}
+========= ERROR SUMMARY: 94 errors

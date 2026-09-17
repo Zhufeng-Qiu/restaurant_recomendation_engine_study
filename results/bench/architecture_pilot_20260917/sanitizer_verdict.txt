@@ -1,0 +1,4 @@
+  sanitizer never printed its ERROR SUMMARY -- it did not complete, so nothing was proved
+  target produced no validated summary JSON -- it did not run to completion under the sanitizer
+  sanitizer never printed its ERROR SUMMARY -- it did not complete, so nothing was proved
+  target produced no validated summary JSON -- it did not run to completion under the sanitizer

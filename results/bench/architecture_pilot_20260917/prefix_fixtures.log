@@ -1,0 +1,15 @@
+source data/fixtures/item_tiny: 1,223 pairs
+  item_tiny_n1           N=   1  single pair
+  item_tiny_n2           N=   2  split 1/1  boundary sims +0.098809 | +0.448170
+  item_tiny_n3           N=   3  split 1/2  boundary sims +0.098809 | +0.448170
+  item_tiny_n63          N=  63  split 31/32  boundary sims -0.015913 | +0.288783
+  item_tiny_n64          N=  64  split 32/32  boundary sims +0.288783 | +0.108496
+  item_tiny_n65          N=  65  split 32/33  boundary sims +0.288783 | +0.108496
+  item_tiny_n127         N= 127  split 63/64  boundary sims -0.200446 | +0.155285
+  item_tiny_n128         N= 128  split 64/64  boundary sims +0.155285 | +0.121064
+  item_tiny_n129         N= 129  split 64/65  boundary sims +0.155285 | +0.121064
+  item_tiny_n511         N= 511  split 255/256  boundary sims +0.330811 | -0.078981
+  item_tiny_n512         N= 512  split 256/256  boundary sims -0.078981 | +0.310298
+  item_tiny_n513         N= 513  split 256/257  boundary sims -0.078981 | +0.310298
+
+12 fixtures written, 0 skipped
