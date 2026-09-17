@@ -159,6 +159,17 @@ add_executable(pair_partition_test tests/pair_partition_test.cpp)
 target_link_libraries(pair_partition_test PRIVATE engine_common)
 add_test(NAME pair_partition COMMAND pair_partition_test)
 
+# Type-check the .cu sources without a CUDA toolkit. nccl_main.cu produced
+# every published GPU number and keeps being edited on a machine that cannot
+# compile it; this catches the defect class that has actually shipped from
+# that (a printf whose arguments did not match its format) before a GPU is
+# rented. It proves nothing about device semantics -- see cuda_stubs/README.md.
+if(PYTHON3)
+  add_test(NAME cuda_syntax
+           COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cuda_syntax_check.py
+                   ${CMAKE_CURRENT_SOURCE_DIR}/src)
+endif()
+
 # The same injections against the real binary: exit code and printed JSON,
 # not just the decision function. A gate whose verdict never reaches the
 # process exit status is not a gate.
