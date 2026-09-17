@@ -261,6 +261,7 @@ def run_matrix(args, log=print):
         "warmup": args.warmup,
         "repeat": args.repeat,
         "n_blocks": n_blocks,
+        "segment_pause_s": args.segment_pause,
         "segments": SEGMENTS if not args.pilot else 1,
         "blocks_per_segment": BLOCKS_PER_SEGMENT if not args.pilot else n_blocks,
         "configs": {n: {"gpus": g, "partition": p, "payload": y}
@@ -286,8 +287,17 @@ def run_matrix(args, log=print):
     by_config = {n: [] for n, _, _, _ in CONFIGS}
     spec = {n: (g, p, y) for n, g, p, y in CONFIGS}
 
+    prev_seg = None
     for b, order in enumerate(plan):
         seg = 0 if args.pilot else b // BLOCKS_PER_SEGMENT
+        # The protocol asks for three time segments, not three consecutive
+        # thirds of one continuous run: the point is to give time-correlated
+        # drift a chance to show up. Running them back to back would make the
+        # segment label describe nothing but position.
+        if prev_seg is not None and seg != prev_seg and args.segment_pause > 0:
+            log(f"  --- segment {seg}: pausing {args.segment_pause:.0f}s ---")
+            time.sleep(args.segment_pause)
+        prev_seg = seg
         block = {"block": b, "segment": seg, "order": list(order),
                  "started": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "runs": {}}
         for name in order:
@@ -528,6 +538,8 @@ def main():
                    help="run N blocks as a pre-flight; not formal data")
     r.add_argument("--failures", type=int, default=1,
                    help="stop after this many failures (0 = never)")
+    r.add_argument("--segment-pause", type=float, default=0.0,
+                   help="seconds of idle between time segments")
 
     a = sub.add_parser("analyze")
     a.add_argument("record")
