@@ -1,6 +1,7 @@
 # Regenerable environments and build trees
 .venv/
 engine/build/
+engine/build-*/
 __pycache__/
 *.pyc
 .DS_Store

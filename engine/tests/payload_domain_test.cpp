@@ -21,6 +21,7 @@
 // Usage: payload_domain_test <domain_fixture_root>
 
 #include <cstdio>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -105,11 +106,124 @@ int main(int argc, char** argv) {
     }
   }
 
+  // ---- capacity boundary, on the pure decision function ----
+  //
+  // These cannot be fixtures: proving that a row of 2^31 elements is refused
+  // would mean building one. check_payload_bounds() takes the extents
+  // directly, so the boundary is testable at a cost of nothing.
+  //
+  // For integer ratings only two of the three bounds can ever fire first --
+  // vmax >= 1 makes vmax^2*max_row >= vmax*max_row >= max_row, so the
+  // second-moment bound dominates, and at vmax = 0 the other two collapse to
+  // zero and only `n <= max_row` is left holding anything. The sum(x) bound
+  // is stated anyway, because a reader should not have to re-derive that it
+  // is implied. The vmax = 0 row below is the case the single old bound got
+  // wrong.
+  {
+    const int64_t kPackedL = 2097151;      // 2^21 - 1
+    const int64_t kI32L = 2147483647;      // 2^31 - 1
+    struct Case {
+      int64_t max_row;
+      double vmax;
+      PayloadKind p;
+      bool want;
+      const char* why;
+    };
+    const std::vector<Case> kBounds = {
+        {kPackedL - 1, 1.0, PayloadKind::Packed, true,  "vmax=1, one inside"},
+        {kPackedL,     1.0, PayloadKind::Packed, true,  "vmax=1, exactly at capacity"},
+        {kPackedL + 1, 1.0, PayloadKind::Packed, false, "vmax=1, one past"},
+        {kPackedL,     0.0, PayloadKind::Packed, true,  "all-zero ratings, n at capacity"},
+        {kPackedL + 1, 0.0, PayloadKind::Packed, false,
+         "all-zero ratings, n one past -- the hole the old single bound left"},
+        {83886,        5.0, PayloadKind::Packed, true,  "Yelp stars, longest row that fits"},
+        {83887,        5.0, PayloadKind::Packed, false, "Yelp stars, one row too long"},
+        {1363,         5.0, PayloadKind::Packed, true,  "item_full's real extents"},
+        {kI32L,        1.0, PayloadKind::I32,    true,  "i32 exactly at capacity"},
+        {kI32L + 1,    1.0, PayloadKind::I32,    false, "i32 one past"},
+        {kI32L + 1,    0.0, PayloadKind::I32,    false, "i32, all-zero ratings, n one past"},
+        {kI32L + 1,    9e9, PayloadKind::F64,    true,  "f64 has no capacity bound"},
+    };
+    for (const Case& c : kBounds) {
+      const engine::DomainVerdict v =
+          engine::check_payload_bounds(c.max_row, c.vmax, c.p);
+      ++checks;
+      if (v.ok != c.want) {
+        std::printf("FAIL bounds max_row=%lld vmax=%g payload=%-6s got %s, "
+                    "expected %s  (%s)\n",
+                    static_cast<long long>(c.max_row), c.vmax,
+                    payload_kind_name(c.p), v.ok ? "accept" : "reject",
+                    c.want ? "accept" : "reject", c.why);
+        ++failures;
+        continue;
+      }
+      if (!v.ok && v.reason.empty()) {
+        std::printf("FAIL bounds max_row=%lld rejected with empty reason\n",
+                    static_cast<long long>(c.max_row));
+        ++failures;
+        continue;
+      }
+      std::printf("ok   bounds max_row=%-11lld vmax=%-4g %-6s %-6s  %s\n",
+                  static_cast<long long>(c.max_row), c.vmax,
+                  payload_kind_name(c.p), v.ok ? "accept" : "reject", c.why);
+    }
+  }
+
+  // ---- non-finite ratings are refused on every path, f64 included ----
+  //
+  // A NaN rating cannot be caught downstream: pearson_finalize's
+  // zero-variance branch turns an abnormal intermediate into a clean 0.0, so
+  // a finite output is not evidence of a finite input.
+  {
+    for (double bad : {std::numeric_limits<double>::quiet_NaN(),
+                       std::numeric_limits<double>::infinity(),
+                       -std::numeric_limits<double>::infinity()}) {
+      Fixture fx;
+      fx.offsets = {0, 2, 4};
+      fx.dims = {0, 1, 0, 1};
+      fx.vals = {3.0, bad, 4.0, 2.0};
+      fx.pairs = {0, 1};
+      fx.golden = {0.0};
+      for (PayloadKind p : {PayloadKind::F64, PayloadKind::I32,
+                            PayloadKind::Packed}) {
+        const engine::DomainVerdict v = check_payload_domain(fx, p);
+        ++checks;
+        if (v.ok) {
+          std::printf("FAIL non-finite rating %g accepted for payload=%s\n",
+                      bad, payload_kind_name(p));
+          ++failures;
+        } else {
+          std::printf("ok   non-finite rating %-4g payload=%-6s reject  %s\n",
+                      bad, payload_kind_name(p), v.reason.substr(0, 40).c_str());
+        }
+      }
+    }
+    // Positive control on the same shape: valid ratings still accepted.
+    Fixture fx;
+    fx.offsets = {0, 2, 4};
+    fx.dims = {0, 1, 0, 1};
+    fx.vals = {3.0, 5.0, 4.0, 2.0};
+    fx.pairs = {0, 1};
+    fx.golden = {0.0};
+    for (PayloadKind p : {PayloadKind::F64, PayloadKind::I32,
+                          PayloadKind::Packed}) {
+      const engine::DomainVerdict v = check_payload_domain(fx, p);
+      ++checks;
+      if (!v.ok) {
+        std::printf("FAIL valid in-memory fixture rejected for payload=%s: %s\n",
+                    payload_kind_name(p), v.reason.c_str());
+        ++failures;
+      } else {
+        std::printf("ok   finite ratings   payload=%-6s accept\n",
+                    payload_kind_name(p));
+      }
+    }
+  }
+
   if (failures) {
     std::printf("\nFAIL: %d of %d checks failed\n", failures, checks);
     return 1;
   }
-  std::printf("\nOK: all %d domain checks pass (%zu fixtures)\n", checks,
-              kExpect.size());
+  std::printf("\nOK: all %d domain checks pass\n", checks);
   return 0;
 }

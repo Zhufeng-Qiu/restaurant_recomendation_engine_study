@@ -322,9 +322,13 @@ int run(int argc, char** argv) {
 
   const double t0 = wall();
   engine::Fixture fx = engine::Fixture::load(dir);
+  // Moved inside the load window on 2026-09-17. It used to sit just after
+  // t_load, so its cost was charged to no stage at all -- invisible while the
+  // f64 path returned immediately, and real now that every payload scans the
+  // ratings for finiteness.
+  check_payload_domain(fx, payload);
   const double t_load = wall() - t0;
   const int64_t n_pairs = fx.n_pairs();
-  check_payload_domain(fx, payload);
 
   int32_t n_dims = 0;
   for (int32_t d : fx.dims) n_dims = std::max(n_dims, d + 1);

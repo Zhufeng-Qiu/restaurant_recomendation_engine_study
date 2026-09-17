@@ -20,6 +20,7 @@
 
 #include "common/fixture.hpp"
 #include "common/pearson.hpp"
+#include "common/payload_domain.hpp"
 #include "common/result_check.hpp"
 #include "serial/serial.hpp"
 #ifdef ENGINE_HAVE_OPENMP
@@ -152,6 +153,20 @@ int run(int argc, char** argv) {
 
   const double t0 = now_s();
   engine::Fixture fx = engine::Fixture::load(dir);
+  // Inside the load window on purpose. Refusing an unusable fixture is part
+  // of loading it, and cold_data_path_s sums the named stages -- a check
+  // wedged between two of them would be charged to nothing at all, which is
+  // the exact class of omission the 2026-09-05 measurement audit was about.
+  // This entry point has no payload concept, so the f64 rules apply: finite
+  // ratings required, no field capacity.
+  {
+    const engine::DomainVerdict dv =
+        engine::check_payload_domain(fx, engine::PayloadKind::F64);
+    if (!dv.ok) {
+      std::fprintf(stderr, "input rejected: %s\n", dv.reason.c_str());
+      return 2;
+    }
+  }
   const double t_load = now_s() - t0;
 
   std::vector<double> sims;
