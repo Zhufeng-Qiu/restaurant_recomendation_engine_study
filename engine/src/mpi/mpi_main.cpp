@@ -24,6 +24,7 @@
 
 #include "common/fixture.hpp"
 #include "common/pearson.hpp"
+#include "common/result_check.hpp"
 
 namespace {
 
@@ -139,9 +140,8 @@ int main(int argc, char** argv) {
   const double t_allreduce = MPI_Wtime() - t2;
 
   double t_finalize = 0.0;
-  int failures = 0;
-  double max_diff = 0.0;
-  int64_t emitted = 0;
+  // Set on rank 0 and broadcast, so every rank leaves with the same status.
+  int failed = 0;
   if (rank == 0) {
     const double t3 = MPI_Wtime();
     std::vector<double> sims(fx.n_pairs());
@@ -153,14 +153,18 @@ int main(int argc, char** argv) {
     }
     t_finalize = MPI_Wtime() - t3;
 
+    engine::ResultVerdict vr;
     if (validate) {
-      for (int64_t k = 0; k < fx.n_pairs(); ++k) {
-        const double d = std::fabs(sims[k] - fx.golden[k]);
-        if (d > max_diff) max_diff = d;
-        if (d > engine::kTol) ++failures;
-        if (sims[k] > engine::kEps) ++emitted;
+      vr = engine::check_result(sims.data(), static_cast<int64_t>(sims.size()),
+                                fx.golden.data(),
+                                static_cast<int64_t>(fx.golden.size()),
+                                fx.n_pairs());
+      if (!vr.passed) {
+        std::fprintf(stderr, "validation FAILED (mpi): %s\n", vr.reason.c_str());
+        failed = 1;
       }
     }
+    const std::string vjson = engine::result_json_fields(vr);
     if (!out_path.empty()) {
       std::ofstream f(out_path, std::ios::binary);
       f.write(reinterpret_cast<const char*>(sims.data()),
@@ -178,17 +182,15 @@ int main(int argc, char** argv) {
         "\"t_allreduce_s\":%.6f,\"t_finalize_s\":%.6f,\"t_d2h_s\":0.000000,"
         "\"device_total_s\":%.6f,\"cold_data_path_s\":%.6f,"
         "\"comm_fraction\":%.4f,\"allreduce_bytes\":%.0f,"
-        "\"validated\":%s,\"max_abs_diff\":%.3e,\"tol_failures\":%d,"
-        "\"emitted\":%lld}\n",
+        "%s}\n",
         dir.c_str(), world, static_cast<long long>(fx.n_pairs()), t_load,
         t_load_max, t_local, t_local, t_allreduce, t_finalize,
         t_total, cold_data_path + t_total,
         t_total > 0 ? t_allreduce / t_total : 0.0, bytes,
-        validate ? "true" : "false", max_diff, failures,
-        static_cast<long long>(emitted));
+        vjson.c_str());
   }
 
-  MPI_Bcast(&failures, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&failed, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Finalize();
-  return (validate && failures > 0) ? 1 : 0;
+  return failed;
 }

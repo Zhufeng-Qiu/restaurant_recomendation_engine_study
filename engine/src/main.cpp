@@ -20,6 +20,7 @@
 
 #include "common/fixture.hpp"
 #include "common/pearson.hpp"
+#include "common/result_check.hpp"
 #include "serial/serial.hpp"
 #ifdef ENGINE_HAVE_OPENMP
 #include "openmp/openmp.hpp"
@@ -158,17 +159,17 @@ int run(int argc, char** argv) {
   it->second(fx, sims);
   const double t_compute = now_s() - t1;
 
-  int failures = 0;
-  double max_diff = 0.0;
-  int64_t emitted = 0;
+  engine::ResultVerdict vr;
   if (validate) {
-    for (int64_t k = 0; k < fx.n_pairs(); ++k) {
-      const double d = std::fabs(sims[k] - fx.golden[k]);
-      if (d > max_diff) max_diff = d;
-      if (d > engine::kTol) ++failures;
-      if (sims[k] > engine::kEps) ++emitted;
-    }
+    vr = engine::check_result(sims.data(), static_cast<int64_t>(sims.size()),
+                              fx.golden.data(),
+                              static_cast<int64_t>(fx.golden.size()),
+                              fx.n_pairs());
+    if (!vr.passed)
+      std::fprintf(stderr, "validation FAILED (%s): %s\n", backend_name.c_str(),
+                   vr.reason.c_str());
   }
+  const std::string vjson = engine::result_json_fields(vr);
 
   if (!out_path.empty()) {
     std::ofstream f(out_path, std::ios::binary);
@@ -196,14 +197,12 @@ int run(int argc, char** argv) {
         "{\"fixture\":\"%s\",\"backend\":\"%s\",\"n_entities\":%lld,\"nnz\":%lld,"
         "\"n_pairs\":%lld,\"t_load_s\":%.6f,\"t_compute_s\":%.6f,"
         "\"cold_data_path_s\":%.6f,"
-        "\"pairs_per_s\":%.0f,\"validated\":%s,\"max_abs_diff\":%.3e,"
-        "\"tol_failures\":%d,\"emitted\":%lld}\n",
+        "\"pairs_per_s\":%.0f,%s}\n",
         dir.c_str(), backend_name.c_str(),
         static_cast<long long>(fx.n_entities()), static_cast<long long>(fx.nnz()),
         static_cast<long long>(fx.n_pairs()), t_load, t_compute, cuda_cold,
         fx.n_pairs() / (t_compute > 0 ? t_compute : 1e-9),
-        validate ? "true" : "false", max_diff, failures,
-        static_cast<long long>(emitted));
+        vjson.c_str());
   } else {
     std::printf(
         "{\"fixture\":\"%s\",\"backend\":\"%s\",\"n_entities\":%lld,\"nnz\":%lld,"
@@ -213,18 +212,16 @@ int run(int argc, char** argv) {
         "\"t_d2h_s\":0.000000,"
         "\"device_total_s\":%.6f,\"cold_data_path_s\":%.6f,"
         "\"t_compute_s\":%.6f,"
-        "\"pairs_per_s\":%.0f,\"validated\":%s,\"max_abs_diff\":%.3e,"
-        "\"tol_failures\":%d,\"emitted\":%lld}\n",
+        "\"pairs_per_s\":%.0f,%s}\n",
         dir.c_str(), backend_name.c_str(),
         static_cast<long long>(fx.n_entities()), static_cast<long long>(fx.nnz()),
         static_cast<long long>(fx.n_pairs()), t_load, t_compute,
         t_compute, t_load + t_compute, t_compute,
         fx.n_pairs() / (t_compute > 0 ? t_compute : 1e-9),
-        validate ? "true" : "false", max_diff, failures,
-        static_cast<long long>(emitted));
+        vjson.c_str());
   }
 
-  return (validate && failures > 0) ? 1 : 0;
+  return (validate && !vr.passed) ? 1 : 0;
 }
 
 }  // namespace

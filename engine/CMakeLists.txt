@@ -143,6 +143,14 @@ if(PYTHON3)
            COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/bench/run_bench.py --selftest)
 endif()
 
+# Fault injection for the shared output validator. The check it replaced could
+# not see a NaN, so an all-NaN run exited 0 with max_abs_diff 0.000e+00; this
+# test reconstructs that check and proves it passes where the new one fails.
+# Header-only, no fixtures, no GPU.
+add_executable(result_check_test tests/result_check_test.cpp)
+target_link_libraries(result_check_test PRIVATE engine_common)
+add_test(NAME result_check COMMAND result_check_test)
+
 # Compressed-payload domain gate (contract 9.4). The shipped fixtures are all
 # inside the domain, so the gate's rejection branches only fire on the
 # synthetic fixtures in data/fixtures/domain/ (tools/make_domain_fixtures.py).

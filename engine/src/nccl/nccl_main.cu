@@ -48,6 +48,7 @@
 #include "cuda/gpu_state.cuh"
 #include "cuda/occupancy.cuh"
 #include "common/payload_domain.hpp"
+#include "common/result_check.hpp"
 #include "common/pearson.hpp"
 #include "cuda/pair_kernel.cuh"
 
@@ -676,17 +677,15 @@ int run(int argc, char** argv) {
                         cudaMemcpyDeviceToHost));
   const double t_d2h = wall() - d0;
 
-  int failures = 0;
-  double max_diff = 0.0;
-  int64_t emitted = 0;
+  engine::ResultVerdict vr;
   if (validate) {
-    for (int64_t k = 0; k < n_pairs; ++k) {
-      const double df = std::fabs(sims[k] - fx.golden[k]);
-      if (df > max_diff) max_diff = df;
-      if (df > engine::kTol) ++failures;
-      if (sims[k] > engine::kEps) ++emitted;
-    }
+    vr = engine::check_result(sims.data(), static_cast<int64_t>(sims.size()),
+                              fx.golden.data(),
+                              static_cast<int64_t>(fx.golden.size()), n_pairs);
+    if (!vr.passed)
+      std::fprintf(stderr, "validation FAILED (nccl): %s\n", vr.reason.c_str());
   }
+  const std::string vjson = engine::result_json_fields(vr);
   if (!out_path.empty()) {
     std::ofstream f(out_path, std::ios::binary);
     f.write(reinterpret_cast<const char*>(sims.data()),
@@ -783,8 +782,7 @@ int run(int argc, char** argv) {
       "\"global_full_dimension_lane_slots\":%lld,"
       "\"global_full_dimension_lane_utilisation\":%.5f,"
       "\"occupancy\":%s,"
-      "\"t_d2h_s\":%.6f,\"validated\":%s,\"max_abs_diff\":%.3e,"
-      "\"tol_failures\":%d,\"emitted\":%lld}\n",
+      "\"t_d2h_s\":%.6f,%s}\n",
       dir.c_str(), mode.c_str(), n_gpus, static_cast<long long>(chunk),
       fs_field.c_str(),
       payload_name(payload),
@@ -812,11 +810,10 @@ int run(int argc, char** argv) {
       static_cast<long long>(on_basis.effective_elements),
       static_cast<long long>(on_basis.lane_slots), on_basis.utilisation(),
       occ_json,
-      t_d2h, validate ? "true" : "false", max_diff, failures,
-      static_cast<long long>(emitted));
+      t_d2h, vjson.c_str());
 
   for (int g = 0; g < n_gpus; ++g) ncclCommDestroy(comms[g]);
-  return (validate && failures > 0) ? 1 : 0;
+  return (validate && !vr.passed) ? 1 : 0;
 }
 
 }  // namespace
