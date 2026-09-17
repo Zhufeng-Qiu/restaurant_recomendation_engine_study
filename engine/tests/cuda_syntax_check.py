@@ -65,28 +65,33 @@ def main():
             with open(scratch, "w") as f:
                 f.write(text)
 
-            cmd = [cxx, "-std=c++17", "-fsyntax-only",
-                   "-Wall", "-Wformat=2", "-Werror=format",
-                   "-Werror=format-extra-args",
-                   "-D__CUDACC__",
-                   "-include", os.path.join(stubs, "shim.h"),
-                   "-I", stubs, "-I", shadow_dir, "-I", src, scratch]
-            p = subprocess.run(cmd, capture_output=True, text=True)
+            # Both build variants. ENGINE_PROFILING is off by default, so
+            # its code is the most likely to rot unnoticed -- and it is the
+            # apparatus that measures the timing boundary, which makes a
+            # silent breakage there particularly expensive.
+            for variant in ([], ["-DENGINE_PROFILING"]):
+              cmd = [cxx, "-std=c++17", "-fsyntax-only",
+                     "-Wall", "-Wformat=2", "-Werror=format",
+                     "-Werror=format-extra-args",
+                     "-D__CUDACC__"] + variant + [
+                     "-include", os.path.join(stubs, "shim.h"),
+                     "-I", stubs, "-I", shadow_dir, "-I", src, scratch]
+              p = subprocess.run(cmd, capture_output=True, text=True)
             # The launch rewrite leaves the grid/block variables unused; that
             # is an artefact of this check, not of the source.
-            noise = [ln for ln in p.stderr.splitlines()
-                     if "unused variable" not in ln
-                     and not ln.strip().startswith(("|", "^", "~"))
-                     and "warning generated" not in ln
-                     and ln.strip()]
-            if p.returncode != 0:
-                failures += 1
-                print(f"FAIL {rel} ({n} launches rewritten)")
-                print("\n".join(noise[:30]))
-            else:
-                print(f"ok   {rel} ({n} launches rewritten, type-checks clean)")
-                for ln in noise[:5]:
-                    print(f"       note: {ln}")
+              noise = [ln for ln in p.stderr.splitlines()
+                       if "unused variable" not in ln
+                       and not ln.strip().startswith(("|", "^", "~"))
+                       and "warning generated" not in ln
+                       and ln.strip()]
+              tag = "profiling" if variant else "default "
+              if p.returncode != 0:
+                  failures += 1
+                  print(f"FAIL {rel} [{tag}] ({n} launches rewritten)")
+                  print("\n".join(noise[:30]))
+              else:
+                  print(f"ok   {rel} [{tag}] ({n} launches rewritten, "
+                        f"type-checks clean)")
 
     if failures:
         print(f"\n{failures} source(s) failed to type-check")

@@ -260,6 +260,16 @@ int run(int argc, char** argv) {
   // and cache as well as giving the GPUs idle time. This isolates the idle
   // time alone.
   int pre_timing_delay_ms = 0;
+  // Two known delays that test where the timing boundary actually is, rather
+  // than asserting it from the source. One goes inside the batch, after the
+  // results reach host memory and before the clock stops; the other goes
+  // after the clock stops, beside the per-iteration validation. A correct
+  // boundary means the first raises resident_host_complete_ms by about the
+  // delay and the second does not raise it at all. Profiling build only --
+  // an apparatus that can inflate the headline must not be on the default
+  // path, which is the same reason the NVML sampling is compiled out.
+  int resident_delay_in_band_ms = 0;
+  int resident_delay_out_of_band_ms = 0;
   // Which axis the work is divided on.
   //
   //   dim  -- every device computes every pair over its own slice of the
@@ -313,6 +323,22 @@ int run(int argc, char** argv) {
       if (v != "on" && v != "off")
         throw std::runtime_error("--plan-metrics must be on or off");
       plan_metrics_on = (v == "on");
+    }
+    else if (!std::strcmp(argv[a], "--resident-delay-in-band-ms")) {
+#if !defined(ENGINE_PROFILING)
+      throw std::runtime_error("--resident-delay-in-band-ms needs a profiling "
+                               "build (-DENGINE_PROFILING=ON)");
+#endif
+      resident_delay_in_band_ms =
+          std::atoi(need_value(a++, "--resident-delay-in-band-ms"));
+    }
+    else if (!std::strcmp(argv[a], "--resident-delay-out-of-band-ms")) {
+#if !defined(ENGINE_PROFILING)
+      throw std::runtime_error("--resident-delay-out-of-band-ms needs a "
+                               "profiling build (-DENGINE_PROFILING=ON)");
+#endif
+      resident_delay_out_of_band_ms =
+          std::atoi(need_value(a++, "--resident-delay-out-of-band-ms"));
     }
     else if (!std::strcmp(argv[a], "--partition"))
       partition_arg = need_value(a++, "--partition");
@@ -736,6 +762,12 @@ int run(int argc, char** argv) {
     //    configuration that copies back from two devices instead of one
     //    should be charged for it. So the copy is inside the batch.
     copy_back();
+
+    // Inside the timed region by construction: if the main metric does not
+    // grow by roughly this much, the clock is not measuring what it claims.
+    if (resident_delay_in_band_ms > 0)
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds(resident_delay_in_band_ms));
   };
 
   std::vector<double> durations_ms;
@@ -763,6 +795,12 @@ int run(int argc, char** argv) {
         // not hundreds, and it is identical in all four configurations, so
         // the PAIRED comparisons are protected. The absolute latency is a
         // between-validation number and is reported as one.
+        // Outside the timed region, beside the validation, for the other
+        // half of the boundary check: this one must NOT appear in the batch
+        // that just finished.
+        if (resident_delay_out_of_band_ms > 0)
+          std::this_thread::sleep_for(
+              std::chrono::milliseconds(resident_delay_out_of_band_ms));
         if (validate)
           per_iteration.push_back(engine::check_result(
               sims.data(), static_cast<int64_t>(sims.size()),
@@ -983,10 +1021,13 @@ int run(int argc, char** argv) {
     std::snprintf(b, sizeof b,
                   "\"schema_version\":\"resident-v1\","
                   "\"host_buffer_kind\":\"pageable\","
+                  "\"resident_delay_in_band_ms\":%d,"
+                  "\"resident_delay_out_of_band_ms\":%d,"
                   "\"warmup_count\":%d,\"repeat_count\":%d,"
                   "\"setup_count\":1,\"pid\":%lld,"
                   "\"resident_host_complete_ms_median\":%.6f,"
                   "\"iterations_validated\":%lld,\"iterations_passed\":%lld,",
+                  resident_delay_in_band_ms, resident_delay_out_of_band_ms,
                   warmup_count, repeat_count,
                   static_cast<long long>(getpid()), median,
                   static_cast<long long>(iterations_validated),
