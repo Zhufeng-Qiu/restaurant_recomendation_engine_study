@@ -151,6 +151,16 @@ add_executable(result_check_test tests/result_check_test.cpp)
 target_link_libraries(result_check_test PRIVATE engine_common)
 add_test(NAME result_check COMMAND result_check_test)
 
+# The same injections against the real binary: exit code and printed JSON,
+# not just the decision function. A gate whose verdict never reaches the
+# process exit status is not a gate.
+if(PYTHON3)
+  add_test(NAME fault_injection_e2e
+           COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/tests/fault_injection_e2e.py
+                   $<TARGET_FILE:pearson_engine>
+                   ${CMAKE_CURRENT_SOURCE_DIR}/../data/fixtures/item_tiny)
+endif()
+
 # Compressed-payload domain gate (contract 9.4). The shipped fixtures are all
 # inside the domain, so the gate's rejection branches only fire on the
 # synthetic fixtures in data/fixtures/domain/ (tools/make_domain_fixtures.py).
