@@ -34,6 +34,7 @@
 
 #include "common/fixture.hpp"
 #include "common/pair_order.hpp"
+#include "common/pair_partition.hpp"
 #include "common/pearson.hpp"
 #include "cuda/pair_kernel.cuh"
 
@@ -79,7 +80,7 @@ const char* emu_name(Emu e) {
 }
 
 Result check(const Fixture& fx, int n_ranges, Emu emu, int group,
-             engine::PairOrder how) {
+             engine::PairOrder how, engine::Partition part) {
   int32_t n_dims = 0;
   for (int32_t d : fx.dims) n_dims = std::max(n_dims, d + 1);
 
@@ -100,6 +101,45 @@ Result check(const Fixture& fx, int n_ranges, Emu emu, int group,
 
   std::vector<double> sims(static_cast<size_t>(n_pairs),
                            std::numeric_limits<double>::quiet_NaN());
+
+  if (part == engine::Partition::Pair) {
+    // No collective. Each device computes its own pairs to completion over
+    // the FULL dimension range, writes each result at its global position in
+    // its own sims array, and the host copies back only its own window --
+    // the same three steps, and the same two index spaces, as the device
+    // code. pair_partition_test replays this arithmetic on synthetic data;
+    // here it runs against real fixtures and real golden similarities, so a
+    // window that is off by one shows up as a similarity that is wrong
+    // rather than as an assertion.
+    if (!engine::order_is_identity(plan.order.data(), n_pairs)) {
+      r.failures = n_pairs;  // the combination the CLI refuses
+      return r;
+    }
+    for (int g = 0; g < n_ranges; ++g) {
+      const engine::Shard sh =
+          engine::shard_for(engine::Partition::Pair, n_pairs, n_dims, g, n_ranges);
+      if (sh.pairs.empty()) continue;  // skipped, not launched at length zero
+      std::vector<double> dev_sims(static_cast<size_t>(n_pairs),
+                                   std::numeric_limits<double>::quiet_NaN());
+      for (int64_t local = 0; local < sh.pairs.count(); ++local) {
+        const int64_t k = plan.order[sh.pairs.begin + local];
+        double total[6];
+        warp_stats(fx, fx.pairs[2 * k], fx.pairs[2 * k + 1], 0, n_dims, group,
+                   total);
+        dev_sims[static_cast<size_t>(k)] = finalize_six(total);
+      }
+      for (int64_t i = 0; i < sh.pairs.count(); ++i)
+        sims[static_cast<size_t>(sh.pairs.begin + i)] =
+            dev_sims[static_cast<size_t>(sh.pairs.begin + i)];
+    }
+    for (int64_t k = 0; k < n_pairs; ++k) {
+      const double diff = std::fabs(sims[k] - fx.golden[k]);
+      if (diff > r.max_diff) r.max_diff = diff;
+      if (!(diff <= engine::kTol)) ++r.failures;
+    }
+    return r;
+  }
+
   for (int64_t slot = 0; slot < n_pairs; ++slot) {
     const int64_t k = plan.order[slot];
     double total[6] = {};
@@ -155,11 +195,12 @@ int main(int argc, char** argv) {
         for (int group : {1, 2, 4, 8, 16, 32}) {
           for (auto how : {engine::PairOrder::kSource,
                            engine::PairOrder::kByShortLen}) {
-            const Result r = check(fx, n_ranges, emu, group, how);
+            const Result r =
+                check(fx, n_ranges, emu, group, how, engine::Partition::Dim);
             const bool sorted = (how == engine::PairOrder::kByShortLen);
             std::printf(
-                "%-24s payload=%-6s ranges=%d g=%-2d order=%-6s pairs=%lld "
-                "max_abs_diff=%.3e failures=%lld\n",
+                "%-24s part=dim  payload=%-6s ranges=%d g=%-2d order=%-6s "
+                "pairs=%lld max_abs_diff=%.3e failures=%lld\n",
                 argv[a], emu_name(emu), n_ranges, group,
                 sorted ? "bylen" : "source",
                 static_cast<long long>(fx.n_pairs()), r.max_diff,
@@ -167,6 +208,23 @@ int main(int argc, char** argv) {
             if (r.failures > 0) rc = 1;
           }
         }
+      }
+    }
+    // The pair partition runs no collective, so the payload sweep does not
+    // apply to it -- there is nothing to represent on a wire. f64 and the
+    // source order only, which is exactly the surface the CLI exposes.
+    for (int n_ranges : {1, 2, 3}) {
+      for (int group : {1, 2, 4, 8, 16, 32}) {
+        const Result r = check(fx, n_ranges, Emu::F64, group,
+                               engine::PairOrder::kSource,
+                               engine::Partition::Pair);
+        std::printf(
+            "%-24s part=pair payload=f64    ranges=%d g=%-2d order=source "
+            "pairs=%lld max_abs_diff=%.3e failures=%lld\n",
+            argv[a], n_ranges, group,
+            static_cast<long long>(fx.n_pairs()), r.max_diff,
+            static_cast<long long>(r.failures));
+        if (r.failures > 0) rc = 1;
       }
     }
   }
