@@ -135,7 +135,7 @@ add_test(NAME pair_plan COMMAND pair_plan_test)
 # 30-round matrix had finished measuring and before anything was written.
 find_program(PYTHON3 python3)
 if(PYTHON3)
-  foreach(_check check_output check_sanitizer)
+  foreach(_check check_output check_sanitizer architecture_ab)
     add_test(NAME bench_${_check}_selftest
              COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/bench/${_check}.py --selftest)
   endforeach()
