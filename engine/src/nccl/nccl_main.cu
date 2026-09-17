@@ -38,6 +38,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <unistd.h>  // getpid, for tying a resident record to one process
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -47,6 +48,7 @@
 #include "common/pair_order.hpp"
 #include "cuda/gpu_state.cuh"
 #include "cuda/occupancy.cuh"
+#include "common/pair_partition.hpp"
 #include "common/payload_domain.hpp"
 #include "common/result_check.hpp"
 #include "common/pearson.hpp"
@@ -72,6 +74,11 @@ namespace {
 struct Device {
   int id = 0;
   int32_t dim_lo = 0, dim_hi = 0;
+  // Which pairs this device computes. Under --partition dim this is every
+  // pair on every device; under --partition pair it is a disjoint run, and
+  // pair_begin is the offset applied to the ORDER pointer -- never to sims,
+  // which stays full length so finalize's global scatter stays in bounds.
+  int64_t pair_begin = 0, pair_count = 0;
   int64_t* offsets = nullptr;
   int32_t* dims = nullptr;
   double* vals = nullptr;
@@ -232,6 +239,8 @@ int run(int argc, char** argv) {
                  "[--finalize-stream comm|separate] [--validate] "
                  "[--group 1|2|4|8|16|32] [--pair-order source|bylen] "
                  "[--hoist on|off] [--plan-metrics on|off] "
+                 "[--partition dim|pair] "
+                 "[--resident-bench --warmup N --repeat N] "
                  "[--out f]\n", argv[0]);
     return 2;
   }
@@ -251,6 +260,25 @@ int run(int argc, char** argv) {
   // and cache as well as giving the GPUs idle time. This isolates the idle
   // time alone.
   int pre_timing_delay_ms = 0;
+  // Which axis the work is divided on.
+  //
+  //   dim  -- every device computes every pair over its own slice of the
+  //           rating dimensions, and an AllReduce sums the six partial
+  //           statistics. The original decomposition, and the one the
+  //           compressed payload study is about.
+  //   pair -- every device computes a disjoint run of pairs to completion
+  //           over the FULL dimension range. No collective at all.
+  //
+  // Both devices already hold the entire input either way, so this is a
+  // question about where the work goes, not about what is resident.
+  std::string partition_arg = "dim";
+  // Resident benchmarking: set up once, then run the whole batch repeatedly
+  // in this process against the same buffers. The main metric becomes one
+  // host clock around stats -> collective -> finalize -> full copy back,
+  // which is what makes four differently shaped configurations comparable.
+  bool resident_bench = false;
+  int warmup_count = 0;
+  int repeat_count = 1;
   bool validate = false;
   // Argument parsing refuses what it cannot honour. Silently ignoring an
   // unknown flag, or a flag whose value went missing at the end of the line,
@@ -286,11 +314,57 @@ int run(int argc, char** argv) {
         throw std::runtime_error("--plan-metrics must be on or off");
       plan_metrics_on = (v == "on");
     }
+    else if (!std::strcmp(argv[a], "--partition"))
+      partition_arg = need_value(a++, "--partition");
+    else if (!std::strcmp(argv[a], "--resident-bench")) resident_bench = true;
+    else if (!std::strcmp(argv[a], "--warmup"))
+      warmup_count = std::atoi(need_value(a++, "--warmup"));
+    else if (!std::strcmp(argv[a], "--repeat"))
+      repeat_count = std::atoi(need_value(a++, "--repeat"));
     else if (!std::strcmp(argv[a], "--validate")) validate = true;
     else throw std::runtime_error(std::string("unknown argument ") + argv[a]);
   }
   if (mode != "sync" && mode != "async")
     throw std::runtime_error("--mode must be sync or async");
+  if (partition_arg != "dim" && partition_arg != "pair")
+    throw std::runtime_error("--partition must be dim or pair");
+  const engine::Partition partition = (partition_arg == "pair")
+                                          ? engine::Partition::Pair
+                                          : engine::Partition::Dim;
+  // The collective is what the dimension split exists for; the pair split is
+  // defined by not having one. A single-GPU dimension run still issues its
+  // (no-op) AllReduce, deliberately: that is what every published nccl 1gpu
+  // number measured, and changing it here would silently make the old and new
+  // records incomparable. A collective-free single GPU is --partition pair
+  // --gpus 1, which is a configuration in its own right.
+  const bool collective = (partition == engine::Partition::Dim);
+  if (partition == engine::Partition::Pair) {
+    // Refuse rather than run and mislabel. bylen is the dangerous one: the
+    // copy back from each device is a contiguous window, which is only valid
+    // while the order is the identity (see common/pair_partition.hpp).
+    if (mode != "sync")
+      throw std::runtime_error("--partition pair supports --mode sync only");
+    if (payload_arg != "f64")
+      throw std::runtime_error("--partition pair runs no collective, so there "
+                               "is nothing to represent on a wire; use "
+                               "--payload f64");
+    if (order_arg != "source")
+      throw std::runtime_error("--partition pair requires --pair-order source: "
+                               "a sorted order scatters each device's writes "
+                               "across the whole output and the contiguous "
+                               "copy back would return whatever was in the "
+                               "window");
+  }
+  if (resident_bench) {
+    if (mode != "sync")
+      throw std::runtime_error("--resident-bench supports --mode sync only");
+    if (warmup_count < 0)
+      throw std::runtime_error("--warmup must be >= 0");
+    if (repeat_count <= 0)
+      throw std::runtime_error("--repeat must be positive");
+  } else if (warmup_count != 0 || repeat_count != 1) {
+    throw std::runtime_error("--warmup/--repeat need --resident-bench");
+  }
   if (chunk <= 0) throw std::runtime_error("--chunk must be positive");
   if (n_gpus <= 0) throw std::runtime_error("--gpus must be positive");
   {
@@ -329,6 +403,11 @@ int run(int argc, char** argv) {
   check_payload_domain(fx, payload);
   const double t_load = wall() - t0;
   const int64_t n_pairs = fx.n_pairs();
+  // An empty candidate list has no meaningful partition and no batch to
+  // time. Refused outright rather than producing a zero-length record that
+  // would average into a benchmark as a very fast run.
+  if (n_pairs <= 0)
+    throw std::runtime_error(dir + " has no candidate pairs");
 
   int32_t n_dims = 0;
   for (int32_t d : fx.dims) n_dims = std::max(n_dims, d + 1);
@@ -353,9 +432,17 @@ int run(int argc, char** argv) {
   // detection, buffer allocation) and sat outside the timed region until
   // 2026-09-05, so the reported cold path understated itself. Process launch
   // is still excluded -- hence cold_data_path_s rather than a CLI one-shot.
-  const double c0 = wall();
-  NCCL_CHECK(ncclCommInitAll(comms.data(), n_gpus, ids.data()));
-  const double t_comm_init = wall() - c0;
+  //
+  // Skipped entirely under --partition pair. A configuration that claims to
+  // run no collective must not be paying for a communicator either; leaving
+  // the bootstrap in would put the cost it is meant to avoid back into its
+  // cold path.
+  double t_comm_init = 0.0;
+  if (collective) {
+    const double c0 = wall();
+    NCCL_CHECK(ncclCommInitAll(comms.data(), n_gpus, ids.data()));
+    t_comm_init = wall() - c0;
+  }
 
   // Dimension ranges first: they are pure arithmetic, and computing them here
   // lets the plan diagnostics run BEFORE the timed setup window rather than
@@ -363,10 +450,25 @@ int run(int argc, char** argv) {
   // cold_data_path_s -- which the comment beside them denied, and which
   // run_bench's identity check could not catch, because both sides of that
   // check read the same inflated t_setup.
-  std::vector<std::pair<int32_t, int32_t>> dim_range(n_gpus);
+  std::vector<engine::Shard> shards(n_gpus);
   for (int g = 0; g < n_gpus; ++g)
-    dim_range[g] = {static_cast<int32_t>(static_cast<int64_t>(n_dims) * g / n_gpus),
-                    static_cast<int32_t>(static_cast<int64_t>(n_dims) * (g + 1) / n_gpus)};
+    shards[g] = engine::shard_for(partition, n_pairs, n_dims, g, n_gpus);
+
+  // Two properties the pair split depends on, both O(n_gpus) or one pass, and
+  // both checked rather than trusted. "Every pair computed exactly once" is
+  // the entire correctness claim; the identity order is what makes the
+  // contiguous copy back valid. The CLI already refuses --pair-order bylen
+  // here, so this confirms the array really is what the flag claimed.
+  if (partition == engine::Partition::Pair) {
+    std::vector<engine::Range> pr;
+    pr.reserve(n_gpus);
+    for (const engine::Shard& s : shards) pr.push_back(s.pairs);
+    if (!engine::ranges_tile(pr, n_pairs))
+      throw std::runtime_error("pair shards do not tile [0, n_pairs)");
+    if (!engine::order_is_identity(plan.order.data(), n_pairs))
+      throw std::runtime_error("--partition pair needs the identity order, "
+                               "but the plan is a permutation");
+  }
 
   const int64_t epp = elems_per_pair(payload);
   const int64_t stats_pairs = (mode == "sync") ? n_pairs : 2 * chunk;
@@ -399,11 +501,12 @@ int run(int argc, char** argv) {
   if (plan_metrics_on) {
   on_basis = engine::measure_plan(fx, plan, 0, n_dims);
   for (int g = 0; g < n_gpus; ++g) {
-    const std::vector<int32_t> len =
-        engine::short_lens(fx, dim_range[g].first, dim_range[g].second);
+    const int32_t lo = static_cast<int32_t>(shards[g].dims.begin);
+    const int32_t hi = static_cast<int32_t>(shards[g].dims.end);
+    const std::vector<int32_t> len = engine::short_lens(fx, lo, hi);
     per_dev[g] = engine::evaluate_order(plan.order, len, group);
-    per_dev_ideal[g] = engine::counterfactual_per_device_ideal(
-        fx, group, dim_range[g].first, dim_range[g].second);
+    per_dev_ideal[g] =
+        engine::counterfactual_per_device_ideal(fx, group, lo, hi);
     agg.effective_elements += per_dev[g].effective_elements;
     agg.lane_slots += per_dev[g].lane_slots;
     critical_slots = std::max(critical_slots, per_dev[g].lane_slots);
@@ -434,8 +537,10 @@ int run(int argc, char** argv) {
   for (int g = 0; g < n_gpus; ++g) {
     Device& d = devs[g];
     d.id = g;
-    d.dim_lo = dim_range[g].first;    // one source, so the diagnostics above
-    d.dim_hi = dim_range[g].second;   // describe the slice actually executed
+    d.dim_lo = static_cast<int32_t>(shards[g].dims.begin);  // one source, so
+    d.dim_hi = static_cast<int32_t>(shards[g].dims.end);    // the diagnostics
+    d.pair_begin = shards[g].pairs.begin;  // above describe the slice that is
+    d.pair_count = shards[g].pairs.count();  // actually executed
     CUDA_CHECK(cudaSetDevice(g));
     CUDA_CHECK(cudaStreamCreate(&d.compute));
     CUDA_CHECK(cudaStreamCreate(&d.comm));
@@ -477,13 +582,15 @@ int run(int argc, char** argv) {
   // (1,223 pairs) both happen to sit above the threshold, which is why it
   // survived every ladder so far; data/fixtures/domain/ok has 3.
   const int64_t warmup_pairs = std::min<int64_t>(1024, stats_pairs);
-  NCCL_CHECK(ncclGroupStart());
-  for (int g = 0; g < n_gpus; ++g) {
-    NCCL_CHECK(ncclAllReduce(devs[g].stats, devs[g].stats, epp * warmup_pairs,
-                             nccl_dtype(payload), ncclSum, comms[g],
-                             devs[g].compute));
+  if (collective) {
+    NCCL_CHECK(ncclGroupStart());
+    for (int g = 0; g < n_gpus; ++g) {
+      NCCL_CHECK(ncclAllReduce(devs[g].stats, devs[g].stats,
+                               epp * warmup_pairs, nccl_dtype(payload),
+                               ncclSum, comms[g], devs[g].compute));
+    }
+    NCCL_CHECK(ncclGroupEnd());
   }
-  NCCL_CHECK(ncclGroupEnd());
   for (int g = 0; g < n_gpus; ++g) {
     CUDA_CHECK(cudaSetDevice(g));
     CUDA_CHECK(cudaStreamSynchronize(devs[g].compute));
@@ -511,17 +618,61 @@ int run(int argc, char** argv) {
   double t_kernel = 0, t_allreduce = 0, t_finalize = 0, t_pipeline = 0;
   double t_stats_sum = 0, t_allreduce_sum = 0, t_finalize_sum = 0;
 
-  if (mode == "sync") {
-    // 1. Partial statistics on every GPU over its dim range (all pairs).
+  std::vector<double> sims(static_cast<size_t>(n_pairs));
+  double t_d2h = 0.0;
+
+  // Copy every similarity into host memory. Under the dimension split GPU 0
+  // holds all of them; under the pair split each device holds only the window
+  // [pair_begin, pair_begin + pair_count), at GLOBAL positions, so the copy
+  // reads from d.sims + pair_begin and writes to sims.data() + pair_begin.
+  // Reading from d.sims[0] instead is the mistake that returns plausible
+  // similarities for the wrong pairs; cuda_emulation_test reproduces it and
+  // reports 612 wrong pairs of 1,223.
+  auto copy_back = [&]() {
+    const double c0 = wall();
+    if (collective) {
+      CUDA_CHECK(cudaSetDevice(0));
+      CUDA_CHECK(cudaMemcpy(sims.data(), devs[0].sims,
+                            n_pairs * sizeof(double), cudaMemcpyDeviceToHost));
+    } else {
+      for (int g = 0; g < n_gpus; ++g) {
+        Device& d = devs[g];
+        if (d.pair_count <= 0) continue;
+        CUDA_CHECK(cudaSetDevice(g));
+        CUDA_CHECK(cudaMemcpy(sims.data() + d.pair_begin, d.sims + d.pair_begin,
+                              d.pair_count * sizeof(double),
+                              cudaMemcpyDeviceToHost));
+      }
+    }
+    t_d2h = wall() - c0;
+  };
+
+  // One complete batch: statistics, the collective if this partitioning has
+  // one, finalize, and the full copy back to host memory.
+  //
+  // The stage timings are kept exactly as they were -- the stages already
+  // synchronize between themselves, so recording them costs nothing -- and
+  // the resident loop simply wraps a host clock around the whole call. One
+  // implementation, so the staged numbers and the batch number can never
+  // describe different code. In resident mode the stage fields hold the LAST
+  // iteration; durations_ms holds every batch.
+  auto run_batch = [&]() {
+    // 1. Partial statistics. Each device covers its own pair window over its
+    //    own dimension slice; under --partition dim the window is every pair,
+    //    which makes this the same launch it has always been. Only the ORDER
+    //    pointer is offset -- see common/pair_partition.hpp for why sims must
+    //    not be.
     const double k0 = wall();
     for (int g = 0; g < n_gpus; ++g) {
       Device& d = devs[g];
+      if (d.pair_count <= 0) continue;  // empty shard (N < G): skip the launch
       CUDA_CHECK(cudaSetDevice(g));
-      const int64_t blocks = (n_pairs * group + kBlock - 1) / kBlock;
+      const int64_t blocks = (d.pair_count * group + kBlock - 1) / kBlock;
       launch_stats(payload, group, hoist, static_cast<unsigned>(blocks),
-                   d.compute, d, d.order, n_pairs, d.stats);
+                   d.compute, d, d.order + d.pair_begin, d.pair_count, d.stats);
     }
     for (int g = 0; g < n_gpus; ++g) {
+      if (devs[g].pair_count <= 0) continue;
       CUDA_CHECK(cudaSetDevice(g));
       CUDA_CHECK(cudaStreamSynchronize(devs[g].compute));
     }
@@ -531,30 +682,96 @@ int run(int argc, char** argv) {
     //    reduction runs on the compressed words directly: the fields never
     //    carry into one another, so the sum of packed words is the packing of
     //    the summed statistics. Nothing is decompressed until finalize.
+    //    Absent entirely under --partition pair, where the pairs on each
+    //    device are already complete.
     const double a0 = wall();
-    NCCL_CHECK(ncclGroupStart());
-    for (int g = 0; g < n_gpus; ++g) {
-      NCCL_CHECK(ncclAllReduce(devs[g].stats, devs[g].stats, epp * n_pairs,
-                               nccl_dtype(payload), ncclSum, comms[g],
-                               devs[g].compute));
-    }
-    NCCL_CHECK(ncclGroupEnd());
-    for (int g = 0; g < n_gpus; ++g) {
-      CUDA_CHECK(cudaSetDevice(g));
-      CUDA_CHECK(cudaStreamSynchronize(devs[g].compute));
+    if (collective) {
+      NCCL_CHECK(ncclGroupStart());
+      for (int g = 0; g < n_gpus; ++g) {
+        NCCL_CHECK(ncclAllReduce(devs[g].stats, devs[g].stats, epp * n_pairs,
+                                 nccl_dtype(payload), ncclSum, comms[g],
+                                 devs[g].compute));
+      }
+      NCCL_CHECK(ncclGroupEnd());
+      for (int g = 0; g < n_gpus; ++g) {
+        CUDA_CHECK(cudaSetDevice(g));
+        CUDA_CHECK(cudaStreamSynchronize(devs[g].compute));
+      }
     }
     t_allreduce = wall() - a0;
 
-    // 3. Finalize on GPU 0. Timed: cuda and mpi both count their finalize in
-    //    their totals, and until 2026-09-05 this one ran outside the timed
-    //    region, which made every NCCL sync number a stats+AllReduce subtotal
-    //    and quietly favoured it in cross-backend comparisons by 0.5-1%.
+    // 3. Finalize. Timed: cuda and mpi both count their finalize in their
+    //    totals, and until 2026-09-05 this one ran outside the timed region,
+    //    which made every NCCL sync number a stats+AllReduce subtotal and
+    //    quietly favoured it in cross-backend comparisons by 0.5-1%.
+    //
+    //    With a collective the reduced statistics are on every device and
+    //    GPU 0 finalizes all of them. Without one, each device finalizes its
+    //    own window: launch_finalize reads stats[local] and writes
+    //    sims[order[pair_begin + local]], which is a global position -- which
+    //    is exactly why sims stays n_pairs long on every device.
     const double f0 = wall();
-    CUDA_CHECK(cudaSetDevice(0));
-    launch_finalize(payload, n_pairs, devs[0].compute, devs[0].stats,
-                    devs[0].order, devs[0].sims);
-    CUDA_CHECK(cudaStreamSynchronize(devs[0].compute));
+    if (collective) {
+      CUDA_CHECK(cudaSetDevice(0));
+      launch_finalize(payload, n_pairs, devs[0].compute, devs[0].stats,
+                      devs[0].order, devs[0].sims);
+      CUDA_CHECK(cudaStreamSynchronize(devs[0].compute));
+    } else {
+      for (int g = 0; g < n_gpus; ++g) {
+        Device& d = devs[g];
+        if (d.pair_count <= 0) continue;
+        CUDA_CHECK(cudaSetDevice(g));
+        launch_finalize(payload, d.pair_count, d.compute, d.stats,
+                        d.order + d.pair_begin, d.sims);
+      }
+      for (int g = 0; g < n_gpus; ++g) {
+        if (devs[g].pair_count <= 0) continue;
+        CUDA_CHECK(cudaSetDevice(g));
+        CUDA_CHECK(cudaStreamSynchronize(devs[g].compute));
+      }
+    }
     t_finalize = wall() - f0;
+
+    // 4. The results are not usable until they are in host memory, and a
+    //    configuration that copies back from two devices instead of one
+    //    should be charged for it. So the copy is inside the batch.
+    copy_back();
+  };
+
+  std::vector<double> durations_ms;
+  std::vector<engine::ResultVerdict> per_iteration;
+
+  if (mode == "sync") {
+    if (resident_bench) {
+      durations_ms.reserve(static_cast<size_t>(repeat_count));
+      for (int i = 0; i < warmup_count; ++i) run_batch();
+      for (int i = 0; i < repeat_count; ++i) {
+        // Every device idle before the clock starts, so the batch is not
+        // credited with -- or charged for -- the previous one's tail.
+        for (int g = 0; g < n_gpus; ++g) {
+          CUDA_CHECK(cudaSetDevice(g));
+          CUDA_CHECK(cudaDeviceSynchronize());
+        }
+        const double b0 = wall();
+        run_batch();
+        durations_ms.push_back((wall() - b0) * 1e3);
+
+        // Validation happens AFTER the clock stops, every iteration. It is
+        // host work between batches, which this project has measured to
+        // matter: ~490 ms of host work before a timed region moved the
+        // two-GPU stats kernel by ~17%. A validation pass is milliseconds,
+        // not hundreds, and it is identical in all four configurations, so
+        // the PAIRED comparisons are protected. The absolute latency is a
+        // between-validation number and is reported as one.
+        if (validate)
+          per_iteration.push_back(engine::check_result(
+              sims.data(), static_cast<int64_t>(sims.size()),
+              fx.golden.data(), static_cast<int64_t>(fx.golden.size()),
+              n_pairs));
+      }
+    } else {
+      run_batch();
+    }
   } else {
     // ORDER AND ASYNC DO NOT MIX CLEANLY YET. Chunks are contiguous runs of
     // slots, so an ascending-by-length order hands the early chunks the short
@@ -674,12 +891,7 @@ int run(int argc, char** argv) {
     }
   }
 
-  const double d0 = wall();
-  std::vector<double> sims(n_pairs);
-  CUDA_CHECK(cudaSetDevice(0));
-  CUDA_CHECK(cudaMemcpy(sims.data(), devs[0].sims, n_pairs * sizeof(double),
-                        cudaMemcpyDeviceToHost));
-  const double t_d2h = wall() - d0;
+  if (mode != "sync") copy_back();
 
   engine::ResultVerdict vr;
   if (validate) {
@@ -690,6 +902,19 @@ int run(int argc, char** argv) {
       std::fprintf(stderr, "validation FAILED (nccl): %s\n", vr.reason.c_str());
   }
   const std::string vjson = engine::result_json_fields(vr);
+  // In resident mode every iteration was validated and the record must not
+  // report only the last one. One failing batch fails the run.
+  int64_t iterations_validated = 0, iterations_passed = 0;
+  for (const engine::ResultVerdict& v : per_iteration) {
+    ++iterations_validated;
+    if (v.passed) ++iterations_passed;
+  }
+  const bool all_iterations_passed = (iterations_validated == iterations_passed);
+  if (!all_iterations_passed)
+    std::fprintf(stderr, "validation FAILED (nccl): %lld of %lld resident "
+                         "iterations did not match golden\n",
+                 static_cast<long long>(iterations_validated - iterations_passed),
+                 static_cast<long long>(iterations_validated));
   if (!out_path.empty()) {
     std::ofstream f(out_path, std::ios::binary);
     f.write(reinterpret_cast<const char*>(sims.data()),
@@ -711,6 +936,66 @@ int run(int argc, char** argv) {
   // could time them.
   const double cold_data_path = t_load + plan.build_seconds + t_comm_init +
                                 t_setup + device_total + t_d2h;
+  // What each device was responsible for. Emitted for every run, because
+  // "which pairs did that GPU actually compute" is not derivable from the
+  // other fields once there are two ways to divide the work.
+  std::string pair_ranges = "[";
+  for (int g = 0; g < n_gpus; ++g) {
+    char b[256];
+    std::snprintf(b, sizeof b,
+                  "%s{\"device\":%d,\"pair_begin\":%lld,\"pair_count\":%lld,"
+                  "\"dim_lo\":%d,\"dim_hi\":%d}",
+                  g ? "," : "", g, static_cast<long long>(devs[g].pair_begin),
+                  static_cast<long long>(devs[g].pair_count), devs[g].dim_lo,
+                  devs[g].dim_hi);
+    pair_ranges += b;
+  }
+  pair_ranges += "]";
+
+  // The resident block exists only for a resident run. The alternative --
+  // emitting these fields as zeros on a single-shot run -- would make an
+  // unmeasured quantity look like a measured one, and schema_version is what
+  // tells a reader which of the two records they are holding.
+  std::string resident_json;
+  if (resident_bench) {
+    std::string durs = "[";
+    for (size_t i = 0; i < durations_ms.size(); ++i) {
+      char b[64];
+      std::snprintf(b, sizeof b, "%s%.6f", i ? "," : "", durations_ms[i]);
+      durs += b;
+    }
+    durs += "]";
+    std::string vals = "[";
+    for (size_t i = 0; i < per_iteration.size(); ++i) {
+      vals += (i ? "," : "");
+      vals += per_iteration[i].passed ? "true" : "false";
+    }
+    vals += "]";
+    std::vector<double> sorted = durations_ms;
+    std::sort(sorted.begin(), sorted.end());
+    const double median =
+        sorted.empty() ? 0.0
+                       : (sorted.size() % 2
+                              ? sorted[sorted.size() / 2]
+                              : 0.5 * (sorted[sorted.size() / 2 - 1] +
+                                       sorted[sorted.size() / 2]));
+    char b[512];
+    std::snprintf(b, sizeof b,
+                  "\"schema_version\":\"resident-v1\","
+                  "\"host_buffer_kind\":\"pageable\","
+                  "\"warmup_count\":%d,\"repeat_count\":%d,"
+                  "\"setup_count\":1,\"pid\":%lld,"
+                  "\"resident_host_complete_ms_median\":%.6f,"
+                  "\"iterations_validated\":%lld,\"iterations_passed\":%lld,",
+                  warmup_count, repeat_count,
+                  static_cast<long long>(getpid()), median,
+                  static_cast<long long>(iterations_validated),
+                  static_cast<long long>(iterations_passed));
+    resident_json = b;
+    resident_json += "\"durations_ms\":" + durs +
+                     ",\"validation_per_iteration\":" + vals + ",";
+  }
+
   // Held in a named string: taking .c_str() off a temporary inside the printf
   // argument list would dangle before printf reads it.
   const std::string fs_field =
@@ -760,6 +1045,12 @@ int run(int argc, char** argv) {
       "\"chunk\":%lld,\"finalize_stream\":%s,"
       "\"payload\":\"%s\",\"payload_bytes_per_pair\":%lld,"
       "\"allreduce_bytes\":%lld,\"n_pairs\":%lld,"
+      "\"partition\":\"%s\","
+      "\"collective_ops_per_iteration\":%d,"
+      "\"collective_input_bytes_per_rank\":%lld,"
+      "\"host_output_bytes\":%lld,"
+      "\"pair_ranges\":%s,"
+      "%s"
       "\"timing_basis\":\"%s\","
       "\"t_load_s\":%.6f,\"t_setup_s\":%.6f,"
       "\"t_stats_s\":%.6f,\"t_allreduce_s\":%.6f,\"t_finalize_s\":%.6f,"
@@ -791,9 +1082,16 @@ int run(int argc, char** argv) {
       fs_field.c_str(),
       payload_name(payload),
       static_cast<long long>(payload_bytes_per_pair(payload)),
-      static_cast<long long>(payload_bytes_per_pair(payload) * n_pairs),
+      static_cast<long long>(collective ? payload_bytes_per_pair(payload) * n_pairs : 0),
       static_cast<long long>(n_pairs),
-      is_async ? "pipeline_total" : "device_total",
+      engine::partition_name(partition),
+      collective ? 1 : 0,
+      static_cast<long long>(collective ? payload_bytes_per_pair(payload) * n_pairs : 0),
+      static_cast<long long>(n_pairs * sizeof(double)),
+      pair_ranges.c_str(),
+      resident_json.c_str(),
+      resident_bench ? "resident_host_complete"
+                     : (is_async ? "pipeline_total" : "device_total"),
       t_load, t_setup,
       is_async ? t_stats_sum : t_kernel, is_async ? t_allreduce_sum : t_allreduce,
       is_async ? t_finalize_sum : t_finalize,
@@ -816,8 +1114,9 @@ int run(int argc, char** argv) {
       occ_json,
       t_d2h, vjson.c_str());
 
-  for (int g = 0; g < n_gpus; ++g) ncclCommDestroy(comms[g]);
-  return (validate && !vr.passed) ? 1 : 0;
+  if (collective)
+    for (int g = 0; g < n_gpus; ++g) ncclCommDestroy(comms[g]);
+  return (validate && (!vr.passed || !all_iterations_passed)) ? 1 : 0;
 }
 
 }  // namespace
