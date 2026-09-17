@@ -91,16 +91,25 @@ for CFG in "A 1 pair f64" "B 2 dim f64" "C 2 dim packed" "D 2 pair f64"; do
        --resident-bench --warmup 5 --repeat 20 >> "$OUT/reuse.jsonl" 2>>"$OUT/reuse_err.log"; then ok; else bad; fi
 done
 
-say "memory check (compute-sanitizer, tiny, the two pair-split configs)"
+say "memory check (compute-sanitizer, tiny, every config)"
 if command -v compute-sanitizer >/dev/null; then
-  for CFG in "A 1 pair f64" "D 2 pair f64"; do
+  # --allow-nccl-peer only for the configurations that initialise NCCL. The
+  # pair split does not, and must therefore show a clean zero rather than the
+  # 94 cudaErrorPeerAccessAlreadyEnabled that libnccl's bootstrap raises and
+  # swallows -- which is also the check that the 94 are in fact NCCL's.
+  for CFG in "A 1 pair f64 " "D 2 pair f64 " "B 2 dim f64 --allow-nccl-peer" "C 2 dim packed --allow-nccl-peer"; do
     set -- $CFG
     step "sanitizer $1"
-    compute-sanitizer --tool memcheck --error-exitcode 99 \
+    compute-sanitizer --tool memcheck \
       $NCCL data/fixtures/item_tiny_n129 --gpus $2 --partition $3 --payload $4 \
       --mode sync --group 4 --pair-order source --hoist off --plan-metrics off \
       --validate > "$OUT/sanitizer_$1.log" 2>&1
-    python3 engine/bench/check_sanitizer.py "$OUT/sanitizer_$1.log" >> "$OUT/sanitizer_verdict.txt" 2>&1 && ok || bad
+    # check_sanitizer.py reads the combined output on STDIN. Passing the log
+    # as an argument made it judge an empty string, which it correctly called
+    # "never printed its ERROR SUMMARY" -- a checker that refused to pass a
+    # run it had not seen, which is the behaviour it was written for.
+    python3 engine/bench/check_sanitizer.py ${5:-} < "$OUT/sanitizer_$1.log" \
+      >> "$OUT/sanitizer_verdict.txt" 2>&1 && ok || bad
   done
 else
   echo "  compute-sanitizer not installed -- SKIPPED (recorded, not passed)"
