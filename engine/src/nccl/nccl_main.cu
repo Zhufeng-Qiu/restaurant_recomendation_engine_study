@@ -644,7 +644,26 @@ int run(int argc, char** argv) {
   double t_kernel = 0, t_allreduce = 0, t_finalize = 0, t_pipeline = 0;
   double t_stats_sum = 0, t_allreduce_sum = 0, t_finalize_sum = 0;
 
-  std::vector<double> sims(static_cast<size_t>(n_pairs));
+  // One output slot per timed iteration under --resident-bench, so every
+  // batch's results can be checked WITHOUT putting the check between the
+  // batches.
+  //
+  // Validating inside the loop was measured on 2xA100 to cost far more than
+  // the validation: ~5 ms of host work per iteration leaves the GPUs idle
+  // long enough that the driver drops the SM clock from 1410 to ~795 MHz, and
+  // every subsequent batch runs 1.77x slower -- a clean step, mid-run, from
+  // 3.4 ms to 6.1 ms. The same run with validation removed holds 3.4 ms for
+  // all 30 iterations. Clock locking is not permitted inside the container,
+  // so the gap has to go rather than be compensated for.
+  //
+  // The D2H already had to write somewhere; writing to a different offset
+  // costs nothing, so per-iteration coverage is kept in full and the timed
+  // region contains no host work at all.
+  const int64_t out_slots =
+      (resident_bench && validate) ? std::max(1, repeat_count) : 1;
+  std::vector<double> sims(static_cast<size_t>(n_pairs) *
+                           static_cast<size_t>(out_slots));
+  int64_t out_slot = 0;  // which slot the next copy_back fills
   double t_d2h = 0.0;
 
   // Copy every similarity into host memory. Under the dimension split GPU 0
@@ -656,16 +675,17 @@ int run(int argc, char** argv) {
   // reports 612 wrong pairs of 1,223.
   auto copy_back = [&]() {
     const double c0 = wall();
+    double* dst = sims.data() + out_slot * n_pairs;
     if (collective) {
       CUDA_CHECK(cudaSetDevice(0));
-      CUDA_CHECK(cudaMemcpy(sims.data(), devs[0].sims,
+      CUDA_CHECK(cudaMemcpy(dst, devs[0].sims,
                             n_pairs * sizeof(double), cudaMemcpyDeviceToHost));
     } else {
       for (int g = 0; g < n_gpus; ++g) {
         Device& d = devs[g];
         if (d.pair_count <= 0) continue;
         CUDA_CHECK(cudaSetDevice(g));
-        CUDA_CHECK(cudaMemcpy(sims.data() + d.pair_begin, d.sims + d.pair_begin,
+        CUDA_CHECK(cudaMemcpy(dst + d.pair_begin, d.sims + d.pair_begin,
                               d.pair_count * sizeof(double),
                               cudaMemcpyDeviceToHost));
       }
@@ -788,22 +808,23 @@ int run(int argc, char** argv) {
         run_batch();
         durations_ms.push_back((wall() - b0) * 1e3);
 
-        // Validation happens AFTER the clock stops, every iteration. It is
-        // host work between batches, which this project has measured to
-        // matter: ~490 ms of host work before a timed region moved the
-        // two-GPU stats kernel by ~17%. A validation pass is milliseconds,
-        // not hundreds, and it is identical in all four configurations, so
-        // the PAIRED comparisons are protected. The absolute latency is a
-        // between-validation number and is reported as one.
-        // Outside the timed region, beside the validation, for the other
-        // half of the boundary check: this one must NOT appear in the batch
-        // that just finished.
+        // Nothing but the clock read happens here. Each iteration's results
+        // are already in their own slot; they are all checked after the loop.
+        if (validate) out_slot = (out_slot + 1) % out_slots;
+
+        // Outside the timed region, for the other half of the boundary
+        // check: this one must NOT appear in the batch that just finished.
         if (resident_delay_out_of_band_ms > 0)
           std::this_thread::sleep_for(
               std::chrono::milliseconds(resident_delay_out_of_band_ms));
-        if (validate)
+      }
+      // Every timed iteration, checked against golden, after the timing is
+      // over. Same coverage the in-loop check had; none of its cost lands
+      // between two batches.
+      if (validate) {
+        for (int64_t i = 0; i < static_cast<int64_t>(durations_ms.size()); ++i)
           per_iteration.push_back(engine::check_result(
-              sims.data(), static_cast<int64_t>(sims.size()),
+              sims.data() + (i % out_slots) * n_pairs, n_pairs,
               fx.golden.data(), static_cast<int64_t>(fx.golden.size()),
               n_pairs));
       }
@@ -933,7 +954,10 @@ int run(int argc, char** argv) {
 
   engine::ResultVerdict vr;
   if (validate) {
-    vr = engine::check_result(sims.data(), static_cast<int64_t>(sims.size()),
+    const int64_t last = durations_ms.empty()
+                             ? 0
+                             : (durations_ms.size() - 1) % out_slots;
+    vr = engine::check_result(sims.data() + last * n_pairs, n_pairs,
                               fx.golden.data(),
                               static_cast<int64_t>(fx.golden.size()), n_pairs);
     if (!vr.passed)
@@ -956,7 +980,7 @@ int run(int argc, char** argv) {
   if (!out_path.empty()) {
     std::ofstream f(out_path, std::ios::binary);
     f.write(reinterpret_cast<const char*>(sims.data()),
-            static_cast<std::streamsize>(sims.size() * sizeof(double)));
+            static_cast<std::streamsize>(n_pairs * sizeof(double)));
   }
 
   // Unified timing schema. device_total is the cross-backend comparable number
@@ -1021,12 +1045,15 @@ int run(int argc, char** argv) {
     std::snprintf(b, sizeof b,
                   "\"schema_version\":\"resident-v1\","
                   "\"host_buffer_kind\":\"pageable\","
+                  "\"validation_position\":\"after_timed_loop\","
+                  "\"output_slots\":%lld,"
                   "\"resident_delay_in_band_ms\":%d,"
                   "\"resident_delay_out_of_band_ms\":%d,"
                   "\"warmup_count\":%d,\"repeat_count\":%d,"
                   "\"setup_count\":1,\"pid\":%lld,"
                   "\"resident_host_complete_ms_median\":%.6f,"
                   "\"iterations_validated\":%lld,\"iterations_passed\":%lld,",
+                  static_cast<long long>(out_slots),
                   resident_delay_in_band_ms, resident_delay_out_of_band_ms,
                   warmup_count, repeat_count,
                   static_cast<long long>(getpid()), median,

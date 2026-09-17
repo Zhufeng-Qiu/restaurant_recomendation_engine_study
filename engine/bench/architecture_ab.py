@@ -91,6 +91,8 @@ REQUIRED = {
     "n_pairs": int,
     "iterations_validated": int,
     "iterations_passed": int,
+    "validation_position": str,
+    "output_slots": int,
 }
 
 
@@ -119,6 +121,17 @@ def schema_problems(rec, warmup, repeat):
         out.append("warmup/repeat do not match what was asked for")
     if rec["setup_count"] != 1:
         out.append(f"setup ran {rec['setup_count']} times, not once")
+    # Validation inside the timed loop is not a slower measurement, it is a
+    # different one: on 2xA100 the ~5 ms host gap between batches drops the SM
+    # clock from 1410 to ~795 MHz and every later batch runs 1.77x slower, as
+    # a clean step mid-run. A record that validated in the loop is not
+    # comparable to one that did not, so it is rejected rather than merged.
+    if rec["validation_position"] != "after_timed_loop":
+        out.append(f"validation ran {rec['validation_position']!r}, "
+                   "which changes the GPU clock between batches")
+    if rec["output_slots"] < repeat:
+        out.append(f"{rec['output_slots']} output slots for {repeat} "
+                   "iterations -- some batch was not kept to be checked")
     if len(rec["durations_ms"]) != repeat:
         out.append(f"{len(rec['durations_ms'])} durations for {repeat} repeats")
     # Every duration finite and strictly positive. A zero would sail through a
@@ -447,6 +460,7 @@ def selftest():
                         {"device": 1, "pair_begin": 5, "pair_count": 5}],
         "n_pairs": 10, "iterations_validated": 2, "iterations_passed": 2,
         "validation_passed": True, "tol_failures": 0,
+        "validation_position": "after_timed_loop", "output_slots": 2,
         "nonfinite_output": 0, "nonfinite_golden": 0, "emitted_mismatches": 0,
     }
     expect(schema_problems(good, 20, 2) == [], "a well-formed record passes")
@@ -477,6 +491,10 @@ def selftest():
     expect(broken(host_output_bytes=40),
            "a host output that is not 8 bytes per pair is rejected")
     expect(broken(schema_version="v0"), "an old-schema record is rejected")
+    expect(broken(validation_position="in_timed_loop"),
+           "a record that validated between batches is rejected")
+    expect(broken(output_slots=1),
+           "fewer output slots than iterations is rejected")
     expect(broken(timing_basis="device_total"),
            "a non-resident timing basis is rejected")
     dim = dict(good, partition="dim", collective_ops_per_iteration=1,
