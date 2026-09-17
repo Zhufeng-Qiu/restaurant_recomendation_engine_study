@@ -151,6 +151,14 @@ add_executable(result_check_test tests/result_check_test.cpp)
 target_link_libraries(result_check_test PRIVATE engine_common)
 add_test(NAME result_check COMMAND result_check_test)
 
+# Work division on both axes, and the index arithmetic on the way back out.
+# The write path is replayed on the host -- including the three wrong
+# implementations -- because a global-vs-local index confusion produces
+# plausible-looking similarities and is expensive to find on a rented GPU.
+add_executable(pair_partition_test tests/pair_partition_test.cpp)
+target_link_libraries(pair_partition_test PRIVATE engine_common)
+add_test(NAME pair_partition COMMAND pair_partition_test)
+
 # The same injections against the real binary: exit code and printed JSON,
 # not just the decision function. A gate whose verdict never reaches the
 # process exit status is not a gate.
