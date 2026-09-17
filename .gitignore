@@ -56,3 +56,7 @@ original_code/scala/project/target/
 original_code/scala/out/
 data/fixtures/*_lane_full/
 data/fixtures/*_lane_tail/
+# Pair-count boundary prefixes: derived from a tracked fixture by a tracked
+# tool (tools/make_prefix_fixtures.py, under a second), and each one carries a
+# full copy of the source CSR arrays. Regenerated on the host that runs them.
+data/fixtures/*_n[0-9]*/
