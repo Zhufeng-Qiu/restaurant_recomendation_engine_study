@@ -208,9 +208,17 @@ reason to doubt the results above.
   statistics were not read back and compared per iteration, so the specific
   failure mode of a reduced buffer being summed again on the next iteration
   is argued from the source (the stats kernels overwrite rather than
-  accumulate) rather than demonstrated. The 20- and 500-batch reuse runs give
-  indirect evidence: a stale accumulation would change the similarities, and
-  it did not.
+  accumulate) rather than demonstrated.
+
+  The reuse runs are **weaker evidence than they look**. Pearson is invariant
+  under a uniform positive scaling of all six statistics: multiply
+  `(n, Σx, Σy, Σxx, Σyy, Σxy)` by `k` and both numerator and denominator scale
+  by `k²`, leaving the similarity bit-for-bit unchanged. A stale buffer summed
+  again on the next iteration is exactly that kind of uniform scaling. So the
+  20- and 500-batch reuse runs establish that the final similarities are
+  correct every iteration; they cannot exclude a proportional inflation of the
+  statistics behind them. Only a per-iteration read-back of the six statistics
+  would, and it was not run.
 * **Provenance inside the JSON.** `git_sha`, `git_dirty` and `image_digest`
   are null in these formal records, because the pod received a `git archive`
   and had no `.git`. The version link comes from `host_manifest.txt` and

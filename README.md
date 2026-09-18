@@ -63,11 +63,14 @@ All backends compute, for the same candidate pairs, the six sufficient
 statistics (n, Σx, Σy, Σx², Σy², Σxy) over the intersection of two rating
 rows, with pair-local means, minimum overlap 3, zero-variance ⇒ sim 0, an
 output filter `sim > 1e-14`, and absolute tolerance ≤ 1e-12 against the
-serial reference. Under the dimension split (MPI, and NCCL's default) the
-backends partition the RATING DIMENSION and AllReduce partial six-stat
-tensors, and no pair is ever split across devices. `--partition pair` divides
-the candidate pairs instead and runs no collective; each pair is still
-computed in one place, by one device.
+serial reference. The two distributed backends divide the work on different
+axes. Under the **dimension split** (MPI, and NCCL's default) every device
+computes a PARTIAL six-stat tensor for EVERY pair over its own slice of the
+rating dimensions, and the AllReduce sums them — so each pair's statistics are
+split across devices and only exist complete after the reduction. Under
+`--partition pair` each device owns a disjoint run of pairs and computes each
+of them to completion over the full dimension range, so no pair is split and
+there is no collective at all.
 
 ## Results
 
@@ -135,8 +138,9 @@ the previous mapping, with no cold-path penalty. The sort adds another −16.39%
 - **Async overlap loses on a fast link**, and this corrects the project's
   original hypothesis. Overlap's ceiling is `min(compute, comm)/total`: it pays
   when the two are comparable, not when communication is large.
-- **A second GPU adds 1.46x, not 2x.** Only the rating dimension is split, so
-  every GPU still touches every pair.
+- **A second GPU adds 1.46x, not 2x** — in the dimension-partitioned
+  implementation, where only the rating dimension is split, so every GPU still
+  touches every pair. Measured NCCL 1 GPU against NCCL 2 GPU, both `packed`.
 - **Two mechanism hypotheses for warp packing were falsified by their own
   controls** — the lane-slot model that motivated it, and the redundant-search
   explanation that replaced it. The gain is real and its cause is not

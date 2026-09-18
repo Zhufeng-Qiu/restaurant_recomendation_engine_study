@@ -133,10 +133,12 @@ batches. **All verified in this session.**
 * The unit is the **block** — 30 paired observations, not 15,000 iterations.
   The estimator is the paired geometric mean, which is **not** the ratio of
   the two medians.
-* `D/B` is established on every analysis of both workloads. **`C/B` is not:**
-  established on user_full and on all 30 item_full blocks, not established on
-  the two settled item_full segments. Both are published; neither is chosen
-  after the fact.
+* `D/B` is established on every analysis of both workloads. **`C/B` is
+  established in the pre-registered 30-block analysis of both workloads**
+  (0.840 and 0.833). It stops being established in a post-hoc subset of
+  item_full that drops segment 0, leaving n=20. That subset is a
+  time-sensitivity analysis reported alongside the main result; it does not
+  replace it, and nothing shows it to be a steady-state measurement.
 * item_full segment 0 differs from its other two: C drifts +19.9 % and
   D +12.9 % from segment 0 to segment 2, while A and B move ≤0.2 %. user_full,
   run from sustained load, is flat to 2.5 %. A settling explanation fits both

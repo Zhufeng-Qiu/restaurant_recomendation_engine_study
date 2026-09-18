@@ -74,8 +74,8 @@ the 2026-09-06 ladder at commit `cfb8993`, which also sweeps the lane mapping):
 | mpi     | invariant at 1/2/4/8 ranks vs golden and each other | pass, bit-identical |
 | cuda    | 5 fixtures x 6 group sizes x 2 orderings x 2 hoist settings | 120 gates, all `max_abs_diff = 0.0` |
 | cuda    | output byte-compared against the baseline mapping | 24 gates, 24 identical |
-| nccl    | 1 and 2 GPU x f64/i32/packed x every mapping | 88 gates, all bit-exact |
-| nccl    | async at chunk 16384 / 262144 / 100003 x `comm`/`separate` | 12 gates, all bit-exact |
+| nccl    | 1 and 2 GPU x f64/i32/packed x every mapping | 88 gates, all within the 1e-12 tolerance |
+| nccl    | async at chunk 16384 / 262144 / 100003 x `comm`/`separate` | 12 gates, all within the 1e-12 tolerance |
 | cli     | invalid group/order/hoist/mode/gpus/chunk, unknown flag, missing value | 13 rejected, 0 accepted |
 | sanitizer | `compute-sanitizer memcheck`, CUDA and NCCL | no memory errors |
 
@@ -93,8 +93,11 @@ pre-warp-packing default and is superseded on both counts.
 because they cost far more than the kernel they describe.
 
 MPI note: contiguous dimension ranges summed in rank order reproduce the
-serial ascending-dim summation order exactly, which is why partition
-invariance is bit-exact rather than merely within tolerance.
+serial ascending-dim summation order exactly, so the same roundings happen in
+the same sequence and partition invariance should hold bitwise, not merely
+within tolerance. What the gates actually measure is `max_abs_diff = 0.0`,
+which is numeric equality; for doubles that permits exactly one distinct pair
+of bit patterns, +0.0 against -0.0. No bitwise comparison was run.
 
 ## End-to-end RMSE check (2026-08-26)
 
