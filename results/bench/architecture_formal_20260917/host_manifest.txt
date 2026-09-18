@@ -1,0 +1,7 @@
+source_sha=8c8833eaaa22477b89c25663a207fc3af32db89c
+driver=580.126.20
+nvcc=12.4
+image=nvidia/cuda:12.4.1-devel-ubuntu22.04
+0, GPU-ac601ba4-a5cc-b0d2-31db-2d98ea75f570, Enabled, 400.00 W
+1, GPU-9da0cae1-c255-d398-11ae-cf8ae0091449, Enabled, 400.00 W
+clocks_lockable=no (nvidia-smi -lgc refused: no permission in container)
