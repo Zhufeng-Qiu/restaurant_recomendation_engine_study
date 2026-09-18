@@ -137,13 +137,18 @@ def ratio_figure(data, out_path):
     analyses = []
     for fixture, doc, blocks in data:
         segs = sorted({b["segment"] for b in blocks})
-        analyses.append((f"{fixture}\nall 30 blocks", blocks, set(segs), segs))
+        n_all = len([b for b in blocks if b["segment"] in set(segs)])
+        analyses.append((f"{fixture}\nall {n_all} blocks (pre-registered)",
+                         blocks, set(segs), segs))
         if fixture == "item_full":
-            analyses.append((f"{fixture}\nsegments 1+2 (settled)", blocks,
-                             {1, 2}, [1, 2]))
+            n_sub = len([b for b in blocks if b["segment"] in {1, 2}])
+            # Not "settled": that names a conclusion the label is supposed to
+            # stay neutral about. It is a subset chosen after seeing the data.
+            analyses.append((f"{fixture}\nsegments 1+2, n={n_sub} (post-hoc)",
+                             blocks, {1, 2}, [1, 2]))
 
     comps = ab.COMPARISONS[:3]
-    fig, axes = plt.subplots(1, len(comps), figsize=(12, 4.6), sharex=False)
+    fig, axes = plt.subplots(1, len(comps), figsize=(14.5, 4.9), sharex=False)
     for ax, (x, y, meaning) in zip(axes, comps):
         ys, labels, spans = [], [], []
         for k, (label, blocks, keep, segs) in enumerate(analyses):
@@ -164,23 +169,24 @@ def ratio_figure(data, out_path):
         # right edge and collide with the axis frame.
         lo_all = min(lo for lo, _ in spans)
         hi_all = max(hi for _, hi in spans)
-        pad = (hi_all - lo_all) * 0.42
+        pad = (hi_all - lo_all) * 0.58
         ax.set_xlim(lo_all - (hi_all - lo_all) * 0.06, hi_all + pad)
         ax.set_yticks(ys)
-        ax.set_yticklabels(labels, fontsize=8)
+        ax.set_yticklabels(labels, fontsize=7.6)
         ax.set_ylim(-0.6, len(analyses) - 0.2)
         ax.set_xlabel(f"{x}/{y}   (R < 1: {x} faster)")
-        ax.set_title(meaning, fontsize=9.5)
+        ax.set_title(meaning, fontsize=9)
         ax.grid(axis="x", alpha=0.25, lw=0.6)
         ax.set_axisbelow(True)
     fig.suptitle("Paired block ratios, geometric mean with 95% bootstrap interval",
                  fontsize=12.5, y=0.995)
     fig.text(0.5, 0.015,
-             "30 paired blocks per analysis, not 15,000 iterations: the unit is "
-             "the block. Grey with 'n.e.' = interval crosses 1, direction not "
-             "established.\n" + SCOPE.split(";\n")[1],
+             "The unit is the block, not the iteration: n is shown per row "
+             "(30 pre-registered, 20 for the post-hoc item_full subset).\n"
+             "Grey with 'n.e.' = interval crosses 1, direction not "
+             "established.  " + SCOPE.split(";\n")[1],
              ha="center", fontsize=7.4, color="#555")
-    fig.tight_layout(rect=[0, 0.11, 1, 0.95])
+    fig.tight_layout(rect=[0, 0.12, 1, 0.94], w_pad=2.6)
     fig.savefig(out_path, dpi=170)
     print(f"wrote {out_path}")
 

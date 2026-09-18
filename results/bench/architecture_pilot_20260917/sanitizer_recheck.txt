@@ -1,0 +1,30 @@
+# compute-sanitizer re-check, 2026-09-17
+#
+# The sibling sanitizer_verdict.txt is WRONG and is kept as a record of the
+# mistake: gpu_pilot_session.sh passed the log path as an argument, but
+# check_sanitizer.py reads the combined output on stdin. It therefore judged
+# an empty string and reported 'never printed its ERROR SUMMARY' -- the
+# correct answer to the question it was actually asked, and exactly the
+# behaviour it was written for: it refuses to pass a run it has not seen.
+#
+# Re-run locally against the saved logs, with the invocation it expects:
+#
+#   python3 engine/bench/check_sanitizer.py [--allow-nccl-peer] < <log>
+#
+# --allow-nccl-peer is given ONLY to B and C, which initialise NCCL. A and D
+# do not, so their zero is independent evidence that the 94 reports belong
+# to libnccl rather than to this kernel. NCCL 2.21.5 handles and clears the
+# duplicate-peer-access return code in src/transport/p2p.cc.
+#
+# B and C are NOT 'zero reports'. They are 94 reports, reclassified.
+
+A  (no NCCL init, no allowance)  : PASS  ERROR SUMMARY: 0 errors
+D  (no NCCL init, no allowance)  : PASS  ERROR SUMMARY: 0 errors
+B  (NCCL init, --allow-nccl-peer): PASS  ERROR SUMMARY: 94 errors
+C  (NCCL init, --allow-nccl-peer): PASS  ERROR SUMMARY: 94 errors
+
+# control: B without the allowance must FAIL, or the allowance is doing nothing
+B  (NCCL init, no allowance)     : FAIL  <-- expected
+
+# error kinds present, all logs:
+ 188 cudaErrorPeerAccessAlreadyEnabled

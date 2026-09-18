@@ -13,11 +13,13 @@ Two timing bases appear here and they are not interchangeable:
   where there is one, finalize **and the full copy back to host memory**, with
   input already resident. Only the 2026-09-17 work-division study uses it.
 
-A speedup on one basis cannot be compared to a speedup on the other. The
-collective is a large share of a 3.2 ms `device_total` and a smaller share of
-the same batch once the copy back is included, so the same mechanism produces
-a smaller number under `resident_host_complete`. That is expected, not a
-contradiction.
+A speedup on one basis cannot be compared to a speedup on the other, and no
+mechanism is offered here for why they differ. An earlier draft explained the
+difference by the copy back alone and predicted a *smaller* compression gain
+under `resident_host_complete`. The data say the opposite — ~5-7 % on NVLink
+under `device_total`, ~16 % here — and the two runs also differ in machine,
+commit and execution model, so a single-cause account is not available. The
+claim is only that the numbers are not comparable.
 
 **Verified** means recomputed from the raw record during the 2026-09-17
 session. **Carried** means the number is as written up at the time and was not
@@ -38,8 +40,10 @@ EPYC 7742 + 2 × A100-SXM4-80GB NV12 · 30 trials after 3 warm-ups.
 | NCCL async packed, 2 GPU | 3.707 ms | `nccl_async_g2_packed` | verified |
 | Headline speedup | 395.26× | serial ÷ nccl_sync_g2_packed | verified |
 
-**Boundary.** Steady state on one machine, excluding load, setup and H2D/D2H.
-Not a cold start and not an end-to-end recommendation latency.
+**Boundary.** One machine. Each trial is its own process measuring one
+batch's device stages, excluding load, setup and H2D/D2H. Not a cold start,
+not an end-to-end recommendation latency, and **not** the resident batch
+latency measured in the 2026-09-17 study.
 
 > ⚠ `engine/bench/headline_table.py` with no argument reads the **newest**
 > `bench_*.json`, which is `bench_20260906_044505.json` (390.64×) — a
@@ -107,6 +111,13 @@ Source records: `results/bench/architecture_formal_20260917/` · commit
 CUDA 12.4, NCCL 2.21.5, driver 580.126.20 · 30 paired blocks × 500 timed
 batches. **All verified in this session.**
 
+> ⚠ `git_sha`, `git_dirty` and `image_digest` are **null inside these JSON
+> records** — the pod received a `git archive` and had no `.git`. The version
+> link comes from `host_manifest.txt` and `binary_hash.txt` beside them, not
+> from the record itself. The pilot and formal runs are different builds and
+> are hashed separately. `run_bench.environment()` now falls back to a shipped
+> `GIT_SHA` file, but that fix post-dates these records.
+
 | Claim | item_full | user_full |
 | --- | --- | --- |
 | A — 1 GPU, pairs, f64 | 4.461 ms (IQR 0.030) | 3.064 ms (IQR 0.041) |
@@ -126,11 +137,17 @@ batches. **All verified in this session.**
   established on user_full and on all 30 item_full blocks, not established on
   the two settled item_full segments. Both are published; neither is chosen
   after the fact.
-* item_full segment 0 is campaign warm-up (C drifts +19.9 %, D +12.9 %, while
-  A and B move ≤0.2 %); user_full, run from sustained load, is flat to 2.5 %.
-* Four of 240 config-blocks carry host interference (medians 16–18 ms). They
-  are **kept**. Excluding them changes no conclusion and shrinks every effect:
-  item_full D/B 0.809 → 0.853, user_full D/B 0.749 → 0.794.
+* item_full segment 0 differs from its other two: C drifts +19.9 % and
+  D +12.9 % from segment 0 to segment 2, while A and B move ≤0.2 %. user_full,
+  run from sustained load, is flat to 2.5 %. A settling explanation fits both
+  and predicted the second, but **no clock or power trace was recorded**, so
+  the cause is not established. Segment 0 is part of the pre-registered
+  sample and stays in the main analysis.
+* Four of 240 config-blocks ran 5–6× slow (medians 16–18 ms). The cause was
+  not diagnosed; "interference" is a guess. They are **kept**. Excluding
+  blocks with any configuration above 10 ms changes no conclusion and shrinks
+  every effect: item_full D/B 0.809 → 0.853, user_full D/B 0.749 → 0.794.
+  Both the threshold and the exclusion were chosen after seeing the data.
 * `D/A` and `C/A` inherit A's clock bimodality — its median did not reproduce
   across processes in pre-flight (4.44 / 6.05 / 5.89 ms). Treat those two
   rows as weaker than the rest.
@@ -146,7 +163,20 @@ batches. **All verified in this session.**
 | non-finite outputs / goldens | 0 / 0 | verified |
 | retained-set mismatches | 0 | verified |
 | end-to-end RMSE vs archived Spark model | 0.8652 vs 0.8657 | carried |
+| compute-sanitizer, A and D (no NCCL init) | `ERROR SUMMARY: 0 errors` | verified |
+| compute-sanitizer, B and C | 94 reports, every one `cudaErrorPeerAccessAlreadyEnabled` (704) with a libnccl backtrace; target completed and passed validation | verified |
 
 **Boundary.** `max_abs_diff = 0` is **numeric equality, not a bitwise
 comparison**. No bit-exactness claim is derived from it. The only escape a
 numeric zero permits is +0.0 against −0.0; a bitwise check was not run.
+
+B and C are **not** "sanitizer clean with zero reports" — they have 94
+reports each, reclassified rather than absent. Two independent reasons
+support the reclassification: NCCL 2.21.5 explicitly handles and clears the
+duplicate-peer-access return code in `src/transport/p2p.cc`, and A and D,
+which never initialise NCCL, report zero on the same fixture and binary.
+
+Per-config detail in the JSON records is the **last** output slot's
+`max_abs_diff`; the other 499 slots are recorded as pass/fail booleans. So
+"all 120,000 batches passed the tolerance check" is supported; "all 120,000
+batches recorded a zero error" is not.

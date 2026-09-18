@@ -71,30 +71,39 @@ reported as one.
 
 | | D/B | C/B | D/C |
 | --- | --- | --- | --- |
-| item_full, segments 1+2 | **0.888** [0.841, 0.918] | 0.936 [0.864, 1.032] *n.e.* | 0.948 [0.879, 0.986] |
-| item_full, all 30 blocks | **0.809** [0.711, 0.901] | 0.840 [0.728, 0.957] | 0.963 [0.903, 1.016] *n.e.* |
-| user_full, all 30 blocks | **0.749** [0.648, 0.828] | 0.833 [0.726, 0.910] | 0.900 [0.861, 0.937] |
+| item_full, all 30 blocks — *pre-registered* | **0.809** [0.711, 0.901] | 0.840 [0.728, 0.957] | 0.963 [0.903, 1.016] *n.e.* |
+| user_full, all 30 blocks — *pre-registered* | **0.749** [0.648, 0.828] | 0.833 [0.726, 0.910] | 0.900 [0.861, 0.937] |
+| item_full, segments 1+2 only — *post-hoc, n=20* | 0.888 [0.841, 0.918] | 0.936 [0.864, 1.032] *n.e.* | 0.948 [0.879, 0.986] |
 
 *n.e.* = interval crosses 1, direction not established.
 
-**Splitting pairs is faster than splitting the rating dimension**, by 11 % to
-25 %, on every analysis of both workloads. Since both devices already hold
+**Splitting pairs gives lower full-batch latency than splitting the rating
+dimension**, by 19.1 % on item_full and 25.1 % on user_full relative to B in
+the pre-registered analysis (11.2 % in the post-hoc item_full subset). Faster
+on every analysis of both workloads. Since both devices already hold
 the whole input, the AllReduce the engine was built around buys nothing that
 the pair split does not get for free.
 
-**The compression result does not survive uniformly.** `C/B` is established
-on user_full and on all 30 item_full blocks, and not established on the two
-settled item_full segments. Both are reported. Which one is quoted cannot be
-chosen after seeing them.
+**Compression pays in the pre-registered analysis, but sensitively.** `C/B` is established
+in the pre-registered analysis of **both** workloads (`C/B` 0.840 and 0.833,
+both intervals below 1). It stops being established in a post-hoc subset of
+item_full that drops segment 0, leaving 20 blocks. The pre-registered result
+is the result; the subset says the item_full gain is sensitive to which time
+segments are used. Neither is quoted in place of the other.
 
-This does **not** contradict the README's compression figures, which are on
-`device_total`, where the AllReduce is a large share of a ~3.2 ms number.
-Here the metric includes the copy back to host, so the collective is a
-smaller fraction of it and a smaller gain is what the same mechanism predicts.
+This cannot be compared to the README's compression figures. Those are on
+`device_total`; this is on `resident_host_complete`, which additionally
+includes the copy back to host — and the two runs also differ in machine,
+commit and execution model. An earlier draft of this document explained the
+difference by the copy back alone, and predicted a *smaller* gain here. That
+was wrong in both direction and reasoning: the NVLink gain on `device_total`
+was ~5–7 %, and the gain measured here is ~16 %. No single-cause explanation
+is offered. The two bases are not comparable, and that is the whole claim.
 
-## Two measurement defects, both found before any formal data
+## Two measurement problems
 
-**Validation between batches cost 1.8×.** Validating each iteration inside the
+**Validation between batches cost 1.8×** — found in the pilot, fixed before
+any formal data was collected. Validating each iteration inside the
 timed loop left both GPUs idle ~5 ms per batch; the driver dropped the SM
 clock from 1410 MHz to ~795 MHz and every later batch ran 1.77× slower, as a
 clean step mid-run. `1410/795 = 1.77` matched the step for one GPU and for
@@ -102,11 +111,21 @@ two. Each iteration now writes to its own output slot and all slots are
 checked after the timed loop: identical coverage, no host work between
 batches. Clock locking is refused inside the container.
 
-**item_full's segment 0 is campaign warm-up.** Its two fastest configurations
-drift +19.9 % (C) and +12.9 % (D) from segment 0 to segment 2 while A and B
-move +0.1 % and +0.2 %. user_full ran immediately afterwards from 30 minutes
-of sustained load and is flat to within 2.5 % in every configuration — the
-prediction that explanation makes, which could have failed.
+**item_full's segment 0 differs from its other two** — found in the formal
+data, not before it. Segment 0 is part of the pre-registered sample and is
+kept in the main analysis. What is measured: C and D drift +19.9 % and
++12.9 % from segment 0 to segment 2, while A and B move +0.1 % and +0.2 %.
+user_full, run immediately afterwards from 30 minutes of sustained load, is
+flat to within 2.5 % in every configuration.
+
+A settling explanation — the GPUs not yet at a steady clock during the first
+ten blocks — is consistent with both observations and predicted the second
+before it was seen. It is **not confirmed**: no clock or power trace was
+recorded alongside these blocks, so other time-correlated causes are not
+excluded, and a later workload being stable does not establish the cause of
+an earlier one. Treat it as an open question with a leading hypothesis, and
+treat the segments 1+2 figures as a post-hoc sensitivity analysis rather than
+as a steady-state measurement.
 
 ## Correctness
 
@@ -120,13 +139,25 @@ golden. Across the whole matrix: **240 config-blocks, 120,000 timed batches,
 | both formal workloads × 4 configs | 8/8 |
 | 20 resident batches reused in one process, each validated | 4/4 |
 | combinations that must be refused (packed, bylen, async, warmup without resident) | 4/4 refused |
-| compute-sanitizer, A and D | 0 errors |
-| compute-sanitizer, B and C | 94, all `cudaErrorPeerAccessAlreadyEnabled` in libnccl bootstrap |
+| compute-sanitizer, A and D (no NCCL init) | `ERROR SUMMARY: 0 errors` |
+| compute-sanitizer, B and C (NCCL init) | **94 reports each**, every one `cudaErrorPeerAccessAlreadyEnabled` with a libnccl backtrace — reclassified, not absent |
 | host test suite on the pod | 13/13 |
 
-The sanitizer asymmetry is itself evidence: A and D never initialise NCCL, so
-their zero is what shows those 94 belong to NCCL rather than to this kernel —
-the same count the warp-packing campaign found, reproduced on a different pod.
+B and C are not "sanitizer clean with zero reports". They have 94 reports
+each, reclassified on two independent grounds: NCCL 2.21.5 handles and clears
+the duplicate-peer-access return code in `src/transport/p2p.cc`, and A and D
+— which never initialise NCCL — report zero on the same binary and fixture.
+Across all four logs the only error kind present is
+`cudaErrorPeerAccessAlreadyEnabled`. Verdicts, the exact command and a
+negative control (B without the allowance must fail, and does) are in
+`results/bench/architecture_pilot_20260917/sanitizer_recheck.txt`; the
+superseded `sanitizer_verdict.txt` is kept beside it with a note explaining
+why it says otherwise.
+
+Per-config detail in the formal records is the **last** output slot's
+`max_abs_diff`; the other 499 are recorded as pass/fail booleans. "All
+120,000 batches passed the tolerance check" is supported by these records;
+"all 120,000 recorded a zero error" is not.
 
 Fault injection (`engine/tests/`): the output checker rejects NaN, ±Inf into
 either side, short arrays, a swap that preserves the emitted count, and a
@@ -144,10 +175,14 @@ caught.
   and its median did not reproduce across processes in pre-flight
   (4.44 / 6.05 / 5.89 ms). `D/A` and `C/A` inherit that; `D/B` and `C/B` do
   not, since those configurations were stable.
-* **Four of 240 config-blocks show host interference** (medians 16–18 ms
-  against a ~3 ms typical, max 41 ms), hitting A and B. They are kept in the
-  headline analysis. Excluding them changes no conclusion and makes every
-  effect *smaller*: item_full D/B 0.809 → 0.853, user_full D/B 0.749 → 0.794.
+* **Four of 240 config-blocks ran 5–6× slow** (medians 16–18 ms against a
+  ~3 ms typical, max 41 ms), all in A or B. The cause was not diagnosed —
+  nothing external was being recorded at the time, so "host interference" is
+  a guess, not a finding. They are **kept** in the headline analysis.
+  Excluding blocks with any configuration above 10 ms changes no conclusion
+  and makes every effect *smaller*: item_full D/B 0.809 → 0.853, user_full
+  D/B 0.749 → 0.794. That threshold and that exclusion were both chosen after
+  seeing the data and are reported as such.
 * **`max_abs_diff = 0` is numeric equality, not a bitwise comparison.** No
   bit-exactness claim is made from it here.
 * **The collective sizes are representation sizes**, not measured link
@@ -155,6 +190,37 @@ caught.
   18,749,712 bytes per rank on item_full. No network counter was read.
 * Not tested: async mode, `bylen` ordering, i32, more than two GPUs, or any
   pair split other than a contiguous even division.
+
+## Checks the protocol asked for that were NOT run
+
+Listed because an unrun check is not a passed one, and none of these is a
+reason to doubt the results above.
+
+* **Timing-boundary perturbation.** `--resident-delay-in-band-ms` and
+  `--resident-delay-out-of-band-ms` exist and type-check in both build
+  variants, but no profiling build was run, so there is no *measured* record
+  that a known delay inside the timed region raises the metric and one
+  outside it does not. `results/bench/architecture_pilot_20260917/timing_boundary.txt`
+  says only that it needs a separate run. The boundary is verifiable by
+  reading the source; it has not been verified by perturbation.
+* **Per-iteration six-statistic read-back / poison test on the GPU path.**
+  What was validated every iteration is the final similarity. The six
+  statistics were not read back and compared per iteration, so the specific
+  failure mode of a reduced buffer being summed again on the next iteration
+  is argued from the source (the stats kernels overwrite rather than
+  accumulate) rather than demonstrated. The 20- and 500-batch reuse runs give
+  indirect evidence: a stale accumulation would change the similarities, and
+  it did not.
+* **Provenance inside the JSON.** `git_sha`, `git_dirty` and `image_digest`
+  are null in these formal records, because the pod received a `git archive`
+  and had no `.git`. The version link comes from `host_manifest.txt` and
+  `binary_hash.txt` beside them, not from the record itself. The pilot and
+  formal binaries are different builds and are hashed separately.
+* **Harness input hardening.** `architecture_ab.py` validates each record's
+  schema and shape but does not yet bind a record to the configuration it was
+  asked for, independently recompute the median it trusts, or refuse to call
+  an incomplete matrix formal. These records were checked separately and are
+  correct on all three counts; the gaps should close before the next run.
 
 ## Reproduction
 

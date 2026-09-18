@@ -3,8 +3,10 @@
 One recommender kernel — the Pearson correlation between two items' co-raters —
 extracted from an archived USC INF553 PySpark project, frozen behind a
 numerical contract, and re-implemented across **serial C++, OpenMP, MPI,
-single-GPU CUDA and two-GPU NCCL**, every backend validated bit-exact against
-the same golden similarities.
+single-GPU CUDA and two-GPU NCCL**, every backend checked against the same
+golden similarities: all values finite, agreement within 1e-12, and the
+retained set identical. That is a numerical-tolerance check, not a bitwise
+comparison.
 
 The question it studies: **when is it worth compressing what a collective
 sends?** The shape is familiar from data-parallel training — each GPU computes
@@ -61,15 +63,21 @@ All backends compute, for the same candidate pairs, the six sufficient
 statistics (n, Σx, Σy, Σx², Σy², Σxy) over the intersection of two rating
 rows, with pair-local means, minimum overlap 3, zero-variance ⇒ sim 0, an
 output filter `sim > 1e-14`, and absolute tolerance ≤ 1e-12 against the
-serial reference. Distributed backends (MPI, NCCL) partition the RATING
-DIMENSION and AllReduce partial six-stat tensors — pairs are never sharded.
+serial reference. Under the dimension split (MPI, and NCCL's default) the
+backends partition the RATING DIMENSION and AllReduce partial six-stat
+tensors, and no pair is ever split across devices. `--partition pair` divides
+the candidate pairs instead and runs no collective; each pair is still
+computed in one place, by one device.
 
 ## Results
 
 EPYC 7742 + 2x A100-SXM4-80GB (NV12), `item_full`, 30 trials after 3 warm-ups,
 round-robin with a per-round reshuffle, at commit `174bb1c` with the binaries'
-real defaults. Times are **steady state** (`device_total = stats + allreduce +
-finalize`; async reports `pipeline_total`), excluding load, setup and H2D/D2H.
+real defaults. Each trial is its own process measuring **one batch's device
+stages** (`device_total = stats + allreduce + finalize`; async reports
+`pipeline_total`), excluding load, setup and H2D/D2H. This is not the resident
+batch latency measured in the [work-division study](docs/architecture_ab_20260917.md),
+and the two are not comparable.
 
 | Backend | Median | Speedup vs same-machine serial |
 | --- | --- | --- |
@@ -122,7 +130,7 @@ the previous mapping, with no cold-path penalty. The sort adds another −16.39%
 
 - **Compression pays only when the collective is the bottleneck.** About 7% on
   NVLink, 55% on a host-staged PCIe link. Lossless by construction, so the
-  bit-exact contract survives it untouched. The three hosts ran comparable
+  tolerance contract survives it untouched. The three hosts ran comparable
   builds, not a verified identical one.
 - **Async overlap loses on a fast link**, and this corrects the project's
   original hypothesis. Overlap's ceiling is `min(compute, comm)/total`: it pays
@@ -135,12 +143,15 @@ the previous mapping, with no cold-path penalty. The sort adds another −16.39%
   established. That is written up rather than smoothed over.
 - **Splitting pairs beats splitting the rating dimension.** Both GPUs already
   hold the whole input, so a device can take half the *pairs* and finish them
-  with no collective at all. On a full resident batch that is 11-25% faster
-  than the dimension split this engine was built around, on both workloads
-  (`D/B` 0.749 [0.648, 0.828] on `user_full`). The compression study asks how
+  with no collective at all. On a full resident batch that is **19.1% and
+  25.1% lower latency** than the dimension split this engine was built around,
+  relative to B on `item_full` and `user_full` (`D/B` 0.809 [0.711, 0.901] and
+  0.749 [0.648, 0.828], 30 paired blocks each). The compression study asks how
   cheap the reduction can be; this asks whether it should be there. Under the
-  same metric the compression gain itself is established on one workload and
-  not on the other.
+  same metric compression still pays on both workloads in the pre-registered
+  30-block analysis (`C/B` 0.840 and 0.833); a post-hoc subset of `item_full`
+  no longer separates it from 1, so that gain is sensitive to which time
+  segments are used.
 - **Measurement is a first-class hazard here.** A benchmark that once looked
   16% faster turned out to be measuring the effect of ~490 ms of unrelated host
   work before the timed region. The audit document exists because several
@@ -184,7 +195,7 @@ export, benchmark sweeps, RMSE — is in
 | 2026-09-05 | **Warp packing implemented** — a sub-warp per pair instead of a warp. Default becomes `--group 4 --pair-order source`. The lane-slot model that motivated it does not explain it. | [warp packing](docs/warp_packing_experiment_20260905.md) |
 | 2026-09-06 | Headline re-measured on a clean SHA and **replicated on three independent hosts** (5.3% spread). A 16% shift traced to ~490 ms of diagnostic host work before the timed region; a pure-delay control refuted the explanation I first gave for it. Mechanism left open. | [warp packing §7b](docs/warp_packing_experiment_20260905.md) |
 | 2026-09-06 | README cut from 481 to 168 lines; reproduction steps split out; warp packing given a figure. | [reproduction](docs/reproduction.md) |
-| 2026-09-17 | **Work division measured against the dimension split.** Pair splitting wins by 11-25% on a resident batch; the validator is rebuilt so it can fail; a claim ledger pins every published number to its record and timing basis. | [work division](docs/architecture_ab_20260917.md) · [ledger](docs/claim_ledger_20260917.md) |
+| 2026-09-17 | **Work division measured against the dimension split.** Splitting pairs gives 19.1% / 25.1% lower resident-batch latency than splitting dimensions; the validator is rebuilt so it can fail; a claim ledger pins every published number to its record and timing basis. | [work division](docs/architecture_ab_20260917.md) · [ledger](docs/claim_ledger_20260917.md) |
 
 ## Documents
 
