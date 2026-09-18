@@ -133,6 +133,14 @@ the previous mapping, with no cold-path penalty. The sort adds another −16.39%
   controls** — the lane-slot model that motivated it, and the redundant-search
   explanation that replaced it. The gain is real and its cause is not
   established. That is written up rather than smoothed over.
+- **Splitting pairs beats splitting the rating dimension.** Both GPUs already
+  hold the whole input, so a device can take half the *pairs* and finish them
+  with no collective at all. On a full resident batch that is 11-25% faster
+  than the dimension split this engine was built around, on both workloads
+  (`D/B` 0.749 [0.648, 0.828] on `user_full`). The compression study asks how
+  cheap the reduction can be; this asks whether it should be there. Under the
+  same metric the compression gain itself is established on one workload and
+  not on the other.
 - **Measurement is a first-class hazard here.** A benchmark that once looked
   16% faster turned out to be measuring the effect of ~490 ms of unrelated host
   work before the timed region. The audit document exists because several
@@ -160,7 +168,8 @@ With GPUs (`-DENGINE_CUDA=ON -DENGINE_NCCL=ON`):
 ```
 
 `--payload f64|i32|packed`, `--mode sync|async`, `--group 1..32`,
-`--pair-order source|bylen`. Full reproduction — Spark baseline, fixture
+`--pair-order source|bylen`, `--partition dim|pair`,
+`--resident-bench --warmup N --repeat N`. Full reproduction — Spark baseline, fixture
 export, benchmark sweeps, RMSE — is in
 **[docs/reproduction.md](docs/reproduction.md)**.
 
@@ -175,6 +184,7 @@ export, benchmark sweeps, RMSE — is in
 | 2026-09-05 | **Warp packing implemented** — a sub-warp per pair instead of a warp. Default becomes `--group 4 --pair-order source`. The lane-slot model that motivated it does not explain it. | [warp packing](docs/warp_packing_experiment_20260905.md) |
 | 2026-09-06 | Headline re-measured on a clean SHA and **replicated on three independent hosts** (5.3% spread). A 16% shift traced to ~490 ms of diagnostic host work before the timed region; a pure-delay control refuted the explanation I first gave for it. Mechanism left open. | [warp packing §7b](docs/warp_packing_experiment_20260905.md) |
 | 2026-09-06 | README cut from 481 to 168 lines; reproduction steps split out; warp packing given a figure. | [reproduction](docs/reproduction.md) |
+| 2026-09-17 | **Work division measured against the dimension split.** Pair splitting wins by 11-25% on a resident batch; the validator is rebuilt so it can fail; a claim ledger pins every published number to its record and timing basis. | [work division](docs/architecture_ab_20260917.md) · [ledger](docs/claim_ledger_20260917.md) |
 
 ## Documents
 
@@ -184,5 +194,7 @@ export, benchmark sweeps, RMSE — is in
 | [docs/analysis.md](docs/analysis.md) | Mechanism: overlap roofline, Nsight traces, per-link regimes |
 | [docs/measurement_audit_20260905.md](docs/measurement_audit_20260905.md) | What several published numbers actually meant, and the campaign that fixed them |
 | [docs/warp_packing_experiment_20260905.md](docs/warp_packing_experiment_20260905.md) | Warp packing: correctness ladder, paired intervals, two falsified mechanisms |
+| [docs/architecture_ab_20260917.md](docs/architecture_ab_20260917.md) | Pairs or dimensions: the four-way comparison, and two measurement defects it caught |
+| [docs/claim_ledger_20260917.md](docs/claim_ledger_20260917.md) | Every published number, its record, its timing basis, and where it stops |
 | [docs/reproduction.md](docs/reproduction.md) | Step-by-step reproduction from the raw corpus |
 | [engine/README.md](engine/README.md) | Build options, correctness gates, defaults |
