@@ -65,13 +65,17 @@ cmake -S engine -B engine/build -DENGINE_OPENMP=ON \
 ## Status
 
 **Correctness gates** (unchanged in kind since 2026-08-26; the counts below are
-the 2026-09-06 ladder at commit `cfb8993`, which also sweeps the lane mapping):
+the 2026-09-06 ladder at commit `cfb8993`, which also sweeps the lane mapping).
+The 2026-09-17 work-division ladder is separate and covers the pair-split path:
+48 pair-count boundary gates, 8 full-workload gates, 4 reuse gates, 4 refused
+combinations, and compute-sanitizer on all four configurations — see
+[docs/architecture_ab_20260917.md](../docs/architecture_ab_20260917.md):
 
 | Backend | Gate | Result |
 | ------- | ---- | ------ |
 | serial  | microcases + 4 fixtures vs golden | max abs diff 0.0 |
-| openmp  | bit-identical at 1/2/4/8/16 threads, static+dynamic | pass |
-| mpi     | invariant at 1/2/4/8 ranks vs golden and each other | pass, bit-identical |
+| openmp  | invariant at 1/2/4/8/16 threads, static+dynamic | pass; pairs are independent, so the thread count cannot change any summation order |
+| mpi     | invariant at 1/2/4/8 ranks vs golden and each other | pass at `max_abs_diff = 0.0`; bitwise identity is expected for the reason in the note below, but was not separately checked |
 | cuda    | 5 fixtures x 6 group sizes x 2 orderings x 2 hoist settings | 120 gates, all `max_abs_diff = 0.0` |
 | cuda    | output byte-compared against the baseline mapping | 24 gates, 24 identical |
 | nccl    | 1 and 2 GPU x f64/i32/packed x every mapping | 88 gates, all within the 1e-12 tolerance |
@@ -87,10 +91,19 @@ warp-packing analysis in
 The table that used to sit here was measured on a 2026-08-26 laptop against the
 pre-warp-packing default and is superseded on both counts.
 
-**Defaults** are `--group 4 --pair-order source` for both GPU binaries since
-`1abc477`; `--pair-order bylen` is the resident-engine opt-in, and
+**Defaults** are `--group 4 --pair-order source --partition dim` for both GPU
+binaries; `--group`/`--pair-order` since `1abc477`, `--partition` since
+2026-09-17. `--pair-order bylen` is the resident-engine opt-in, and
 `--plan-metrics on` enables the lane-plan diagnostics, which are off by default
 because they cost far more than the kernel they describe.
+
+`--partition pair` gives each device a disjoint run of pairs and runs no
+collective. It requires `--mode sync --payload f64 --pair-order source` and
+refuses anything else: each device's results come back as a contiguous window,
+which is only valid while the order is the identity.
+`--resident-bench --warmup N --repeat N` sets up once and times N complete
+batches in-process, reporting `resident_host_complete_ms` — a different timing
+basis from `device_total`, and not comparable to it.
 
 MPI note: contiguous dimension ranges summed in rank order reproduce the
 serial ascending-dim summation order exactly, so the same roundings happen in
