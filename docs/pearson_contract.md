@@ -201,14 +201,36 @@ a tolerance.
 
 ### 9.4 Domain gate
 
-`check_payload_domain()` refuses `i32` and `packed` up front unless
+`check_payload_domain()` refuses, up front, on two levels.
+
+**Every payload, `f64` included:** every rating must be finite. A non-finite
+rating is outside the contract for all backends, and `pearson_finalize`'s
+zero-variance branch can turn an abnormal intermediate into a clean 0.0, so a
+finite output is not evidence of a finite input.
+
+**`i32` and `packed` additionally require:**
 
 1. every rating is a non-negative integer, and
-2. `vmax² · N` fits the field width (2²¹−1 packed, 2³¹−1 for i32).
+2. all three capacity bounds fit the field width `L` (2²¹−1 packed, 2³¹−1 for
+   i32), checked separately rather than through one that is assumed to imply
+   the others:
+
+| bound | covers |
+| --- | --- |
+| `N ≤ L` | `n` |
+| `vmax · N ≤ L` | `Σx`, `Σy` |
+| `vmax² · N ≤ L` | `Σx²`, `Σy²`, `Σxy` |
+
+Only the last was checked until 2026-09-17. For `vmax ≥ 1` it dominates the
+other two, which is why the gap went unnoticed; at `vmax = 0` it collapses to
+`0 ≤ L` and accepts a rating row of any length with `n` unbounded. For integer
+ratings only two can ever fire first — `n` at `vmax = 0`, the second moment
+otherwise — and the `Σx` bound is stated so a reader need not re-derive that
+it is implied.
 
 A silently overflowed field would corrupt the sum while every backend still
 agreed with itself, so this is checked rather than assumed. Fixtures outside
-the domain must use `--payload f64`, which carries no such precondition.
+the domain must use `--payload f64`, which carries no capacity precondition.
 
 ### 9.5 Verification
 

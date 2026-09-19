@@ -104,10 +104,10 @@ def latency_figure(data, out_path):
         ax.set_title(f"{fixture}  ({n_pairs:,} pairs)", fontsize=11)
         ax.set_ylabel("full batch latency (ms), median of 500")
         # Log scale, because four of the 240 config-blocks ran 5-6x slow and a
-        # linear axis spends two thirds of its height on them. They are host
-        # interference, not a property of any configuration -- kept in the
-        # figure and in the analysis, since dropping them only makes every
-        # effect smaller.
+        # linear axis spends two thirds of its height on them. Their cause was
+        # not diagnosed -- nothing external was being recorded at the time --
+        # so they are marked rather than explained, and kept in the figure and
+        # in the analysis, since dropping them only makes every effect smaller.
         ax.set_yscale("log")
         ax.set_yticks([2, 3, 4, 5, 7, 10, 15, 20])
         ax.get_yaxis().set_major_formatter(
@@ -123,12 +123,16 @@ def latency_figure(data, out_path):
     handles.append(plt.Line2D([], [], color="#222", lw=1.6,
                               label="median of 30 blocks"))
     handles.append(plt.Line2D([], [], marker="o", ls="", mfc="none", mew=1.6,
-                              color="#444", label="host interference (4 of 240)"))
-    axes[0].legend(handles=handles, fontsize=8, loc="upper right", framealpha=0.95)
+                              color="#444",
+                              label="slower config-blocks, cause undiagnosed (4 of 240)"))
+    # Below the axes, not inside them: the legend box sat on top of one of the
+    # marked blocks in the left panel.
+    fig.legend(handles=handles, fontsize=8, ncol=5, loc="lower center",
+               bbox_to_anchor=(0.5, 0.075), frameon=False)
     fig.suptitle("Full batch latency by work division, every block shown",
                  fontsize=12.5, y=0.99)
-    fig.text(0.5, 0.015, SCOPE, ha="center", fontsize=7.4, color="#555")
-    fig.tight_layout(rect=[0, 0.085, 1, 0.96])
+    fig.text(0.5, 0.012, SCOPE, ha="center", fontsize=7.4, color="#555")
+    fig.tight_layout(rect=[0, 0.155, 1, 0.96])
     fig.savefig(out_path, dpi=170)
     print(f"wrote {out_path}")
 

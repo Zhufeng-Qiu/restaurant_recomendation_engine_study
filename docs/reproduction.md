@@ -101,18 +101,32 @@ The work-division matrix is a separate harness, on a different timing basis
 (`resident_host_complete`, which includes the copy back to host):
 
 ```bash
+OUT=results/bench/architecture_formal_$(date +%Y%m%d)
+mkdir -p "$OUT"
+
+# Pilot first. --pilot does NOT choose a separate file: give it its own --out,
+# or it overwrites the formal record with three blocks of non-formal data.
+python3 engine/bench/architecture_ab.py run \
+    --binary engine/build/pearson_engine_nccl --fixture data/fixtures/item_full \
+    --out "$OUT/pilot_item_full.json" --pilot 3 --warmup 20 --repeat 20
+python3 engine/bench/architecture_ab.py analyze "$OUT/pilot_item_full.json"
+
+# Formal matrix, only once the pilot parses and the times are plausible.
 for fx in item_full user_full; do
   python3 engine/bench/architecture_ab.py run \
       --binary engine/build/pearson_engine_nccl --fixture data/fixtures/$fx \
-      --out results/bench/architecture_formal_<stamp>/formal_$fx.json \
+      --out "$OUT/formal_$fx.json" \
       --warmup 50 --repeat 500 --segment-pause 180 --seed 20260917
-  python3 engine/bench/architecture_ab.py analyze <that file>
+  python3 engine/bench/architecture_ab.py analyze "$OUT/formal_$fx.json"
 done
-.venv/bin/python engine/bench/make_architecture_figures.py
+
+# The figure script takes the directory. With no argument it reads the
+# 2026-09-17 records, so a new run would be analysed and then plotted from
+# somebody else's data.
+.venv/bin/python engine/bench/make_architecture_figures.py "$OUT"
 ```
 
-Run `--pilot 3` first: it writes to its own file and is labelled not formal
-data. See [architecture_ab_20260917.md](architecture_ab_20260917.md).
+See [architecture_ab_20260917.md](architecture_ab_20260917.md).
 
 ### 4. End-to-end RMSE (native similarities → Python prediction)
 

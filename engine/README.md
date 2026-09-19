@@ -91,9 +91,11 @@ warp-packing analysis in
 The table that used to sit here was measured on a 2026-08-26 laptop against the
 pre-warp-packing default and is superseded on both counts.
 
-**Defaults** are `--group 4 --pair-order source --partition dim` for both GPU
-binaries; `--group`/`--pair-order` since `1abc477`, `--partition` since
-2026-09-17. `--pair-order bylen` is the resident-engine opt-in, and
+**Defaults** are `--group 4 --pair-order source` for both GPU binaries since
+`1abc477`, and `--partition dim` for `pearson_engine_nccl` since 2026-09-17.
+`--partition` and `--resident-bench` exist **only** on `pearson_engine_nccl`;
+the `pearson_engine --backend cuda` entry point rejects them with
+`unknown arg`. `--pair-order bylen` is the resident-engine opt-in, and
 `--plan-metrics on` enables the lane-plan diagnostics, which are off by default
 because they cost far more than the kernel they describe.
 
@@ -105,12 +107,21 @@ which is only valid while the order is the identity.
 batches in-process, reporting `resident_host_complete_ms` — a different timing
 basis from `device_total`, and not comparable to it.
 
-MPI note: contiguous dimension ranges summed in rank order reproduce the
-serial ascending-dim summation order exactly, so the same roundings happen in
-the same sequence and partition invariance should hold bitwise, not merely
-within tolerance. What the gates actually measure is `max_abs_diff = 0.0`,
-which is numeric equality; for doubles that permits exactly one distinct pair
-of bit patterns, +0.0 against -0.0. No bitwise comparison was run.
+MPI note: the gates measure `max_abs_diff = 0.0` across 1/2/4/8 ranks. That
+is an observation on this data, not a general floating-point guarantee, and an
+earlier version of this note got the reason wrong. Splitting a sum into
+contiguous ranges and reducing the partials does **not** reproduce the serial
+addition order — it regroups it, and floating-point addition is not
+associative; on random fractional values of wide magnitude the regrouped sum
+differs from the serial one in about two thirds of trials.
+
+Zero difference holds here because the six statistics are **exact integers**
+under the shipped fixtures' 1-5 star ratings: the worst is 34,075 against
+2^53, so every partial sum is exactly representable and no rounding happens
+for the grouping to affect. Expect the invariance to survive only while that
+is true. `max_abs_diff = 0.0` is also numeric equality rather than a bitwise
+comparison; for doubles it permits exactly one distinct pair of bit patterns,
++0.0 against -0.0.
 
 ## End-to-end RMSE check (2026-08-26)
 

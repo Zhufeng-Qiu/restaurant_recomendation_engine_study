@@ -213,7 +213,11 @@ reason to doubt the results above.
   The reuse runs are **weaker evidence than they look**. Pearson is invariant
   under a uniform positive scaling of all six statistics: multiply
   `(n, Σx, Σy, Σxx, Σyy, Σxy)` by `k` and both numerator and denominator scale
-  by `k²`, leaving the similarity bit-for-bit unchanged. A stale buffer summed
+  by `k²`, so the similarity is **mathematically unchanged**. In floating point
+  the output may come back identical or differ in the last place, since the
+  intermediate roundings are not the same; either way it stays far inside the
+  1e-12 tolerance, and staying inside the tolerance is what defeats the check.
+  A stale buffer summed
   again on the next iteration is exactly that kind of uniform scaling. So the
   20- and 500-batch reuse runs establish that the final similarities are
   correct every iteration; they cannot exclude a proportional inflation of the
