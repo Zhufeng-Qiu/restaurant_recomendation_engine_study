@@ -1,0 +1,32 @@
+Internal ctest changing into directory: /root/engine_repo/engine/build
+Test project /root/engine_repo/engine/build
+      Start  1: microcases
+ 1/13 Test  #1: microcases .......................   Passed    0.00 sec
+      Start  2: cuda_emulation
+ 2/13 Test  #2: cuda_emulation ...................   Passed    2.65 sec
+      Start  3: timing_contract
+ 3/13 Test  #3: timing_contract ..................   Passed    0.01 sec
+      Start  4: pair_plan
+ 4/13 Test  #4: pair_plan ........................   Passed    0.01 sec
+      Start  5: bench_check_output_selftest
+ 5/13 Test  #5: bench_check_output_selftest ......   Passed    0.02 sec
+      Start  6: bench_check_sanitizer_selftest
+ 6/13 Test  #6: bench_check_sanitizer_selftest ...   Passed    0.02 sec
+      Start  7: bench_architecture_ab_selftest
+ 7/13 Test  #7: bench_architecture_ab_selftest ...   Passed    0.05 sec
+      Start  8: bench_timing_selftest
+ 8/13 Test  #8: bench_timing_selftest ............   Passed    1.08 sec
+      Start  9: result_check
+ 9/13 Test  #9: result_check .....................   Passed    0.00 sec
+      Start 10: pair_partition
+10/13 Test #10: pair_partition ...................   Passed    0.00 sec
+      Start 11: cuda_syntax
+11/13 Test #11: cuda_syntax ......................   Passed    2.21 sec
+      Start 12: fault_injection_e2e
+12/13 Test #12: fault_injection_e2e ..............   Passed    0.13 sec
+      Start 13: payload_domain
+13/13 Test #13: payload_domain ...................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 13
+
+Total Test time (real) =   6.21 sec

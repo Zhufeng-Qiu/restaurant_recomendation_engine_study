@@ -161,9 +161,13 @@ n <= N          Σx, Σy <= vmax·N          Σx², Σy², Σxy <= vmax²·N
 For `item_full` (`N = 1363`, `vmax = 5`): the loosest bound is 34,075, which
 needs 16 bits. The tensor is being carried in 384 bits per pair.
 
-Because the partition is over the rating dimension `D`, a field's cross-GPU
-sum **is** the global total, so these bounds hold for the reduced result as
-well as for each partial.
+Because the dimension partition splits `D`, a field's cross-GPU sum **is**
+the global total, so these bounds hold for the reduced result as well as for
+each partial. This is what makes summing the packed words valid, and it is a
+property of that partition specifically. Under `--partition pair` there is no
+cross-GPU sum at all — each device computes its own pairs over the full
+dimension range — so the compressed payloads have nothing to carry, and that
+combination is refused rather than silently ignored.
 
 ### 9.2 The three representations
 
@@ -197,14 +201,36 @@ a tolerance.
 
 ### 9.4 Domain gate
 
-`check_payload_domain()` refuses `i32` and `packed` up front unless
+`check_payload_domain()` refuses, up front, on two levels.
+
+**Every payload, `f64` included:** every rating must be finite. A non-finite
+rating is outside the contract for all backends, and `pearson_finalize`'s
+zero-variance branch can turn an abnormal intermediate into a clean 0.0, so a
+finite output is not evidence of a finite input.
+
+**`i32` and `packed` additionally require:**
 
 1. every rating is a non-negative integer, and
-2. `vmax² · N` fits the field width (2²¹−1 packed, 2³¹−1 for i32).
+2. all three capacity bounds fit the field width `L` (2²¹−1 packed, 2³¹−1 for
+   i32), checked separately rather than through one that is assumed to imply
+   the others:
+
+| bound | covers |
+| --- | --- |
+| `N ≤ L` | `n` |
+| `vmax · N ≤ L` | `Σx`, `Σy` |
+| `vmax² · N ≤ L` | `Σx²`, `Σy²`, `Σxy` |
+
+Only the last was checked until 2026-09-17. For `vmax ≥ 1` it dominates the
+other two, which is why the gap went unnoticed; at `vmax = 0` it collapses to
+`0 ≤ L` and accepts a rating row of any length with `n` unbounded. For integer
+ratings only two can ever fire first — `n` at `vmax = 0`, the second moment
+otherwise — and the `Σx` bound is stated so a reader need not re-derive that
+it is implied.
 
 A silently overflowed field would corrupt the sum while every backend still
 agreed with itself, so this is checked rather than assumed. Fixtures outside
-the domain must use `--payload f64`, which carries no such precondition.
+the domain must use `--payload f64`, which carries no capacity precondition.
 
 ### 9.5 Verification
 
@@ -261,16 +287,31 @@ construction. `tools/make_domain_fixtures.py` writes five synthetic fixtures to
 | `packed_overflow` | 2²¹−1 capacity | accept | accept | reject |
 | `i32_overflow` | 2³¹−1 capacity | accept | reject | reject |
 
-15 checks, 7 rejections. Each fixture is also a valid workload — the serial
-oracle reproduces all five goldens at `max_abs_diff = 0.0` — so the gate is
-exercised on well-formed input, not on data that would fail for other reasons.
+15 fixture checks, 7 rejections. Each fixture is also a valid workload — the
+serial oracle reproduces all five goldens at `max_abs_diff = 0.0` — so the gate
+is exercised on well-formed input, not on data that would fail for other
+reasons.
 
-The predicate is now host-compilable at `engine/src/common/payload_domain.hpp`,
+Extended on 2026-09-17 to **39 checks** in total. The capacity decision is now
+a pure function of `(max_row, vmax)`, which is what makes the boundary
+testable: 12 cases at `L−1`, `L` and `L+1` for both field widths, including
+`vmax = 0`, where the old single bound `vmax²·max_row ≤ L` collapsed to
+`0 ≤ L` and accepted a rating row of any length with `n` unbounded. The three
+bounds are now stated separately, one per group of statistics. A further 12
+checks inject NaN, +Inf and −Inf into a rating and require rejection on every
+payload including `f64`, with a finite control that must still be accepted — a
+non-finite rating is outside the contract for all backends, and
+`pearson_finalize`'s zero-variance branch can turn an abnormal intermediate
+into a clean 0.0, so a finite output is not evidence of a finite input.
+
+The predicate is host-compilable at `engine/src/common/payload_domain.hpp`,
 deriving its field width from `engine_cuda::kPackBits` so it cannot drift from
-§9.2. `src/nccl/nccl_main.cu` keeps its own throwing copy.
+§9.2. `src/nccl/nccl_main.cu` calls it and only turns the verdict into an
+exception; the duplicate copy it used to carry is gone, and so is the stale
+note in the header that described the merge as future work.
 
-The two were first checked against each other on an A100 host: all five
-fixtures x `i32`/`packed`, **10/10 identical verdicts**. That run also found a
+While the two copies still existed they were checked against each other on an
+A100 host: all five fixtures x `i32`/`packed`, **10/10 identical verdicts**. That run also found a
 defect in how the copy refused — the exception escaped `main`, so a refused
 payload terminated on `SIGABRT` (exit 134, core dumped) with
 `terminate called after throwing...` wrapping the message. §9.4's guarantee
@@ -280,5 +321,7 @@ the exit path was wrong.
 Both are now resolved. `nccl_main.cu` calls this header rather than carrying a
 duplicate, and it and `main.cpp` wrap their body in an exception boundary, so
 a refused payload exits **2** with `error: <reason>` on stderr. Re-verified on
-2x A100-SXM4-80GB after the change: all 18 NCCL gates bit-exact at unchanged
-emitted counts, single-GPU CUDA unchanged, and no timing regression.
+2x A100-SXM4-80GB after the change: all 18 NCCL gates passed at
+`tol_failures=0` with unchanged emitted counts, single-GPU CUDA unchanged, and
+no timing regression. Those gates are 1e-12 numerical comparisons; no bitwise
+comparison was run.

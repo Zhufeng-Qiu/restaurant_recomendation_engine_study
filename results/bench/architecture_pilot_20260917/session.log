@@ -1,0 +1,109 @@
+
+=== provenance ===
+date=2026-09-17T21:53:30+00:00
+host=61f89b84a8e6
+git_sha=6bdd3c0937c3d0b3ab3898e923d827efa1a2e07c
+git_dirty=0
+nvcc=12.4
+driver=580.126.20
+0, NVIDIA A100-SXM4-80GB, GPU-ac601ba4-a5cc-b0d2-31db-2d98ea75f570
+1, NVIDIA A100-SXM4-80GB, GPU-9da0cae1-c255-d398-11ae-cf8ae0091449
+--- topology ---
+	[4mGPU0	GPU1	NIC0	NIC1	NIC2	NIC3	CPU Affinity	NUMA Affinity	GPU NUMA ID[0m
+GPU0	 X 	NV12	SYS	SYS	NODE	NODE	64-127,192-255	1		N/A
+GPU1	NV12	 X 	SYS	SYS	NODE	NODE	64-127,192-255	1		N/A
+NIC0	SYS	SYS	 X 	PIX	SYS	SYS				
+NIC1	SYS	SYS	PIX	 X 	SYS	SYS				
+NIC2	NODE	NODE	SYS	SYS	 X 	PIX				
+NIC3	NODE	NODE	SYS	SYS	PIX	 X 				
+
+--- nccl ---
+/usr/lib/x86_64-linux-gnu/libnccl.so.2.21.5
+
+=== build ===
+built: 1472784 bytes
+33c20d997530ebc9e8f5ad389f0db2ef5b0bc7f3c96dddb61f086da58b3b3cc3  engine/build/pearson_engine_nccl
+5e9dbc693c6ec276ba9452c6464cbe6b1411b6432887f578d0db90d7a282f1a2  engine/build/pearson_engine
+
+=== host test suite ===
+ctest: 13 passed
+
+=== correctness: pair-count boundaries (every config, every N) ===
+  N=1 A (gpus=1 pair f64)                                   ok
+  N=1 B (gpus=2 dim f64)                                    ok
+  N=1 C (gpus=2 dim packed)                                 ok
+  N=1 D (gpus=2 pair f64)                                   ok
+  N=2 A (gpus=1 pair f64)                                   ok
+  N=2 B (gpus=2 dim f64)                                    ok
+  N=2 C (gpus=2 dim packed)                                 ok
+  N=2 D (gpus=2 pair f64)                                   ok
+  N=3 A (gpus=1 pair f64)                                   ok
+  N=3 B (gpus=2 dim f64)                                    ok
+  N=3 C (gpus=2 dim packed)                                 ok
+  N=3 D (gpus=2 pair f64)                                   ok
+  N=63 A (gpus=1 pair f64)                                  ok
+  N=63 B (gpus=2 dim f64)                                   ok
+  N=63 C (gpus=2 dim packed)                                ok
+  N=63 D (gpus=2 pair f64)                                  ok
+  N=64 A (gpus=1 pair f64)                                  ok
+  N=64 B (gpus=2 dim f64)                                   ok
+  N=64 C (gpus=2 dim packed)                                ok
+  N=64 D (gpus=2 pair f64)                                  ok
+  N=65 A (gpus=1 pair f64)                                  ok
+  N=65 B (gpus=2 dim f64)                                   ok
+  N=65 C (gpus=2 dim packed)                                ok
+  N=65 D (gpus=2 pair f64)                                  ok
+  N=127 A (gpus=1 pair f64)                                 ok
+  N=127 B (gpus=2 dim f64)                                  ok
+  N=127 C (gpus=2 dim packed)                               ok
+  N=127 D (gpus=2 pair f64)                                 ok
+  N=128 A (gpus=1 pair f64)                                 ok
+  N=128 B (gpus=2 dim f64)                                  ok
+  N=128 C (gpus=2 dim packed)                               ok
+  N=128 D (gpus=2 pair f64)                                 ok
+  N=129 A (gpus=1 pair f64)                                 ok
+  N=129 B (gpus=2 dim f64)                                  ok
+  N=129 C (gpus=2 dim packed)                               ok
+  N=129 D (gpus=2 pair f64)                                 ok
+  N=511 A (gpus=1 pair f64)                                 ok
+  N=511 B (gpus=2 dim f64)                                  ok
+  N=511 C (gpus=2 dim packed)                               ok
+  N=511 D (gpus=2 pair f64)                                 ok
+  N=512 A (gpus=1 pair f64)                                 ok
+  N=512 B (gpus=2 dim f64)                                  ok
+  N=512 C (gpus=2 dim packed)                               ok
+  N=512 D (gpus=2 pair f64)                                 ok
+  N=513 A (gpus=1 pair f64)                                 ok
+  N=513 B (gpus=2 dim f64)                                  ok
+  N=513 C (gpus=2 dim packed)                               ok
+  N=513 D (gpus=2 pair f64)                                 ok
+
+=== correctness: full workloads (every config) ===
+  item_full A                                               ok
+  item_full B                                               ok
+  item_full C                                               ok
+  item_full D                                               ok
+  user_full A                                               ok
+  user_full B                                               ok
+  user_full C                                               ok
+  user_full D                                               ok
+
+=== correctness: repeat/reuse stress (20 batches in one process, each validated) ===
+  reuse x20 A                                               ok
+  reuse x20 B                                               ok
+  reuse x20 C                                               ok
+  reuse x20 D                                               ok
+
+=== memory check (compute-sanitizer, tiny, the two pair-split configs) ===
+  sanitizer A                                               FAIL
+  sanitizer D                                               FAIL
+
+=== refusals (the combinations that must not run) ===
+  refuses: --partition pair --payload packed                ok
+  refuses: --partition pair --pair-order bylen              ok
+  refuses: --partition pair --mode async                    ok
+  refuses: --warmup 5                                       ok
+
+=== timing boundary (profiling build, delay in band vs out of band) ===
+
+=== STOPPING: 2 correctness failures -- no pilot data will be collected ===

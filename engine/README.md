@@ -65,17 +65,21 @@ cmake -S engine -B engine/build -DENGINE_OPENMP=ON \
 ## Status
 
 **Correctness gates** (unchanged in kind since 2026-08-26; the counts below are
-the 2026-09-06 ladder at commit `cfb8993`, which also sweeps the lane mapping):
+the 2026-09-06 ladder at commit `cfb8993`, which also sweeps the lane mapping).
+The 2026-09-17 work-division ladder is separate and covers the pair-split path:
+48 pair-count boundary gates, 8 full-workload gates, 4 reuse gates, 4 refused
+combinations, and compute-sanitizer on all four configurations — see
+[docs/architecture_ab_20260917.md](../docs/architecture_ab_20260917.md):
 
 | Backend | Gate | Result |
 | ------- | ---- | ------ |
 | serial  | microcases + 4 fixtures vs golden | max abs diff 0.0 |
-| openmp  | bit-identical at 1/2/4/8/16 threads, static+dynamic | pass |
-| mpi     | invariant at 1/2/4/8 ranks vs golden and each other | pass, bit-identical |
+| openmp  | invariant at 1/2/4/8/16 threads, static+dynamic | pass; pairs are independent, so the thread count cannot change any summation order |
+| mpi     | invariant at 1/2/4/8 ranks vs golden and each other | pass at `max_abs_diff = 0.0`; bitwise identity is expected for the reason in the note below, but was not separately checked |
 | cuda    | 5 fixtures x 6 group sizes x 2 orderings x 2 hoist settings | 120 gates, all `max_abs_diff = 0.0` |
 | cuda    | output byte-compared against the baseline mapping | 24 gates, 24 identical |
-| nccl    | 1 and 2 GPU x f64/i32/packed x every mapping | 88 gates, all bit-exact |
-| nccl    | async at chunk 16384 / 262144 / 100003 x `comm`/`separate` | 12 gates, all bit-exact |
+| nccl    | 1 and 2 GPU x f64/i32/packed x every mapping | 88 gates, all within the 1e-12 tolerance |
+| nccl    | async at chunk 16384 / 262144 / 100003 x `comm`/`separate` | 12 gates, all within the 1e-12 tolerance |
 | cli     | invalid group/order/hoist/mode/gpus/chunk, unknown flag, missing value | 13 rejected, 0 accepted |
 | sanitizer | `compute-sanitizer memcheck`, CUDA and NCCL | no memory errors |
 
@@ -88,13 +92,36 @@ The table that used to sit here was measured on a 2026-08-26 laptop against the
 pre-warp-packing default and is superseded on both counts.
 
 **Defaults** are `--group 4 --pair-order source` for both GPU binaries since
-`1abc477`; `--pair-order bylen` is the resident-engine opt-in, and
+`1abc477`, and `--partition dim` for `pearson_engine_nccl` since 2026-09-17.
+`--partition` and `--resident-bench` exist **only** on `pearson_engine_nccl`;
+the `pearson_engine --backend cuda` entry point rejects them with
+`unknown arg`. `--pair-order bylen` is the resident-engine opt-in, and
 `--plan-metrics on` enables the lane-plan diagnostics, which are off by default
 because they cost far more than the kernel they describe.
 
-MPI note: contiguous dimension ranges summed in rank order reproduce the
-serial ascending-dim summation order exactly, which is why partition
-invariance is bit-exact rather than merely within tolerance.
+`--partition pair` gives each device a disjoint run of pairs and runs no
+collective. It requires `--mode sync --payload f64 --pair-order source` and
+refuses anything else: each device's results come back as a contiguous window,
+which is only valid while the order is the identity.
+`--resident-bench --warmup N --repeat N` sets up once and times N complete
+batches in-process, reporting `resident_host_complete_ms` — a different timing
+basis from `device_total`, and not comparable to it.
+
+MPI note: the gates measure `max_abs_diff = 0.0` across 1/2/4/8 ranks. That
+is an observation on this data, not a general floating-point guarantee, and an
+earlier version of this note got the reason wrong. Splitting a sum into
+contiguous ranges and reducing the partials does **not** reproduce the serial
+addition order — it regroups it, and floating-point addition is not
+associative; on random fractional values of wide magnitude the regrouped sum
+differs from the serial one in about two thirds of trials.
+
+Zero difference holds here because the six statistics are **exact integers**
+under the shipped fixtures' 1-5 star ratings: the worst is 34,075 against
+2^53, so every partial sum is exactly representable and no rounding happens
+for the grouping to affect. Expect the invariance to survive only while that
+is true. `max_abs_diff = 0.0` is also numeric equality rather than a bitwise
+comparison; for doubles it permits exactly one distinct pair of bit patterns,
++0.0 against -0.0.
 
 ## End-to-end RMSE check (2026-08-26)
 

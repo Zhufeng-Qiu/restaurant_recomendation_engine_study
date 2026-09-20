@@ -403,9 +403,10 @@ The trace above left an asymmetry unexplained: GPU0 hid 0.2% of its collective
 while GPU1 hid 55%, on identical work. The one structural difference is that
 GPU0 also runs `finalize_kernel` — and it ran it on `comm`, the same stream
 carrying the collective. `--finalize-stream separate` gives it its own stream,
-chained to the collective by an event so the ordering is untouched. It is
-bit-exact at every chunk size from 16k to 524k pairs, which is where the
-earlier double-buffering race surfaced.
+chained to the collective by an event so the ordering is untouched. It
+passes the tolerance gate (`tol_failures=0`) at every chunk size from 16k to
+524k pairs, which is where the earlier double-buffering race surfaced. That
+gate is a 1e-12 numerical comparison, not a bitwise one.
 
 | PCIe, `async packed`, GPU0 | collective | compute | overlapped | compute hidden |
 | --- | --- | --- | --- | --- |

@@ -619,8 +619,11 @@ while the collective is elementwise.
 
 Against the gates fixed before the numbers were seen:
 
-* **Correctness gate — passed.** Every check in §2, no memory errors, all three
-  payloads bit-exact, output order preserved.
+* **Correctness gate — passed.** Every check in §2, no memory errors, all
+  three payloads at `tol_failures=0`, output order preserved. The only bitwise
+  check in that ladder is the 24-gate byte comparison of CUDA output against
+  the `g32/source` reference; the payload gates are 1e-12 numerical
+  comparisons.
 * **Effect gate — passed, far above the 3% bar.** The chosen default beats the
   pre-packing binary by 11.43% [−11.84, −11.02] on `item_full` and the phase-3
   mapping by 17.59% and 42.23% on the two real fixtures. The opt-in `bylen`

@@ -1,0 +1,14 @@
+# SUPERSEDED -- KEPT AS THE RECORD OF A HARNESS MISTAKE.
+#
+# Everything below is the output of check_sanitizer.py called with the log
+# path as an ARGUMENT. The checker reads stdin, so it judged an empty
+# string and said the sanitizer never printed a summary. That is the
+# correct answer to the question it was asked, and the behaviour it exists
+# for: it refuses to pass a run it has not seen. The logs themselves are
+# fine. See sanitizer_recheck.txt for the corrected verdicts, the command
+# that produces them, and a negative control.
+#
+  sanitizer never printed its ERROR SUMMARY -- it did not complete, so nothing was proved
+  target produced no validated summary JSON -- it did not run to completion under the sanitizer
+  sanitizer never printed its ERROR SUMMARY -- it did not complete, so nothing was proved
+  target produced no validated summary JSON -- it did not run to completion under the sanitizer

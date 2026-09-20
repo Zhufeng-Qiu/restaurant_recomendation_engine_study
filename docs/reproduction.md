@@ -89,6 +89,45 @@ python3 engine/bench/run_bench.py                    # add --gpu on a GPU host
 .venv/bin/python engine/bench/make_figures.py results/bench/bench_<stamp>.json
 ```
 
+`headline_table.py` regenerates the README's backend table, but with no
+argument it reads the **newest** bench JSON. Name the file to reproduce a
+published table:
+
+```bash
+python3 engine/bench/headline_table.py results/bench/bench_20260906_044118.json
+```
+
+The work-division matrix is a separate harness, on a different timing basis
+(`resident_host_complete`, which includes the copy back to host):
+
+```bash
+OUT=results/bench/architecture_formal_$(date +%Y%m%d)
+mkdir -p "$OUT"
+
+# Pilot first. --pilot does NOT choose a separate file: give it its own --out,
+# or it overwrites the formal record with three blocks of non-formal data.
+python3 engine/bench/architecture_ab.py run \
+    --binary engine/build/pearson_engine_nccl --fixture data/fixtures/item_full \
+    --out "$OUT/pilot_item_full.json" --pilot 3 --warmup 20 --repeat 20
+python3 engine/bench/architecture_ab.py analyze "$OUT/pilot_item_full.json"
+
+# Formal matrix, only once the pilot parses and the times are plausible.
+for fx in item_full user_full; do
+  python3 engine/bench/architecture_ab.py run \
+      --binary engine/build/pearson_engine_nccl --fixture data/fixtures/$fx \
+      --out "$OUT/formal_$fx.json" \
+      --warmup 50 --repeat 500 --segment-pause 180 --seed 20260917
+  python3 engine/bench/architecture_ab.py analyze "$OUT/formal_$fx.json"
+done
+
+# The figure script takes the directory. With no argument it reads the
+# 2026-09-17 records, so a new run would be analysed and then plotted from
+# somebody else's data.
+.venv/bin/python engine/bench/make_architecture_figures.py "$OUT"
+```
+
+See [architecture_ab_20260917.md](architecture_ab_20260917.md).
+
 ### 4. End-to-end RMSE (native similarities → Python prediction)
 
 ```bash
@@ -117,9 +156,22 @@ for c in 32768 65536 131072 262144 524288; do
   engine/build/pearson_engine_nccl data/fixtures/item_full \
       --gpus 2 --mode async --chunk $c --validate
 done
+# the pair split: disjoint pairs per device, no collective
+python3 tools/make_prefix_fixtures.py data/fixtures/item_tiny
+for n in 1 2 3 63 64 65 127 128 129 511 512 513; do
+  engine/build/pearson_engine_nccl data/fixtures/item_tiny_n$n \
+      --gpus 2 --partition pair --payload f64 --validate
+done
+engine/build/pearson_engine_nccl data/fixtures/item_full \
+    --gpus 2 --partition pair --payload f64 --validate
 ```
 
-Every run must report `max_abs_diff = 0` and `tol_failures = 0`. The async
-chunk sweep is not optional: the double-buffering race below only surfaced
-below 262144 pairs per chunk. Benchmarks come after.
+Every run must report `validation_passed: true`, `tol_failures: 0`,
+`nonfinite_output: 0`, `nonfinite_golden: 0` and `emitted_mismatches: 0`, and
+exit 0. `max_abs_diff` should be `0.000e+00`, but note that a zero there is
+numeric equality, not a bitwise comparison. The async chunk sweep is not
+optional: the double-buffering race below only surfaced under 262144 pairs
+per chunk. The pair-count prefixes exist because the shipped fixtures all
+have six-figure pair counts and contain none of the boundaries the pair split
+can get wrong. Benchmarks come after.
 

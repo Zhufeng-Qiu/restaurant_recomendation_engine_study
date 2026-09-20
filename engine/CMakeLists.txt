@@ -135,12 +135,49 @@ add_test(NAME pair_plan COMMAND pair_plan_test)
 # 30-round matrix had finished measuring and before anything was written.
 find_program(PYTHON3 python3)
 if(PYTHON3)
-  foreach(_check check_output check_sanitizer)
+  foreach(_check check_output check_sanitizer architecture_ab)
     add_test(NAME bench_${_check}_selftest
              COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/bench/${_check}.py --selftest)
   endforeach()
   add_test(NAME bench_timing_selftest
            COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/bench/run_bench.py --selftest)
+endif()
+
+# Fault injection for the shared output validator. The check it replaced could
+# not see a NaN, so an all-NaN run exited 0 with max_abs_diff 0.000e+00; this
+# test reconstructs that check and proves it passes where the new one fails.
+# Header-only, no fixtures, no GPU.
+add_executable(result_check_test tests/result_check_test.cpp)
+target_link_libraries(result_check_test PRIVATE engine_common)
+add_test(NAME result_check COMMAND result_check_test)
+
+# Work division on both axes, and the index arithmetic on the way back out.
+# The write path is replayed on the host -- including the three wrong
+# implementations -- because a global-vs-local index confusion produces
+# plausible-looking similarities and is expensive to find on a rented GPU.
+add_executable(pair_partition_test tests/pair_partition_test.cpp)
+target_link_libraries(pair_partition_test PRIVATE engine_common)
+add_test(NAME pair_partition COMMAND pair_partition_test)
+
+# Type-check the .cu sources without a CUDA toolkit. nccl_main.cu produced
+# every published GPU number and keeps being edited on a machine that cannot
+# compile it; this catches the defect class that has actually shipped from
+# that (a printf whose arguments did not match its format) before a GPU is
+# rented. It proves nothing about device semantics -- see cuda_stubs/README.md.
+if(PYTHON3)
+  add_test(NAME cuda_syntax
+           COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cuda_syntax_check.py
+                   ${CMAKE_CURRENT_SOURCE_DIR}/src)
+endif()
+
+# The same injections against the real binary: exit code and printed JSON,
+# not just the decision function. A gate whose verdict never reaches the
+# process exit status is not a gate.
+if(PYTHON3)
+  add_test(NAME fault_injection_e2e
+           COMMAND ${PYTHON3} ${CMAKE_CURRENT_SOURCE_DIR}/tests/fault_injection_e2e.py
+                   $<TARGET_FILE:pearson_engine>
+                   ${CMAKE_CURRENT_SOURCE_DIR}/../data/fixtures/item_tiny)
 endif()
 
 # Compressed-payload domain gate (contract 9.4). The shipped fixtures are all

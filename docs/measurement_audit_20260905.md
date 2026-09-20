@@ -116,6 +116,11 @@ oracle reproduces their goldens at `max_abs_diff = 0.0`. The predicate now
 sits in [`engine/src/common/payload_domain.hpp`](../engine/src/common/payload_domain.hpp),
 host-compilable, taking its field width from `engine_cuda::kPackMaxField`.
 
+> Those counts are this audit's, on 2026-09-05. The gate was extended to 39
+> checks on 2026-09-17 after a hole was found in it: the single capacity bound
+> `vmax²·max_row ≤ L` is vacuous at `vmax = 0`. See
+> [pearson_contract.md §9.4](pearson_contract.md).
+
 The A100 run that first exercised this found the gate refusing correctly but
 doing it by letting the exception escape `main`, so the process died on
 `SIGABRT` (exit 134, core dumped) with the message buried under
@@ -129,7 +134,8 @@ shared predicate instead of carrying a second copy:
 | valid workload | exit 0 | exit 0 |
 
 Re-verified on 2x A100-SXM4-80GB after the change: **all 18 NCCL gates still
-bit-exact** at unchanged emitted counts (557,478 / 634,993), single-GPU CUDA
+pass at `tol_failures=0`** with unchanged emitted counts (557,478 / 634,993),
+single-GPU CUDA
 unchanged on all three fixtures, and no timing regression — `sync f64`
 4.137 ms and `sync packed` 3.933 ms against the 4.122 / 3.928 ms measured
 before it.
@@ -137,7 +143,8 @@ before it.
 ### Three interconnect regimes, re-measured at 30 trials
 
 Re-run on fresh pods at `--repeats 30 --warmups 3`, every configuration
-bit-exact. `run_bench.py` now records `n_trials`, `iqr_s`, `p25_s`, `p75_s`.
+passing its tolerance gate. `run_bench.py` now records `n_trials`, `iqr_s`,
+`p25_s`, `p75_s`.
 The new PCIe host reports `SYS` topology with **P2P available** — a different
 machine from the archived `PHB`/no-P2P pod, and the middle point
 [docs/analysis.md](analysis.md) said was missing.
@@ -270,7 +277,7 @@ The PCIe traces showed GPU0 hiding 0.2% of its collective while GPU1 hid 55%
 on identical work. The only structural difference is that GPU0 also runs the
 finalize kernel — on its **communication stream**. `--finalize-stream separate`
 moves it onto its own stream, chained to the collective by an event so ordering
-is unchanged; bit-exact at every chunk size from 16k to 524k pairs.
+is unchanged; `tol_failures=0` at every chunk size from 16k to 524k pairs.
 
 **The mechanism is measured and unambiguous**, because it comes from the trace
 rather than from a wall-clock median:

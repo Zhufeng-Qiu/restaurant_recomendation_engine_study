@@ -333,6 +333,15 @@ def environment():
         q, period = quota.split()[:2]
         env["cpu_quota_equivalents"] = round(int(q) / int(period), 2)
     env["git_sha"] = _cmd(["git", "rev-parse", "HEAD"])
+    # A run on a machine that received a `git archive` rather than a clone has
+    # no .git at all, and recorded git_sha: null -- which is the one field that
+    # ties a measurement to the source it came from. Fall back to a GIT_SHA
+    # file shipped beside the tree, and say which of the two it is.
+    if not env["git_sha"]:
+        env["git_sha"] = _read("GIT_SHA") or None
+        env["git_sha_source"] = "GIT_SHA file" if env["git_sha"] else "unavailable"
+    else:
+        env["git_sha_source"] = "git rev-parse"
     dirty = _cmd(["git", "status", "--porcelain"])
     env["git_dirty"] = bool(dirty) if dirty is not None else None
     # Split, because "dirty" alone is unreadable: a pod always carries
