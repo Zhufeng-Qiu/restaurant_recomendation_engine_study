@@ -214,10 +214,11 @@ reason to doubt the results above.
   under a uniform positive scaling of all six statistics: multiply
   `(n, Σx, Σy, Σxx, Σyy, Σxy)` by `k` and both numerator and denominator scale
   by `k²`, so the similarity is **mathematically unchanged**. In floating point
-  the output may come back identical or differ in the last place, since the
-  intermediate roundings are not the same; either way it stays far inside the
-  1e-12 tolerance, and staying inside the tolerance is what defeats the check.
-  A stale buffer summed
+  the output may come back identical, or land within the 1e-12 tolerance, since
+  the intermediate roundings are not the same — no claim is made that it always
+  does, and near-zero variance is exactly where it might not. That is enough:
+  an error of this shape can pass a tolerance check, so passing one does not
+  exclude it. A stale buffer summed
   again on the next iteration is exactly that kind of uniform scaling. So the
   20- and 500-batch reuse runs establish that the final similarities are
   correct every iteration; they cannot exclude a proportional inflation of the
